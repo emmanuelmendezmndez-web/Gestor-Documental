@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block contenido %}
+{% from "_iconos.html" import icono_archivo %}
+
+<section class="panel ficha">
+    <a href="/" class="enlace-volver">← Volver a la biblioteca</a>
+
+    <div class="ficha-encabezado">
+        {{ icono_archivo(documento["nombre_archivo"], 56) }}
+        <div>
+            <h2>{{ documento["titulo"] }}</h2>
+            <p class="nota">{{ tipo_archivo }}</p>
+        </div>
+    </div>
+
+    {% if not disponible %}
+    <div class="ficha-alerta" role="alert">
+        El archivo ya no se encuentra en el almacenamiento, por lo que no se puede descargar.
+        Los datos del registro siguen disponibles.
+    </div>
+    {% endif %}
+
+    <dl class="ficha-datos">
+        <div>
+            <dt>Archivo</dt>
+            <dd>{{ documento["nombre_archivo"] }}</dd>
+        </div>
+        <div>
+            <dt>Categoría</dt>
+            <dd>{{ documento["categoria"] }}</dd>
+        </div>
+        <div>
+            <dt>Número de oficio</dt>
+            <dd>{{ documento["numero_oficio"] or "—" }}</dd>
+        </div>
+        <div>
+            <dt>Departamento</dt>
+            <dd>{{ documento["departamento"] or "—" }}</dd>
+        </div>
+        <div>
+            <dt>Autor</dt>
+            <dd>{{ documento["autor"] or "—" }}</dd>
+        </div>
+        <div>
+            <dt>Fecha del documento</dt>
+            <dd>{{ documento["fecha_documento"] or "—" }}</dd>
+        </div>
+        <div>
+            <dt>Tamaño</dt>
+            <dd>{{ tamano }}</dd>
+        </div>
+        <div>
+            <dt>Fecha de registro</dt>
+            <dd>{{ documento["fecha_subida"] }}</dd>
+        </div>
+        <div>
+            <dt>N.º de registro interno</dt>
+            <dd>{{ documento["id"] }}</dd>
+        </div>
+    </dl>
+
+    <h3>Descripción</h3>
+    {% if documento["descripcion"] %}
+    <p class="descripcion">{{ documento["descripcion"] }}</p>
+    {% else %}
+    <p class="nota">Este documento no tiene descripción.</p>
+    {% endif %}
+
+    <div class="ficha-acciones">
+        {% if disponible and puede("descargar") %}
+        <a href="/documentos/{{ documento['id'] }}/descargar" class="boton-descargar boton-con-texto">
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
+                <path
+                    d="M12 3v12m0 0-5-5m5 5 5-5M5 21h14"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                />
+            </svg>
+            <span>Descargar</span>
+        </a>
+        {% endif %}
+
+        {% if puede("editar") %}
+        <a href="/documentos/{{ documento['id'] }}/editar" class="boton-editar boton-con-texto">
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
+                <path
+                    d="M4 20h4L20 8l-4-4L4 16zM14 6l4 4"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                />
+            </svg>
+            <span>Editar datos</span>
+        </a>
+        {% endif %}
+
+        {% if puede("eliminar") %}
+        <a href="/documentos/{{ documento['id'] }}/eliminar" class="boton-eliminar boton-con-texto">
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
+                <path
+                    d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                />
+            </svg>
+            <span>Eliminar</span>
+        </a>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

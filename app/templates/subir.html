@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block contenido %}
+<section class="panel">
+    <h2>Subir documento</h2>
+    <p>Completa los datos y selecciona un archivo. Solo el título, la categoría y el archivo son obligatorios.</p>
+
+    <form action="/subir" method="post" enctype="multipart/form-data">
+        <div class="campo">
+            <label for="titulo">Título del documento</label>
+            <input type="text" id="titulo" name="titulo" maxlength="200" required>
+        </div>
+
+        <div class="campo">
+            <label for="categoria">Categoría</label>
+            <select id="categoria" name="categoria" required>
+                <option value="">Selecciona una categoría</option>
+                {% for cat in categorias %}
+                <option value="{{ cat }}">{{ cat }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="campo">
+            <label for="numero_oficio">Número de oficio (opcional)</label>
+            <input type="text" id="numero_oficio" name="numero_oficio" maxlength="60" placeholder="Por ejemplo: OF-123/2026">
+        </div>
+
+        <div class="campo">
+            <label for="departamento">Departamento (opcional)</label>
+            <select id="departamento" name="departamento">
+                <option value="">Sin departamento</option>
+                {% for dep in departamentos %}
+                <option value="{{ dep }}">{{ dep }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="campo">
+            <label for="fecha_documento">Fecha del documento (opcional)</label>
+            <input type="date" id="fecha_documento" name="fecha_documento">
+            <p class="nota">La fecha que lleva el documento, no la de hoy. Si la dejas vacía, se usa la fecha de registro.</p>
+        </div>
+
+        <div class="campo">
+            <label for="autor">Autor (opcional)</label>
+            <input type="text" id="autor" name="autor" maxlength="100" value="{{ usuario['nombre'] }}">
+            <p class="nota">Quien redactó o firma el documento. Aparece con tu nombre, pero puedes cambiarlo.</p>
+        </div>
+
+        <div class="campo">
+            <label for="descripcion">Descripción (opcional)</label>
+            <textarea id="descripcion" name="descripcion" rows="3" maxlength="2000"></textarea>
+        </div>
+
+        <div class="campo">
+            <label for="archivo">Archivo</label>
+            <input
+                type="file"
+                id="archivo"
+                name="archivo"
+                accept=".pdf,.docx,.xlsx,.txt,.png,.jpg,.jpeg"
+                required
+            >
+            <p class="nota">Formatos permitidos: PDF, DOCX, XLSX, TXT, PNG y JPG. Máximo 20 MB.</p>
+        </div>
+
+        <button type="submit">Subir documento</button>
+    </form>
+</section>
+{% endblock %}

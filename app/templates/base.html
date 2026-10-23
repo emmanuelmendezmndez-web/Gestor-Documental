@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block titulo %}{{ titulo }}{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}?v=6">
+</head>
+<body>
+    <header>
+        <h1>{{ titulo }}</h1>
+        <p>Centro de administración de documentos</p>
+
+        {% if usuario %}
+        <nav class="pestanas" aria-label="Secciones">
+            <a href="/" {% if pagina == "biblioteca" %}aria-current="page"{% endif %}>Biblioteca</a>
+            {% if puede("subir") %}
+            <a href="/subir" {% if pagina == "subir" %}aria-current="page"{% endif %}>Subir documento</a>
+            {% endif %}
+            {% if puede("usuarios") %}
+            <a href="/usuarios" {% if pagina == "usuarios" %}aria-current="page"{% endif %}>Usuarios</a>
+            {% endif %}
+            {% if puede("actividad") %}
+            <a href="/actividad" {% if pagina == "actividad" %}aria-current="page"{% endif %}>Actividad</a>
+            {% endif %}
+
+            <div class="sesion">
+                <a
+                    href="/cuenta"
+                    class="sesion-usuario"
+                    title="Mi cuenta"
+                    {% if pagina == "cuenta" %}aria-current="page"{% endif %}
+                >{{ usuario["nombre"] }} · {{ usuario["rol_nombre"] }}</a>
+                <form action="/salir" method="post">
+                    <button type="submit" class="boton-sesion">Cerrar sesión</button>
+                </form>
+            </div>
+        </nav>
+        {% endif %}
+    </header>
+
+    <main>
+        {% if mensaje %}
+        <div class="panel aviso {{ tipo }}" role="{{ 'alert' if tipo == 'error' else 'status' }}">
+            {{ mensaje }}
+        </div>
+        {% endif %}
+
+        {% block contenido %}{% endblock %}
+    </main>
+
+    <footer>
+        Todos los derechos reservados &copy; 2026
+    </footer>
+</body>
+</html>

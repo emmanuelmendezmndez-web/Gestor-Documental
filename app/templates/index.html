@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+
+{% block contenido %}
+{% from "_iconos.html" import icono_archivo %}
+
+<section class="panel">
+    <h2>Biblioteca de documentos</h2>
+
+    <form action="/" method="get" class="filtros-biblioteca">
+        <div class="busqueda">
+            <div>
+                <label for="buscar">Buscar documento</label>
+                <input
+                    type="search"
+                    id="buscar"
+                    name="buscar"
+                    placeholder="Título, archivo o descripción"
+                    maxlength="200"
+                    value="{{ filtros['buscar'] }}"
+                >
+            </div>
+
+            <div>
+                <label for="filtro-categoria">Categoría</label>
+                <select id="filtro-categoria" name="categoria">
+                    <option value="">Todas las categorías</option>
+                    {% for cat in categorias %}
+                    <option value="{{ cat }}" {% if filtros["categoria"] == cat %}selected{% endif %}>{{ cat }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label for="filtro-orden">Ordenar por</label>
+                <select id="filtro-orden" name="orden">
+                    {% for clave, nombre in ordenes %}
+                    <option value="{{ clave }}" {% if filtros["orden"] == clave %}selected{% endif %}>{{ nombre }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="acciones-busqueda">
+                <button type="submit">Buscar</button>
+                <a href="/" class="boton-secundario">Limpiar filtros</a>
+            </div>
+        </div>
+
+        <details class="avanzada" {% if avanzada_activa %}open{% endif %}>
+            <summary>Búsqueda avanzada</summary>
+
+            <div class="busqueda">
+                <div>
+                    <label for="filtro-oficio">Número de oficio</label>
+                    <input
+                        type="text"
+                        id="filtro-oficio"
+                        name="oficio"
+                        maxlength="60"
+                        placeholder="Por ejemplo: 123/2026"
+                        value="{{ filtros['oficio'] }}"
+                    >
+                </div>
+
+                <div>
+                    <label for="filtro-departamento">Departamento</label>
+                    <select id="filtro-departamento" name="departamento">
+                        <option value="">Todos los departamentos</option>
+                        {% for dep in departamentos %}
+                        <option value="{{ dep }}" {% if filtros["departamento"] == dep %}selected{% endif %}>{{ dep }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div>
+                    <label for="filtro-autor">Autor</label>
+                    <input
+                        type="text"
+                        id="filtro-autor"
+                        name="autor"
+                        maxlength="100"
+                        value="{{ filtros['autor'] }}"
+                    >
+                </div>
+
+                <div>
+                    <label for="filtro-desde">Fecha desde</label>
+                    <input type="date" id="filtro-desde" name="desde" value="{{ filtros['desde'] }}">
+                </div>
+
+                <div>
+                    <label for="filtro-hasta">Fecha hasta</label>
+                    <input type="date" id="filtro-hasta" name="hasta" value="{{ filtros['hasta'] }}">
+                </div>
+            </div>
+        </details>
+    </form>
+
+    {% if documentos %}
+    <p class="resumen-resultados">
+        {{ total }} documento{{ "" if total == 1 else "s" }}{% if hay_filtros %} con esos filtros{% endif %}.
+    </p>
+
+    <div class="tabla-scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th scope="col">Título</th>
+                    <th scope="col">Archivo</th>
+                    <th scope="col">Categoría</th>
+                    <th scope="col">Fecha</th>
+                    <th scope="col">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for documento in documentos %}
+                <tr>
+                    <td>
+                        <a href="/documentos/{{ documento['id'] }}" class="enlace-titulo">{{ documento["titulo"] }}</a>
+                        {% if documento["numero_oficio"] or documento["departamento"] %}
+                        <span class="subtexto">
+                            {% if documento["numero_oficio"] %}Of. {{ documento["numero_oficio"] }}{% endif %}
+                            {% if documento["numero_oficio"] and documento["departamento"] %} · {% endif %}
+                            {% if documento["departamento"] %}{{ documento["departamento"] }}{% endif %}
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="archivo">
+                            {{ icono_archivo(documento["nombre_archivo"]) }}
+                            <span>{{ documento["nombre_archivo"] }}</span>
+                        </span>
+                    </td>
+                    <td>{{ documento["categoria"] }}</td>
+                    <td>
+                        {{ documento["fecha_efectiva"] }}
+                        {% if not documento["fecha_documento"] %}
+                        <span class="subtexto">fecha de registro</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="acciones">
+                            <a
+                                href="/documentos/{{ documento['id'] }}"
+                                class="boton-ver"
+                                aria-label="Ver ficha de {{ documento['titulo'] }}"
+                                title="Ver ficha"
+                            >
+                                <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
+                                    <path
+                                        d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2.2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                    />
+                                    <circle
+                                        cx="12"
+                                        cy="12"
+                                        r="3"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2.2"
+                                    />
+                                </svg>
+                            </a>
+
+                            {% if puede("editar") %}
+                            <a
+                                href="/documentos/{{ documento['id'] }}/editar"
+                                class="boton-editar"
+                                aria-label="Editar {{ documento['titulo'] }}"
+                                title="Editar"
+                            >
+                                <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
+                                    <path
+                                        d="M4 20h4L20 8l-4-4L4 16zM14 6l4 4"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2.2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                    />
+                                </svg>
+                            </a>
+                            {% endif %}
+
+                            {% if puede("descargar") %}
+                            <a
+                                href="/documentos/{{ documento['id'] }}/descargar"
+                                class="boton-descargar"
+                                aria-label="Descargar {{ documento['nombre_archivo'] }}"
+                                title="Descargar"
+                            >
+                                <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
+                                    <path
+                                        d="M12 3v12m0 0-5-5m5 5 5-5M5 21h14"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                    />
+                                </svg>
+                            </a>
+                            {% endif %}
+
+                            {% if puede("eliminar") %}
+                            <a
+                                href="/documentos/{{ documento['id'] }}/eliminar"
+                                class="boton-eliminar"
+                                aria-label="Eliminar {{ documento['titulo'] }}"
+                                title="Eliminar"
+                            >
+                                <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
+                                    <path
+                                        d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2.2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                    />
+                                </svg>
+                            </a>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if total_paginas > 1 %}
+    <nav class="paginacion" aria-label="Paginación">
+        {% if enlace_anterior %}
+        <a href="{{ enlace_anterior }}" class="boton-secundario">← Anterior</a>
+        {% endif %}
+        <span>Página {{ pagina_actual }} de {{ total_paginas }}</span>
+        {% if enlace_siguiente %}
+        <a href="{{ enlace_siguiente }}" class="boton-secundario">Siguiente →</a>
+        {% endif %}
+    </nav>
+    {% endif %}
+    {% else %}
+    <p>
+        {% if hay_filtros %}
+        No se encontraron documentos con esos filtros.
+        {% else %}
+        Todavía no hay documentos registrados.
+        {% if puede("subir") %}<a href="/subir">Sube el primero</a>.{% endif %}
+        {% endif %}
+    </p>
+    {% endif %}
+</section>
+{% endblock %}

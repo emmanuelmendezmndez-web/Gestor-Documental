@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block contenido %}
+<section class="panel">
+    <h2>Usuarios</h2>
+    <p class="nota">Aquí se administran las cuentas y lo que puede hacer cada una.</p>
+
+    <div class="tabla-scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th scope="col">Usuario</th>
+                    <th scope="col">Nombre</th>
+                    <th scope="col">Rol</th>
+                    <th scope="col">Estado</th>
+                    <th scope="col">Creado</th>
+                    <th scope="col">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in usuarios %}
+                <tr>
+                    <td>
+                        <strong>{{ u["usuario"] }}</strong>
+                        {% if u["id"] == usuario["id"] %}<span class="etiqueta">Tú</span>{% endif %}
+                    </td>
+                    <td>{{ u["nombre"] }}</td>
+                    <td>{{ nombres_rol[u["rol"]] }}</td>
+                    <td>
+                        {% if u["activo"] %}
+                        <span class="etiqueta activo">Activo</span>
+                        {% else %}
+                        <span class="etiqueta inactivo">Desactivado</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ u["fecha_creacion"] }}</td>
+                    <td>
+                        <div class="acciones">
+                            <a
+                                href="/usuarios/{{ u['id'] }}/editar"
+                                class="boton-editar"
+                                aria-label="Editar usuario {{ u['usuario'] }}"
+                                title="Editar"
+                            >
+                                <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
+                                    <path
+                                        d="M4 20h4L20 8l-4-4L4 16zM14 6l4 4"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2.2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                    />
+                                </svg>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="panel">
+    <h2>Crear usuario</h2>
+
+    <form action="/usuarios" method="post">
+        <div class="campo">
+            <label for="nuevo-usuario">Usuario</label>
+            <input
+                type="text"
+                id="nuevo-usuario"
+                name="usuario"
+                maxlength="50"
+                pattern="[A-Za-z0-9._-]{3,50}"
+                title="De 3 a 50 caracteres: letras, números, punto, guion o guion bajo"
+                autocomplete="off"
+                required
+            >
+            <p class="nota">Con él iniciará sesión. De 3 a 50 caracteres: letras, números, punto, guion o guion bajo.</p>
+        </div>
+
+        <div class="campo">
+            <label for="nuevo-nombre">Nombre completo</label>
+            <input type="text" id="nuevo-nombre" name="nombre" maxlength="100" autocomplete="off" required>
+        </div>
+
+        <div class="campo">
+            <label for="nuevo-rol">Rol</label>
+            <select id="nuevo-rol" name="rol" required>
+                {% for valor, etiqueta in roles %}
+                <option value="{{ valor }}">{{ etiqueta }}</option>
+                {% endfor %}
+            </select>
+            <p class="nota">
+                Lector: ver y descargar. Editor: además subir y editar.
+                Administrador: además eliminar y gestionar usuarios.
+            </p>
+        </div>
+
+        <div class="campo">
+            <label for="nuevo-password">Contraseña</label>
+            <input
+                type="password"
+                id="nuevo-password"
+                name="password"
+                minlength="{{ password_minimo }}"
+                maxlength="200"
+                autocomplete="new-password"
+                required
+            >
+            <p class="nota">Mínimo {{ password_minimo }} caracteres.</p>
+        </div>
+
+        <div class="campo">
+            <label for="nuevo-confirmacion">Repite la contraseña</label>
+            <input
+                type="password"
+                id="nuevo-confirmacion"
+                name="confirmacion"
+                minlength="{{ password_minimo }}"
+                maxlength="200"
+                autocomplete="new-password"
+                required
+            >
+        </div>
+
+        <button type="submit">Crear usuario</button>
+    </form>
+</section>
+{% endblock %}

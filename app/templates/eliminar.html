@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block contenido %}
+{% from "_iconos.html" import icono_archivo %}
+
+<section class="panel ficha confirmacion">
+    <h2>¿Eliminar este documento?</h2>
+
+    <div class="ficha-alerta" role="alert">
+        Esta acción no se puede deshacer. Se borrarán el registro y el archivo guardado.
+    </div>
+
+    <div class="ficha-encabezado">
+        {{ icono_archivo(documento["nombre_archivo"], 48) }}
+        <div>
+            <h3>{{ documento["titulo"] }}</h3>
+            <p class="nota">{{ documento["nombre_archivo"] }}</p>
+        </div>
+    </div>
+
+    <dl class="ficha-datos">
+        <div>
+            <dt>Categoría</dt>
+            <dd>{{ documento["categoria"] }}</dd>
+        </div>
+        <div>
+            <dt>Tamaño</dt>
+            <dd>{{ tamano }}</dd>
+        </div>
+        <div>
+            <dt>Fecha de registro</dt>
+            <dd>{{ documento["fecha_subida"] }}</dd>
+        </div>
+    </dl>
+
+    <form action="/documentos/{{ documento['id'] }}/eliminar" method="post">
+        <div class="acciones-formulario">
+            <button type="submit" class="boton-peligro">Sí, eliminar definitivamente</button>
+            <a href="/documentos/{{ documento['id'] }}" class="boton-secundario">Cancelar</a>
+        </div>
+    </form>
+</section>
+{% endblock %}

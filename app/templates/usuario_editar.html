@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block contenido %}
+<section class="panel">
+    <a href="/usuarios" class="enlace-volver">← Volver a usuarios</a>
+
+    <h2>Editar usuario: {{ editado["usuario"] }}</h2>
+    <p class="nota">
+        Creado el {{ editado["fecha_creacion"] }} ·
+        {% if editado["activo"] %}
+        <span class="etiqueta activo">Activo</span>
+        {% else %}
+        <span class="etiqueta inactivo">Desactivado</span>
+        {% endif %}
+    </p>
+    <p class="nota">El nombre de usuario no se puede cambiar.</p>
+
+    <form action="/usuarios/{{ editado['id'] }}/editar" method="post">
+        <div class="campo">
+            <label for="nombre">Nombre completo</label>
+            <input type="text" id="nombre" name="nombre" maxlength="100" value="{{ editado['nombre'] }}" required>
+        </div>
+
+        <div class="campo">
+            <label for="rol">Rol</label>
+            <select id="rol" name="rol" {% if es_propio %}disabled{% endif %}>
+                {% for valor, etiqueta in roles %}
+                <option value="{{ valor }}" {% if valor == editado["rol"] %}selected{% endif %}>{{ etiqueta }}</option>
+                {% endfor %}
+            </select>
+            {% if es_propio %}
+            <input type="hidden" name="rol" value="{{ editado['rol'] }}">
+            <p class="nota">No puedes cambiar tu propio rol.</p>
+            {% endif %}
+        </div>
+
+        <div class="acciones-formulario">
+            <button type="submit">Guardar cambios</button>
+            <a href="/usuarios" class="boton-secundario">Cancelar</a>
+        </div>
+    </form>
+</section>
+
+<section class="panel">
+    <h2>Restablecer contraseña</h2>
+    <p class="nota">Se cerrarán las sesiones abiertas de este usuario y tendrá que entrar con la contraseña nueva.</p>
+
+    <form action="/usuarios/{{ editado['id'] }}/password" method="post">
+        <div class="campo">
+            <label for="password">Contraseña nueva</label>
+            <input
+                type="password"
+                id="password"
+                name="password"
+                minlength="{{ password_minimo }}"
+                maxlength="200"
+                autocomplete="new-password"
+                required
+            >
+            <p class="nota">Mínimo {{ password_minimo }} caracteres.</p>
+        </div>
+
+        <div class="campo">
+            <label for="confirmacion">Repite la contraseña nueva</label>
+            <input
+                type="password"
+                id="confirmacion"
+                name="confirmacion"
+                minlength="{{ password_minimo }}"
+                maxlength="200"
+                autocomplete="new-password"
+                required
+            >
+        </div>
+
+        <button type="submit">Restablecer contraseña</button>
+    </form>
+</section>
+
+<section class="panel">
+    <h2>Estado de la cuenta</h2>
+
+    {% if es_propio %}
+    <p class="nota">No puedes desactivar tu propia cuenta.</p>
+    {% elif editado["activo"] %}
+    <p class="nota">Un usuario desactivado no puede iniciar sesión. Sus datos se conservan y puedes activarlo de nuevo cuando quieras.</p>
+    <form
+        action="/usuarios/{{ editado['id'] }}/estado"
+        method="post"
+        onsubmit="return confirm('¿Desactivar a este usuario? No podrá iniciar sesión hasta que lo actives de nuevo.');"
+    >
+        <input type="hidden" name="activo" value="0">
+        <button type="submit" class="boton-peligro">Desactivar usuario</button>
+    </form>
+    {% else %}
+    <p class="nota">Esta cuenta está desactivada. Al activarla, el usuario podrá iniciar sesión de nuevo con su contraseña actual.</p>
+    <form action="/usuarios/{{ editado['id'] }}/estado" method="post">
+        <input type="hidden" name="activo" value="1">
+        <button type="submit">Activar usuario</button>
+    </form>
+    {% endif %}
+</section>
+
+<section class="panel">
+    <h2>Eliminar cuenta</h2>
+
+    {% if es_propio %}
+    <p class="nota">No puedes eliminar tu propia cuenta.</p>
+    {% elif editado["activo"] %}
+    <p class="nota">Para poder eliminar una cuenta, primero hay que desactivarla. Así se evita borrar por error a alguien que sigue trabajando.</p>
+    {% else %}
+    <p class="nota">Elimina la cuenta de forma definitiva. Su historial en el registro de actividad se conserva.</p>
+    <a href="/usuarios/{{ editado['id'] }}/eliminar" class="boton-eliminar boton-con-texto">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
+            <path
+                d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            />
+        </svg>
+        <span>Eliminar cuenta</span>
+    </a>
+    {% endif %}
+</section>
+{% endblock %}

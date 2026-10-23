@@ -1,0 +1,25 @@
+{# Dibuja el icono según la extensión del archivo. "ancho" es opcional (22 px por defecto). #}
+{% macro icono_archivo(nombre, ancho=22) %}
+    {% set alto = (ancho * 26 / 22) | round | int %}
+    {% set tipos = {
+        "pdf":  ("#d93025", "PDF"),
+        "docx": ("#2b579a", "DOC"),
+        "xlsx": ("#1d6f42", "XLS"),
+        "txt":  ("#6b7280", "TXT"),
+        "png":  ("#8e44ad", "IMG"),
+        "jpg":  ("#8e44ad", "IMG"),
+        "jpeg": ("#8e44ad", "IMG"),
+    } %}
+    {% set extension = nombre.rsplit(".", 1)[-1] | lower %}
+    {% set color, etiqueta = tipos.get(extension, ("#6b7280", "")) %}
+    <svg class="icono-archivo" viewBox="0 0 24 28" width="{{ ancho }}" height="{{ alto }}" aria-hidden="true" focusable="false">
+        <path d="M3 1h13l6 6v20H3z" fill="#fff" stroke="{{ color }}" stroke-width="1.6" stroke-linejoin="round"/>
+        <path d="M16 1v6h6" fill="none" stroke="{{ color }}" stroke-width="1.6" stroke-linejoin="round"/>
+        {% if etiqueta %}
+        <rect x="1" y="13" width="16" height="9" rx="1.5" fill="{{ color }}"/>
+        <text x="9" y="19.8" text-anchor="middle" font-family="Arial, sans-serif" font-size="6.5" font-weight="700" fill="#fff">{{ etiqueta }}</text>
+        {% else %}
+        <path d="M7 14h10M7 18h10M7 22h6" stroke="{{ color }}" stroke-width="1.6" stroke-linecap="round"/>
+        {% endif %}
+    </svg>
+{% endmacro %}

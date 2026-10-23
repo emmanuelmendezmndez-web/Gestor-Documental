@@ -1,0 +1,12 @@
+.secret_key
+storage/
+gestor.db
+__pycache__/
+.venv/
+.env
+
+# otros entornos virtuales
+venv/
+
+# Archivos compilados de Python
+*.py[cod]

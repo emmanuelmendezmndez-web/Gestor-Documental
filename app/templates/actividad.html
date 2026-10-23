@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block contenido %}
+<section class="panel">
+    <h2>Registro de actividad</h2>
+    <p class="nota">Historial de lo que se hace en el sistema. Es solo de lectura: no se puede editar ni borrar desde aquí.</p>
+
+    <form action="/actividad" method="get" class="busqueda">
+        <div>
+            <label for="f-usuario">Usuario</label>
+            <select id="f-usuario" name="usuario">
+                <option value="">Todos</option>
+                {% for nombre in usuarios_registrados %}
+                <option value="{{ nombre }}" {% if filtros["usuario"]|lower == nombre|lower %}selected{% endif %}>{{ nombre }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div>
+            <label for="f-accion">Acción</label>
+            <select id="f-accion" name="accion">
+                <option value="">Todas</option>
+                {% for clave, nombre in acciones.items() %}
+                <option value="{{ clave }}" {% if filtros["accion"] == clave %}selected{% endif %}>{{ nombre }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div>
+            <label for="f-resultado">Resultado</label>
+            <select id="f-resultado" name="resultado">
+                <option value="">Todos</option>
+                {% for clave, nombre in resultados.items() %}
+                <option value="{{ clave }}" {% if filtros["resultado"] == clave %}selected{% endif %}>{{ nombre }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div>
+            <label for="f-desde">Desde</label>
+            <input type="date" id="f-desde" name="desde" value="{{ filtros['desde'] }}">
+        </div>
+
+        <div>
+            <label for="f-hasta">Hasta</label>
+            <input type="date" id="f-hasta" name="hasta" value="{{ filtros['hasta'] }}">
+        </div>
+
+        <div class="acciones-busqueda">
+            <button type="submit">Filtrar</button>
+            <a href="/actividad" class="boton-secundario">Limpiar filtros</a>
+        </div>
+    </form>
+
+    {% if registros %}
+    <div class="tabla-scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th scope="col">Fecha y hora</th>
+                    <th scope="col">Usuario</th>
+                    <th scope="col">Acción</th>
+                    <th scope="col">Elemento</th>
+                    <th scope="col">Resultado</th>
+                    <th scope="col">Detalle</th>
+                    <th scope="col">IP</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in registros %}
+                <tr>
+                    <td>{{ r["fecha"] }}</td>
+                    <td>{{ r["usuario"] or "—" }}</td>
+                    <td>{{ acciones.get(r["accion"], r["accion"]) }}</td>
+                    <td>
+                        {% if r["entidad"] %}
+                        <strong>{{ r["entidad_nombre"] or "(sin nombre)" }}</strong>
+                        <span class="subtexto">
+                            {{ "Documento" if r["entidad"] == "documento" else "Usuario" }}{% if r["entidad_id"] %} · n.º {{ r["entidad_id"] }}{% endif %}
+                        </span>
+                        {% else %}
+                        —
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="etiqueta {{ 'activo' if r['resultado'] == 'exito' else ('advertencia' if r['resultado'] == 'denegado' else 'inactivo') }}">
+                            {{ resultados.get(r["resultado"], r["resultado"]) }}
+                        </span>
+                    </td>
+                    <td class="celda-detalle">{{ r["detalle"] or "—" }}</td>
+                    <td>{{ r["ip"] or "—" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <nav class="paginacion" aria-label="Paginación">
+        {% if enlace_anterior %}
+        <a href="{{ enlace_anterior }}" class="boton-secundario">← Anterior</a>
+        {% endif %}
+        <span>Página {{ pagina_actual }} de {{ total_paginas }} · {{ total }} registro{{ "" if total == 1 else "s" }}</span>
+        {% if enlace_siguiente %}
+        <a href="{{ enlace_siguiente }}" class="boton-secundario">Siguiente →</a>
+        {% endif %}
+    </nav>
+    {% else %}
+    <p>No hay registros con esos filtros.</p>
+    {% endif %}
+</section>
+{% endblock %}

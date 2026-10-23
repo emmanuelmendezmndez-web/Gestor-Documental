@@ -1,0 +1,571 @@
+:root {
+    --color-primario: #47fa00c5;
+    --color-primario-suave: #e3edf9;
+    --color-fondo: #f3f5f8;
+    --color-texto: #243247;
+    --color-texto-suave: #55657a;
+    --ancho-contenido: 1000px;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    font-family: system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+    line-height: 1.6;
+    background: var(--color-fondo);
+    color: var(--color-texto);
+}
+
+header {
+    background:
+        linear-gradient(rgb(0 0 0 / 55%), rgb(0 0 0 / 55%)),
+        url("img/banner.jpg") center / cover no-repeat;
+    background-color: var(--color-primario); /* respaldo si la imagen no carga */
+    color: white;
+    padding: 48px max(20px, calc((100% - var(--ancho-contenido)) / 2 + 20px)) 28px;
+}
+
+header h1 {
+    margin: 0 0 8px;
+}
+
+header p {
+    margin: 0;
+    color: #dbe6f3;
+}
+
+main {
+    flex: 1;
+    width: 100%;
+    max-width: var(--ancho-contenido);
+    margin: 40px auto;
+    padding: 0 20px;
+}
+
+footer {
+    text-align: center;
+    padding: 24px;
+    color: var(--color-texto-suave);
+}
+
+/* ---------- Paneles y avisos ---------- */
+
+.panel {
+    background: white;
+    padding: 30px;
+    border-radius: 10px;
+    box-shadow: 0 3px 12px rgb(0 0 0 / 5%);
+}
+
+.panel + .panel {
+    margin-top: 24px;
+}
+
+.estado {
+    display: inline-block;
+    background: var(--color-primario-suave);
+    color: var(--color-primario);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-weight: bold;
+}
+
+.aviso {
+    margin-bottom: 24px;
+    border-left: 5px solid;
+}
+
+.aviso.exito {
+    background: #e8f6ee;
+    border-color: #2e8b57;
+    color: #1d5a39;
+}
+
+.aviso.error {
+    background: #fdecec;
+    border-color: #c0392b;
+    color: #8a1f14;
+}
+
+/* ---------- Formulario ---------- */
+
+.campo {
+    margin-bottom: 16px;
+}
+
+.campo label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 6px;
+}
+
+input[type="text"],
+select,
+textarea {
+    width: 100%;
+    max-width: 480px;
+    padding: 10px;
+    border: 1px solid #c5cfdb;
+    border-radius: 6px;
+    font: inherit;
+}
+
+input[type="text"]:focus,
+select:focus,
+textarea:focus {
+    outline: 2px solid var(--color-primario);
+    outline-offset: 1px;
+}
+
+button {
+    background: var(--color-primario);
+    color: white;
+    border: 0;
+    padding: 10px 18px;
+    border-radius: 6px;
+    font: inherit;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+button:hover {
+    opacity: 0.9;
+}
+
+.nota {
+    color: var(--color-texto-suave);
+    font-size: 0.9rem;
+    margin: 6px 0 0;
+}
+
+/* ---------- Tabla ---------- */
+
+.tabla-scroll {
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th,
+td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+th {
+    background: var(--color-fondo);
+}
+
+/* ---------- Búsqueda y filtros ---------- */
+
+input[type="search"] {
+    padding: 10px;
+    border: 1px solid #c5cfdb;
+    border-radius: 6px;
+    font: inherit;
+}
+
+input[type="search"]:focus {
+    outline: 2px solid var(--color-primario);
+    outline-offset: 1px;
+}
+
+.busqueda {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 16px;
+    align-items: flex-end;
+    margin-bottom: 20px;
+}
+
+.busqueda label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 6px;
+}
+
+.busqueda input[type="search"],
+.busqueda select {
+    width: 260px;
+    max-width: 100%;
+}
+
+.acciones-busqueda {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.boton-secundario {
+    display: inline-block;
+    padding: 10px 18px;
+    border: 1px solid var(--color-primario);
+    border-radius: 6px;
+    color: var(--color-primario);
+    font-weight: bold;
+    text-decoration: none;
+}
+
+.boton-secundario:hover {
+    background: var(--color-primario-suave);
+}
+
+/* ---------- Pestañas ---------- */
+
+.pestanas {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 20px;
+}
+
+.pestanas a {
+    padding: 8px 16px;
+    border-radius: 6px;
+    background: white;
+    color: var(--color-primario);
+    font-weight: bold;
+    text-decoration: none;
+}
+
+.pestanas a:hover {
+    background: var(--color-primario-suave);
+}
+
+.pestanas a[aria-current="page"] {
+    box-shadow: 0 0 0 3px rgb(255 255 255 / 55%);
+}
+
+/* ---------- Botones de acción (ver, editar y descargar) ---------- */
+
+.acciones {
+    display: flex;
+    gap: 8px;
+}
+
+.boton-ver,
+.boton-descargar,
+.boton-editar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 64px;
+    padding: 8px 22px;
+    border: 2px solid var(--color-primario);
+    border-radius: 999px;
+    background: white;
+    color: var(--color-primario);
+    box-shadow: 0 3px 6px rgb(0 0 0 / 18%);
+    text-decoration: none;
+    transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+}
+
+.boton-ver:hover,
+.boton-descargar:hover,
+.boton-editar:hover {
+    background: var(--color-primario-suave);
+    transform: translateY(-1px);
+}
+
+.boton-ver:active,
+.boton-descargar:active,
+.boton-editar:active {
+    transform: translateY(1px);
+    box-shadow: 0 1px 3px rgb(0 0 0 / 18%);
+}
+
+/* Variante con texto junto al icono (la usa la ficha) */
+.boton-con-texto {
+    gap: 8px;
+    font-weight: bold;
+}
+
+/* ---------- Ficha del documento ---------- */
+
+.enlace-titulo {
+    color: var(--color-primario);
+    font-weight: bold;
+    text-decoration: none;
+}
+
+.enlace-titulo:hover {
+    text-decoration: underline;
+}
+
+.enlace-volver {
+    display: inline-block;
+    margin-bottom: 20px;
+    color: var(--color-primario);
+    font-weight: bold;
+    text-decoration: none;
+}
+
+.enlace-volver:hover {
+    text-decoration: underline;
+}
+
+.ficha-encabezado {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.ficha-encabezado h2 {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.ficha-encabezado .nota {
+    margin: 4px 0 0;
+}
+
+.ficha-alerta {
+    margin-bottom: 24px;
+    padding: 12px 16px;
+    border-left: 5px solid #c0392b;
+    border-radius: 6px;
+    background: #fdecec;
+    color: #8a1f14;
+}
+
+.ficha-datos {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px 24px;
+    margin: 0 0 28px;
+}
+
+.ficha-datos dt {
+    color: var(--color-texto-suave);
+    font-size: 0.8rem;
+    font-weight: bold;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.ficha-datos dd {
+    margin: 2px 0 0;
+    overflow-wrap: anywhere;
+}
+
+.ficha h3 {
+    margin: 0 0 8px;
+}
+
+.descripcion {
+    margin-top: 0;
+    overflow-wrap: anywhere;
+    white-space: pre-line;
+}
+
+.ficha-acciones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 28px;
+    padding-top: 20px;
+    border-top: 1px solid #e2e8f0;
+}
+
+/* ---------- Eliminar ---------- */
+
+.boton-eliminar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 64px;
+    padding: 8px 22px;
+    border: 2px solid #c0392b;
+    border-radius: 999px;
+    background: white;
+    color: #c0392b;
+    box-shadow: 0 3px 6px rgb(0 0 0 / 18%);
+    text-decoration: none;
+    transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+}
+
+.boton-eliminar:hover {
+    background: #fdecec;
+    transform: translateY(-1px);
+}
+
+.boton-eliminar:active {
+    transform: translateY(1px);
+    box-shadow: 0 1px 3px rgb(0 0 0 / 18%);
+}
+
+.confirmacion {
+    border-top: 5px solid #c0392b;
+}
+
+.boton-peligro {
+    background: #c0392b;
+}
+
+/* ---------- Sesión y acceso ---------- */
+
+.sesion {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+}
+
+.sesion form {
+    margin: 0;
+}
+
+.sesion-usuario {
+    color: white;
+    font-weight: bold;
+    text-shadow: 0 1px 3px rgb(0 0 0 / 70%);
+}
+
+.boton-sesion {
+    padding: 8px 16px;
+    background: white;
+    color: var(--color-primario);
+}
+
+.boton-sesion:hover {
+    background: var(--color-primario-suave);
+    opacity: 1;
+}
+
+input[type="password"] {
+    width: 100%;
+    max-width: 480px;
+    padding: 10px;
+    border: 1px solid #c5cfdb;
+    border-radius: 6px;
+    font: inherit;
+}
+
+input[type="password"]:focus {
+    outline: 2px solid var(--color-primario);
+    outline-offset: 1px;
+}
+
+.panel-login {
+    max-width: 460px;
+    margin: 0 auto;
+}
+
+/* ---------- Usuarios ---------- */
+
+.etiqueta {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: var(--color-primario-suave);
+    color: var(--color-primario);
+    font-size: 0.8rem;
+    font-weight: bold;
+}
+
+.etiqueta.activo {
+    background: #e8f6ee;
+    color: #1d5a39;
+}
+
+.etiqueta.inactivo {
+    background: #fdecec;
+    color: #8a1f14;
+}
+
+/* ---------- Registro de actividad ---------- */
+
+input[type="date"] {
+    padding: 10px;
+    border: 1px solid #c5cfdb;
+    border-radius: 6px;
+    font: inherit;
+}
+
+input[type="date"]:focus {
+    outline: 2px solid var(--color-primario);
+    outline-offset: 1px;
+}
+
+.busqueda input[type="date"] {
+    width: 170px;
+    max-width: 100%;
+}
+
+.etiqueta.advertencia {
+    background: #fff4d6;
+    color: #7a5200;
+}
+
+.subtexto {
+    display: block;
+    color: var(--color-texto-suave);
+    font-size: 0.85rem;
+}
+
+.celda-detalle {
+    min-width: 220px;
+    overflow-wrap: anywhere;
+}
+
+.paginacion {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 20px;
+}
+
+/* ---------- Mi cuenta ---------- */
+
+a.sesion-usuario {
+    text-decoration: none;
+}
+
+a.sesion-usuario:hover,
+a.sesion-usuario[aria-current="page"] {
+    text-decoration: underline;
+}
+
+/* ---------- Búsqueda avanzada ---------- */
+
+.busqueda input[type="text"] {
+    width: 260px;
+    max-width: 100%;
+}
+
+.filtros-biblioteca .busqueda {
+    margin-bottom: 12px;
+}
+
+.avanzada {
+    margin-bottom: 20px;
+}
+
+.avanzada summary {
+    cursor: pointer;
+    color: var(--color-primario);
+    font-weight: bold;
+}
+
+.avanzada .busqueda {
+    margin-top: 12px;
+    margin-bottom: 0;
+}
+
+.resumen-resultados {
+    margin: 0 0 12px;
+    color: var(--color-texto-suave);
+}

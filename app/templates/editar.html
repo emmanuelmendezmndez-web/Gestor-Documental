@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block contenido %}
+<section class="panel">
+    <h2>Editar documento</h2>
+    <p class="nota">
+        Archivo: <strong>{{ documento["nombre_archivo"] }}</strong>
+        · Subido el {{ documento["fecha_subida"] }}.
+        Aquí solo se cambian los datos: el archivo en sí no se modifica.
+    </p>
+
+    <form action="/documentos/{{ documento['id'] }}/editar" method="post">
+        <div class="campo">
+            <label for="titulo">Título del documento</label>
+            <input
+                type="text"
+                id="titulo"
+                name="titulo"
+                maxlength="200"
+                value="{{ documento['titulo'] }}"
+                required
+            >
+        </div>
+
+        <div class="campo">
+            <label for="categoria">Categoría</label>
+            <select id="categoria" name="categoria" required>
+                {% for cat in categorias %}
+                <option value="{{ cat }}" {% if cat == documento["categoria"] %}selected{% endif %}>{{ cat }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="campo">
+            <label for="numero_oficio">Número de oficio (opcional)</label>
+            <input
+                type="text"
+                id="numero_oficio"
+                name="numero_oficio"
+                maxlength="60"
+                value="{{ documento['numero_oficio'] }}"
+                placeholder="Por ejemplo: OF-123/2026"
+            >
+        </div>
+
+        <div class="campo">
+            <label for="departamento">Departamento (opcional)</label>
+            <select id="departamento" name="departamento">
+                <option value="">Sin departamento</option>
+                {% for dep in departamentos %}
+                <option value="{{ dep }}" {% if dep == documento["departamento"] %}selected{% endif %}>{{ dep }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="campo">
+            <label for="fecha_documento">Fecha del documento (opcional)</label>
+            <input
+                type="date"
+                id="fecha_documento"
+                name="fecha_documento"
+                value="{{ documento['fecha_documento'] or '' }}"
+            >
+            <p class="nota">La fecha que lleva el documento. Si la dejas vacía, se usa la fecha de registro.</p>
+        </div>
+
+        <div class="campo">
+            <label for="autor">Autor (opcional)</label>
+            <input type="text" id="autor" name="autor" maxlength="100" value="{{ documento['autor'] }}">
+        </div>
+
+        <div class="campo">
+            <label for="descripcion">Descripción (opcional)</label>
+            <textarea id="descripcion" name="descripcion" rows="4" maxlength="2000">{{ documento["descripcion"] }}</textarea>
+        </div>
+
+        <div class="acciones-formulario">
+            <button type="submit">Guardar cambios</button>
+            <a href="/documentos/{{ documento['id'] }}" class="boton-secundario">Cancelar</a>
+        </div>
+    </form>
+</section>
+{% endblock %}

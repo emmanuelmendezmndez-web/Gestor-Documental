@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block contenido %}
+<section class="panel">
+    <h2>Mi cuenta</h2>
+
+    <dl class="ficha-datos">
+        <div>
+            <dt>Usuario</dt>
+            <dd>{{ usuario["usuario"] }}</dd>
+        </div>
+        <div>
+            <dt>Nombre</dt>
+            <dd>{{ usuario["nombre"] }}</dd>
+        </div>
+        <div>
+            <dt>Rol</dt>
+            <dd>{{ usuario["rol_nombre"] }}</dd>
+        </div>
+    </dl>
+
+    <p class="nota">{{ descripcion_rol }}</p>
+    <p class="nota">Si necesitas cambiar tu nombre o tu rol, pídeselo a un administrador.</p>
+</section>
+
+<section class="panel">
+    <h2>Cambiar contraseña</h2>
+    <p class="nota">Al cambiarla se cerrarán tus otras sesiones abiertas (por ejemplo, en otro navegador). Esta seguirá abierta.</p>
+
+    <form action="/cuenta/password" method="post">
+        <div class="campo">
+            <label for="actual">Contraseña actual</label>
+            <input
+                type="password"
+                id="actual"
+                name="actual"
+                maxlength="200"
+                autocomplete="current-password"
+                required
+            >
+        </div>
+
+        <div class="campo">
+            <label for="nueva">Contraseña nueva</label>
+            <input
+                type="password"
+                id="nueva"
+                name="nueva"
+                minlength="{{ password_minimo }}"
+                maxlength="200"
+                autocomplete="new-password"
+                required
+            >
+            <p class="nota">Mínimo {{ password_minimo }} caracteres y distinta de la actual.</p>
+        </div>
+
+        <div class="campo">
+            <label for="confirmacion">Repite la contraseña nueva</label>
+            <input
+                type="password"
+                id="confirmacion"
+                name="confirmacion"
+                minlength="{{ password_minimo }}"
+                maxlength="200"
+                autocomplete="new-password"
+                required
+            >
+        </div>
+
+        <button type="submit">Cambiar contraseña</button>
+    </form>
+</section>
+{% endblock %}

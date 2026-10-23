@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block contenido %}
+<section class="panel confirmacion">
+    <h2>¿Eliminar esta cuenta?</h2>
+
+    <div class="ficha-alerta" role="alert">
+        Esta acción no se puede deshacer. La cuenta se borra por completo y esa persona no podrá volver a entrar.
+        Su historial en el registro de actividad se conserva, con su nombre de usuario.
+    </div>
+
+    <dl class="ficha-datos">
+        <div>
+            <dt>Usuario</dt>
+            <dd>{{ editado["usuario"] }}</dd>
+        </div>
+        <div>
+            <dt>Nombre</dt>
+            <dd>{{ editado["nombre"] }}</dd>
+        </div>
+        <div>
+            <dt>Rol</dt>
+            <dd>{{ nombres_rol[editado["rol"]] }}</dd>
+        </div>
+        <div>
+            <dt>Creado</dt>
+            <dd>{{ editado["fecha_creacion"] }}</dd>
+        </div>
+    </dl>
+
+    <form action="/usuarios/{{ editado['id'] }}/eliminar" method="post">
+        <div class="acciones-formulario">
+            <button type="submit" class="boton-peligro">Sí, eliminar definitivamente</button>
+            <a href="/usuarios/{{ editado['id'] }}/editar" class="boton-secundario">Cancelar</a>
+        </div>
+    </form>
+</section>
+{% endblock %}
