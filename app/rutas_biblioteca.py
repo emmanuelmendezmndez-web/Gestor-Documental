@@ -1,6 +1,5 @@
 """Rutas de SIGED."""
 
-import logging
 from math import ceil
 from urllib.parse import urlencode
 from fastapi import APIRouter, Depends, Request
@@ -14,7 +13,6 @@ from app.plantillas import templates
 from app.utilidades import escapar_like, fecha_valida
 from app.seguridad import requiere_permiso
 
-logger = logging.getLogger("gestor")
 POR_PAGINA = 20
 router = APIRouter()
 

@@ -31,7 +31,6 @@ from app.seguridad import (
 logger = logging.getLogger("gestor")
 
 
-POR_PAGINA = 20  # documentos por página en la biblioteca
 COOKIE_HTTPS_ONLY = os.environ.get("GESTOR_HTTPS_ONLY", "").strip().lower() in {
     "1", "true", "yes", "si"
 }
@@ -125,99 +124,3 @@ async def manejar_error_http(request: Request, exc: StarletteHTTPException):
             "detalle": detalle,
         },
     )
-
-
-# ---------- Funciones de apoyo ----------
-
-
-
-
-
-# ---------- Inicio y cierre de sesión ----------
-
-
-
-
-
-
-
-# ---------- Inicio / Dashboard ----------
-
-
-
-
-
-# ---------- Gestión de avisos (solo administradores) ----------
-
-
-
-
-
-
-
-
-
-
-
-# ---------- Biblioteca ----------
-
-
-
-# ---------- Expedientes ----------
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# ---------- Subir ----------
-
-
-
-
-
-# ---------- Ficha ----------
-
-
-
-
-
-# ---------- Editar ----------
-
-
-
-
-
-# ---------- Eliminar ----------
-
-
-
-
-
-
-
-# ---------- Papelera ----------
-
-
-
-
-
-
-
-
-
-
-
-
-
-# ---------- Descargar ----------
-

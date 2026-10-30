@@ -14,7 +14,6 @@ from app.servicios.avisos import crear_aviso_servicio
 from app.seguridad import requiere_permiso
 
 logger = logging.getLogger("gestor")
-POR_PAGINA = 20
 router = APIRouter()
 
 @router.get(

@@ -1,6 +1,5 @@
 """Rutas de SIGED."""
 
-import logging
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from app.configuracion import STORAGE_DIR
@@ -8,8 +7,6 @@ from app.plantillas import templates
 from app.servicios.inicio import buscar_global_datos, dashboard_datos
 from app.seguridad import requiere_permiso
 
-logger = logging.getLogger("gestor")
-POR_PAGINA = 20
 router = APIRouter()
 
 @router.get(

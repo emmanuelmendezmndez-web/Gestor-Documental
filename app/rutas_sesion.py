@@ -1,6 +1,5 @@
 """Rutas de SIGED."""
 
-import logging
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from app.actividad import registrar
@@ -8,8 +7,6 @@ from app.mensajes import AVISOS
 from app.plantillas import templates
 from app.seguridad import autenticar, buscar_usuario, demasiados_intentos, limpiar_fallos, registrar_fallo, usuario_actual
 
-logger = logging.getLogger("gestor")
-POR_PAGINA = 20
 router = APIRouter()
 
 @router.get("/login", response_class=HTMLResponse)

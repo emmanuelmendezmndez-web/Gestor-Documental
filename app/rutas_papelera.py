@@ -14,7 +14,6 @@ from app.servicios.papelera import purgar_documentos_papelera
 from app.seguridad import demasiados_intentos, limpiar_fallos, registrar_fallo, requiere_permiso, verificar_password
 
 logger = logging.getLogger("gestor")
-POR_PAGINA = 20
 router = APIRouter()
 
 @router.get(

@@ -14,7 +14,6 @@ from app.utilidades import escapar_like
 from app.seguridad import requiere_permiso
 
 logger = logging.getLogger("gestor")
-POR_PAGINA = 20
 router = APIRouter()
 
 @router.get(

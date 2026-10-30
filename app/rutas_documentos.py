@@ -23,7 +23,6 @@ from app.utilidades import formatear_tamano
 from app.seguridad import requiere_permiso
 
 logger = logging.getLogger("gestor")
-POR_PAGINA = 20
 router = APIRouter()
 
 def fallo_subida(
