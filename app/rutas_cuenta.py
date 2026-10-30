@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Uplo
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 
 from app.actividad import registrar
+from app.configuracion import FOTOS_PERFIL_DIR
 from app.database import conectar
 from app.plantillas import templates
 from app.seguridad import (
@@ -23,10 +24,6 @@ from app.seguridad import (
 )
 
 logger = logging.getLogger("gestor")
-DATA_DIR = Path(
-    os.environ.get("GESTOR_DATA_DIR", str(Path(__file__).resolve().parent.parent))
-).expanduser().resolve()
-FOTOS_PERFIL_DIR = DATA_DIR / "storage" / "perfiles"
 TAMANO_MAXIMO_FOTO = 5 * 1024 * 1024
 PIXELES_MAXIMOS_FOTO = 16_000_000
 CORREO_RE = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")

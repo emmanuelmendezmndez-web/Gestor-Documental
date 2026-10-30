@@ -4,15 +4,12 @@ import os
 import re
 import secrets
 import time
-from pathlib import Path
 
 from fastapi import HTTPException, Request
 
 from app.actividad import registrar
+from app.configuracion import SECRET_PATH
 from app.database import conectar
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = Path(os.environ.get("GESTOR_DATA_DIR", str(BASE_DIR))).expanduser().resolve()
 
 ROLES = ("lector", "editor", "admin")
 
@@ -54,7 +51,7 @@ def obtener_clave_secreta() -> str:
     if clave:
         return clave
 
-    ruta = DATA_DIR / ".secret_key"
+    ruta = SECRET_PATH
     if ruta.is_file():
         return ruta.read_text(encoding="utf-8").strip()
 

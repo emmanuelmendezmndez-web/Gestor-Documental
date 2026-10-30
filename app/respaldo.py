@@ -22,12 +22,9 @@ import sys
 import tempfile
 import zipfile
 
-from app.database import DATA_DIR, DB_PATH
+from app.configuracion import BACKUP_DIR, DATA_DIR, DB_PATH, SECRET_PATH, STORAGE_DIR
 from app.seguridad import obtener_clave_secreta
 
-STORAGE_DIR = DATA_DIR / "storage"
-SECRET_PATH = DATA_DIR / ".secret_key"
-BACKUP_DIR = DATA_DIR / "respaldos"
 FORMAT_VERSION = 1
 MAX_MANIFEST_BYTES = 16 * 1024 * 1024
 

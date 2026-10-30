@@ -3,18 +3,101 @@
 import ast
 from pathlib import Path
 import re
+import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
 
 from app.mensajes import AVISOS
 from app.seleccion import leer_seleccion
-from app.seguridad import requiere_permiso
+from app.seguridad import PERMISOS, requiere_permiso
+from app.rutas_cuenta import AVISOS_CUENTA
+from app.rutas_usuarios import AVISOS_USUARIOS
 from app import previsualizacion
 from app.actividad import ACCIONES
 
 
 class ContratosTest(unittest.TestCase):
+    def test_permisos_de_todos_los_modulos(self):
+        raiz = Path(__file__).resolve().parents[1] / "app"
+        conocidos = set().union(*PERMISOS.values())
+        encontrados = []
+        for archivo in raiz.rglob("*.py"):
+            for nodo in ast.walk(ast.parse(archivo.read_text(encoding="utf-8"))):
+                if isinstance(nodo, ast.Call) and isinstance(nodo.func, ast.Name) and nodo.func.id == "requiere_permiso":
+                    self.assertTrue(nodo.args and isinstance(nodo.args[0], ast.Constant)
+                                    and isinstance(nodo.args[0].value, str),
+                                    f"Permiso no literal en {archivo}:{nodo.lineno}")
+                    permiso = nodo.args[0].value
+                    encontrados.append(permiso)
+                    self.assertIn(permiso, conocidos, f"Permiso desconocido en {archivo}:{nodo.lineno}")
+        self.assertTrue(encontrados, "No se encontraron permisos para comprobar")
+
+    def test_avisos_de_redirecciones_y_catalogos_propios(self):
+        raiz = Path(__file__).resolve().parents[1] / "app"
+        for archivo in raiz.rglob("*.py"):
+            arbol = ast.parse(archivo.read_text(encoding="utf-8"))
+            for nodo in ast.walk(arbol):
+                if isinstance(nodo, ast.Constant) and isinstance(nodo.value, str):
+                    for codigo in re.findall(r"[?&]aviso=([a-z_]+)", nodo.value):
+                        self.assertIn(codigo, AVISOS, f"{archivo}:{nodo.lineno}")
+                if not isinstance(nodo, ast.Call) or not isinstance(nodo.func, ast.Name):
+                    continue
+                nombre = nodo.func.id
+                indice = None
+                catalogo = AVISOS
+                if archivo.name == "rutas_cuenta.py" and nombre == "redirigir":
+                    indice, catalogo = 0, AVISOS_CUENTA
+                elif archivo.name == "rutas_usuarios.py" and nombre == "redirigir":
+                    indice, catalogo = 1, AVISOS_USUARIOS
+                elif archivo.name == "main.py" and nombre in {"avisar", "fallo_subida", "avisar_edicion", "avisar_eliminacion"}:
+                    indice = {"avisar": 0, "fallo_subida": 1, "avisar_edicion": 1, "avisar_eliminacion": 1}[nombre]
+                if indice is not None and len(nodo.args) > indice:
+                    argumento = nodo.args[indice]
+                    candidatos = [argumento.body, argumento.orelse] if isinstance(argumento, ast.IfExp) else [argumento]
+                    for candidato in candidatos:
+                        if isinstance(candidato, ast.Constant) and isinstance(candidato.value, str):
+                            self.assertIn(candidato.value, catalogo, f"{archivo}:{nodo.lineno}")
+
+    def test_configuracion_con_directorio_de_datos_alternativo(self):
+        with tempfile.TemporaryDirectory() as temporal:
+            entorno = os.environ.copy()
+            entorno["GESTOR_DATA_DIR"] = temporal
+            entorno["GESTOR_SECRET_KEY"] = "clave-ficticia-de-prueba"
+            codigo = '''
+from pathlib import Path
+from app import configuracion as c, database, main, seguridad, rutas_cuenta, respaldo, previsualizacion
+assert c.DB_PATH == database.DB_PATH == Path(__import__("os").environ["GESTOR_DATA_DIR"]).resolve() / "gestor.db"
+assert main.STORAGE_DIR == respaldo.STORAGE_DIR == c.STORAGE_DIR
+assert rutas_cuenta.FOTOS_PERFIL_DIR == c.FOTOS_PERFIL_DIR
+assert main.AVISOS_DIR == c.AVISOS_DIR
+assert seguridad.SECRET_PATH == respaldo.SECRET_PATH == c.SECRET_PATH
+assert previsualizacion.DIRECTORIO_CACHE == c.DIRECTORIO_CACHE
+'''
+            subprocess.run([sys.executable, "-c", codigo], env=entorno, check=True, timeout=30)
+
+    def test_codigos_generados_por_validaciones(self):
+        raiz = Path(__file__).resolve().parents[1] / "app"
+        for archivo, funcion, catalogo in (
+            ("metadatos.py", "limpiar_metadatos", AVISOS),
+            ("seleccion.py", "leer_seleccion", AVISOS),
+            ("rutas_usuarios.py", "validar_password", AVISOS_USUARIOS),
+        ):
+            arbol = ast.parse((raiz / archivo).read_text(encoding="utf-8"))
+            nodo_funcion = next(n for n in arbol.body if isinstance(n, ast.FunctionDef) and n.name == funcion)
+            for nodo in ast.walk(nodo_funcion):
+                if isinstance(nodo, ast.Return):
+                    valor = nodo.value.elts[-1] if isinstance(nodo.value, ast.Tuple) else nodo.value
+                    if isinstance(valor, ast.Constant) and isinstance(valor.value, str):
+                        self.assertIn(valor.value, catalogo, f"{archivo}:{nodo.lineno}")
+        arbol = ast.parse((raiz / "archivos.py").read_text(encoding="utf-8"))
+        for nodo in ast.walk(arbol):
+            if isinstance(nodo, ast.Call) and isinstance(nodo.func, ast.Name) and nodo.func.id == "ArchivoInvalido":
+                if nodo.args and isinstance(nodo.args[0], ast.Constant):
+                    self.assertIn(nodo.args[0].value, AVISOS)
+
     def test_permiso_inexistente_falla_al_declarar_ruta(self):
         with self.assertRaises(ValueError):
             requiere_permiso("permiso_que_no_existe")

@@ -15,14 +15,15 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.acceso_documentos import condicion_area_documento, filtro_area_documento
 from app.actividad import registrar
-from app.archivos import ArchivoInvalido, TAMANO_BLOQUE, TAMANO_MAXIMO, guardar_en_disco
+from app.archivos import ArchivoInvalido, guardar_en_disco
 from app.asistente import router as router_asistente
 from app.catalogos import CATEGORIAS, DEPARTAMENTOS
+from app.configuracion import APP_DIR, AVISOS_DIR, STORAGE_DIR
 from app.database import conectar, inicializar_db, normalizar_texto
-from app.ediciones import CAMPOS_COMPARABLES, describir_cambios
+from app.ediciones import describir_cambios
 from app.metadatos import limpiar_metadatos
 from app.mensajes import AVISOS, MENSAJES_HTTP, MOTIVOS_SUBIDA
-from app.ordenes_biblioteca import EXPR_EXTENSION, EXPR_FECHA, ORDENES, ORDEN_PREDETERMINADO
+from app.ordenes_biblioteca import EXPR_FECHA, ORDENES, ORDEN_PREDETERMINADO
 from app.plantillas import templates
 from app.previsualizacion import (
     ArchivoNoPrevisualizable,
@@ -37,7 +38,7 @@ from app.rutas_actividad import router as router_actividad
 from app.rutas_cuenta import router as router_cuenta
 from app.rutas_usuarios import router as router_usuarios
 from app.tipos_archivo import EXTENSIONES_PERMITIDAS, TIPOS_ARCHIVO
-from app.utilidades import escapar_like, fecha_valida, formatear_espacio_disco, formatear_tamano
+from app.utilidades import escapar_like, fecha_valida, formatear_tamano
 from app.seguridad import (
     NoAutenticado,
     autenticar,
@@ -52,12 +53,6 @@ from app.seguridad import (
 )
 
 logger = logging.getLogger("gestor")
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-APP_DIR = BASE_DIR / "app"
-DATA_DIR = Path(os.environ.get("GESTOR_DATA_DIR", str(BASE_DIR))).expanduser().resolve()
-STORAGE_DIR = DATA_DIR / "storage"  # separado del código y fuera de app/static
-AVISOS_DIR = STORAGE_DIR / "avisos"
 
 
 POR_PAGINA = 20  # documentos por página en la biblioteca

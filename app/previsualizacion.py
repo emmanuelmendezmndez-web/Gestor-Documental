@@ -13,12 +13,10 @@ import zipfile
 import zlib
 from uuid import uuid4
 
-from app.database import DATA_DIR
+from app.configuracion import DIRECTORIO_CACHE
 
 
 MAXIMO_DESCOMPRIMIDO = 100 * 1024 * 1024
-CACHE_LOCAL = Path(os.environ.get("LOCALAPPDATA", str(DATA_DIR / "cache")))
-DIRECTORIO_CACHE = CACHE_LOCAL / "SIGED" / "previsualizaciones"
 MAXIMO_CACHE_BYTES = 512 * 1024 * 1024
 CACHE_MAX_ANTIGUEDAD_SEGUNDOS = 30 * 24 * 60 * 60
 VERSION_CACHE = "v1"

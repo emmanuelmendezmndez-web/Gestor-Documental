@@ -1,12 +1,8 @@
 from contextlib import contextmanager
-import os
-from pathlib import Path
 import sqlite3
 import unicodedata
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = Path(os.environ.get("GESTOR_DATA_DIR", str(BASE_DIR))).expanduser().resolve()
-DB_PATH = DATA_DIR / "gestor.db"
+from app.configuracion import DATA_DIR as DATA_DIR, DB_PATH as DB_PATH
 
 
 def normalizar_texto(texto) -> str:
