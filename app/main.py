@@ -2,7 +2,7 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -10,6 +10,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.asistente import router as router_asistente
 from app.configuracion import APP_DIR, AVISOS_DIR, STORAGE_DIR
+from app.csrf import validar_csrf
 from app.database import conectar, inicializar_db
 from app.mensajes import MENSAJES_HTTP
 from app.plantillas import templates
@@ -53,7 +54,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Gestor Documental", lifespan=lifespan)
+app = FastAPI(title="Gestor Documental", lifespan=lifespan, dependencies=[Depends(validar_csrf)])
 
 app.add_middleware(
     SessionMiddleware,

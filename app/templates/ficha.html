@@ -120,7 +120,7 @@
         {% endif %}
 
         {% if puede("papelera") %}
-        <form action="/documentos/{{ documento['id'] }}/eliminar" method="post" class="form-accion-inline" data-confirm-title="Enviar documento a la papelera" data-confirm="«{{ documento['titulo'] }}» dejará de aparecer en la biblioteca. Podrás restaurarlo desde la papelera." data-confirm-label="Enviar a papelera" data-confirm-tone="danger">
+        <form action="/documentos/{{ documento['id'] }}/eliminar" method="post" class="form-accion-inline" data-confirm-title="Enviar documento a la papelera" data-confirm="«{{ documento['titulo'] }}» dejará de aparecer en la biblioteca. Podrás restaurarlo desde la papelera." data-confirm-label="Enviar a papelera" data-confirm-tone="danger"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit" class="boton-eliminar boton-con-texto">
             <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
                 <path

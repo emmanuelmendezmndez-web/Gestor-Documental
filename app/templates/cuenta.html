@@ -39,7 +39,7 @@
 
     <details class="cuenta-edicion">
         <summary class="boton-secundario">Editar mis datos</summary>
-        <form action="/cuenta/perfil" method="post" class="formulario-cuenta-perfil" enctype="multipart/form-data" data-clippy-tip="Actualiza tus datos de contacto. Si no eliges una foto, SIGED conservará la actual o mostrará tus iniciales.">
+        <form action="/cuenta/perfil" method="post" class="formulario-cuenta-perfil" enctype="multipart/form-data" data-clippy-tip="Actualiza tus datos de contacto. Si no eliges una foto, SIGED conservará la actual o mostrará tus iniciales."><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div class="campo">
                 <label for="nombre-perfil">Nombre para mostrar</label>
                 <input type="text" id="nombre-perfil" name="nombre" value="{{ usuario['nombre'] }}" maxlength="100" autocomplete="name" data-clippy-read="Tu nombre" required>
@@ -70,7 +70,7 @@
     <h2>Cambiar contraseña</h2>
     <p class="nota">Al cambiarla se cerrarán tus otras sesiones abiertas (por ejemplo, en otro navegador). Esta seguirá abierta.</p>
 
-        <form action="/cuenta/password" method="post" data-clippy-tip="Elige una contraseña nueva que no uses en otros servicios. El indicador te mostrará su fortaleza mientras escribes.">
+        <form action="/cuenta/password" method="post" data-clippy-tip="Elige una contraseña nueva que no uses en otros servicios. El indicador te mostrará su fortaleza mientras escribes."><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div class="campo">
             <label for="actual">Contraseña actual</label>
             <input

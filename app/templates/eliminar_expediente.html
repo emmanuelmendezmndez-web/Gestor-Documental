@@ -32,7 +32,7 @@
         data-confirm="Se eliminará la ficha de «{{ expediente['folio'] }} — {{ expediente['titulo'] }}» y sus vínculos. Los documentos originales seguirán disponibles en la biblioteca."
         data-confirm-label="Eliminar expediente"
         data-confirm-tone="danger"
-    >
+    ><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div class="acciones-formulario">
             <button type="submit" class="boton-peligro">Sí, eliminar expediente</button>
             <a href="/expedientes/{{ expediente['id'] }}" class="boton-secundario">Cancelar</a>

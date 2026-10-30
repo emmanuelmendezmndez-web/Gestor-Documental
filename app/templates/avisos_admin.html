@@ -8,7 +8,7 @@
     </div>
     <p class="nota">Los avisos publicados aparecen en Inicio. Puedes mostrarlos a todos o dirigirlos a un departamento. Las cuentas sin departamento asignado solo reciben avisos generales; asígnalo desde Usuarios.</p>
 
-    <form action="/avisos" method="post" enctype="multipart/form-data" class="formulario-aviso" data-clippy-tip="Redacta el comunicado, elige si va dirigido a un área y publícalo cuando esté listo.">
+    <form action="/avisos" method="post" enctype="multipart/form-data" class="formulario-aviso" data-clippy-tip="Redacta el comunicado, elige si va dirigido a un área y publícalo cuando esté listo."><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <h3>Nuevo aviso</h3>
         <div class="campo">
             <label for="titulo-aviso">Título</label>
@@ -62,7 +62,7 @@
                 {% endif %}
             </div>
             <div class="acciones-aviso">
-                <form action="/avisos/{{ aviso['id'] }}/estado" method="post">
+                <form action="/avisos/{{ aviso['id'] }}/estado" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     {% if aviso["publicado"] %}
                     <input type="hidden" name="publicado" value="0">
                     <button type="submit" class="boton-secundario">Ocultar</button>
@@ -71,7 +71,7 @@
                     <button type="submit" class="boton-secundario">Publicar</button>
                     {% endif %}
                 </form>
-                <form action="/avisos/{{ aviso['id'] }}/eliminar" method="post">
+                <form action="/avisos/{{ aviso['id'] }}/eliminar" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button type="submit" class="boton-peligro" data-confirm-title="Eliminar aviso" data-confirm="El aviso «{{ aviso['titulo'] }}» se eliminará definitivamente." data-confirm-label="Eliminar aviso" data-confirm-tone="danger">Eliminar</button>
                 </form>
             </div>

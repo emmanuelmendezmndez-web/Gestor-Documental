@@ -35,7 +35,7 @@
         data-confirm="La cuenta de «{{ editado['nombre'] }}» se borrará por completo y esa persona no podrá volver a entrar. Su historial de actividad se conservará."
         data-confirm-label="Eliminar definitivamente"
         data-confirm-tone="danger"
-    >
+    ><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div class="acciones-formulario">
             <button type="submit" class="boton-peligro">Sí, eliminar definitivamente</button>
             <a href="/usuarios/{{ editado['id'] }}/editar" class="boton-secundario">Cancelar</a>

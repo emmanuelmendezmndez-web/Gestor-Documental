@@ -6,7 +6,7 @@
     <h2>Expedientes</h2>
 
     {% if puede("gestionar_expedientes") %}
-    <form action="/expedientes" method="post" class="formulario-expediente" data-clippy-tip="Al guardar, SIGED asignará un folio único. Después podrás abrir la ficha y vincular documentos existentes.">
+    <form action="/expedientes" method="post" class="formulario-expediente" data-clippy-tip="Al guardar, SIGED asignará un folio único. Después podrás abrir la ficha y vincular documentos existentes."><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <h3>Crear expediente</h3>
         <div class="campo">
             <label for="titulo-expediente">Nombre o asunto</label>
@@ -60,7 +60,7 @@
                                 data-confirm="Se eliminará la ficha de «{{ expediente['folio'] }} — {{ expediente['titulo'] }}» y sus vínculos. Los documentos originales seguirán disponibles en la biblioteca."
                                 data-confirm-label="Eliminar expediente"
                                 data-confirm-tone="danger"
-                            >
+                            ><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                 <button type="submit" class="boton-eliminar" aria-label="Eliminar expediente {{ expediente['folio'] }}" title="Eliminar expediente">
                                     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
                                         <path

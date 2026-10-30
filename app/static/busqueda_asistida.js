@@ -30,9 +30,9 @@
         mes: ultimoMes
     };
     const guardarHabito = datos => {
-        const cuerpo = new Blob([JSON.stringify(datos)], { type: "application/json" });
-        if (navigator.sendBeacon) navigator.sendBeacon("/asistente/habito", cuerpo);
-        else fetch("/asistente/habito", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(datos), keepalive: true }).catch(() => {});
+        const token = document.querySelector('meta[name="csrf-token"]')?.content;
+        if (!token) return;
+        fetch("/asistente/habito", { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": token }, body: JSON.stringify(datos), keepalive: true }).catch(() => {});
     };
     window.sigedClippyPreferencias = fetch(`/asistente/preferencias?hora=${new Date().getHours()}`, { credentials: "same-origin" })
         .then(respuesta => respuesta.ok ? respuesta.json() : null).catch(() => null);

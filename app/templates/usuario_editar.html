@@ -15,7 +15,7 @@
     </p>
     <p class="nota">El nombre de usuario no se puede cambiar.</p>
 
-    <form action="/usuarios/{{ editado['id'] }}/editar" method="post" data-clippy-tip="Puedes actualizar nombre, rol y área. Los cambios de acceso se aplican a la cuenta al guardar.">
+    <form action="/usuarios/{{ editado['id'] }}/editar" method="post" data-clippy-tip="Puedes actualizar nombre, rol y área. Los cambios de acceso se aplican a la cuenta al guardar."><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div class="campo">
             <label for="nombre">Nombre completo</label>
             <input type="text" id="nombre" name="nombre" maxlength="100" value="{{ editado['nombre'] }}" data-clippy-read="Nombre de usuario" required>
@@ -56,7 +56,7 @@
     <h2>Restablecer contraseña</h2>
     <p class="nota">Se cerrarán las sesiones abiertas de este usuario y tendrá que entrar con la contraseña nueva.</p>
 
-    <form action="/usuarios/{{ editado['id'] }}/password" method="post">
+    <form action="/usuarios/{{ editado['id'] }}/password" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div class="campo">
             <label for="password">Contraseña nueva</label>
             <input
@@ -102,13 +102,13 @@
         data-confirm="{{ editado['nombre'] }} no podrá iniciar sesión hasta que vuelvas a activar su cuenta. Sus datos se conservarán y se cerrarán sus sesiones actuales."
         data-confirm-label="Desactivar usuario"
         data-confirm-tone="danger"
-    >
+    ><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <input type="hidden" name="activo" value="0">
         <button type="submit" class="boton-peligro">Desactivar usuario</button>
     </form>
     {% else %}
     <p class="nota">Esta cuenta está desactivada. Al activarla, el usuario podrá iniciar sesión de nuevo con su contraseña actual.</p>
-    <form action="/usuarios/{{ editado['id'] }}/estado" method="post">
+    <form action="/usuarios/{{ editado['id'] }}/estado" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <input type="hidden" name="activo" value="1">
         <button type="submit">Activar usuario</button>
     </form>
@@ -132,7 +132,7 @@
         data-confirm="La cuenta de «{{ editado['nombre'] }}» se borrará por completo y esa persona no podrá volver a entrar. Su historial de actividad se conservará."
         data-confirm-label="Eliminar definitivamente"
         data-confirm-tone="danger"
-    >
+    ><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit" class="boton-eliminar boton-con-texto">
             <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
                 <path

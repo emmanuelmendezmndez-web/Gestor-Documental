@@ -5,7 +5,7 @@
     <h2>Iniciar sesión</h2>
     <p>Ingresa con tu usuario y contraseña para acceder.</p>
 
-    <form action="/login" method="post">
+    <form action="/login" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div class="campo">
             <label for="usuario">Usuario</label>
             <input

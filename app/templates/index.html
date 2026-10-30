@@ -109,7 +109,7 @@
     </p>
 
     {% if puede("papelera") %}
-    <form id="seleccion-papelera" action="/documentos/papelera" method="post" data-required-selection="documento_ids" data-confirm-title="Enviar documentos a la papelera" data-confirm="Los documentos seleccionados dejarán de aparecer en la biblioteca. Podrás restaurarlos desde la papelera." data-confirm-label="Enviar a papelera" data-confirm-tone="danger">
+    <form id="seleccion-papelera" action="/documentos/papelera" method="post" data-required-selection="documento_ids" data-confirm-title="Enviar documentos a la papelera" data-confirm="Los documentos seleccionados dejarán de aparecer en la biblioteca. Podrás restaurarlos desde la papelera." data-confirm-label="Enviar a papelera" data-confirm-tone="danger"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div class="barra-seleccion">
             <label class="control-seleccionar-todos">
                 <input type="checkbox" class="seleccion-checkbox" data-select-all="seleccion-documento" aria-label="Seleccionar todos los documentos de esta página">
@@ -243,7 +243,7 @@
                                 data-confirm="«{{ documento['titulo'] }}» dejará de aparecer en la biblioteca. Podrás restaurarlo desde la papelera."
                                 data-confirm-label="Enviar a papelera"
                                 data-confirm-tone="danger"
-                            >
+                            ><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                             <button
                                 type="submit"
                                 class="boton-eliminar"

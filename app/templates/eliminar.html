@@ -33,7 +33,7 @@
         </div>
     </dl>
 
-    <form action="/documentos/{{ documento['id'] }}/eliminar" method="post" data-confirm-title="Enviar documento a la papelera" data-confirm="«{{ documento['titulo'] }}» dejará de aparecer en la biblioteca. Podrás restaurarlo desde la papelera." data-confirm-label="Enviar a papelera" data-confirm-tone="danger">
+    <form action="/documentos/{{ documento['id'] }}/eliminar" method="post" data-confirm-title="Enviar documento a la papelera" data-confirm="«{{ documento['titulo'] }}» dejará de aparecer en la biblioteca. Podrás restaurarlo desde la papelera." data-confirm-label="Enviar a papelera" data-confirm-tone="danger"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div class="acciones-formulario">
             <button type="submit" class="boton-peligro">Sí, enviar a papelera</button>
             <a href="/documentos/{{ documento['id'] }}" class="boton-secundario">Cancelar</a>

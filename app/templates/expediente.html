@@ -37,7 +37,7 @@
 
         {% if buscar %}
             {% if resultados %}
-            <form action="/expedientes/{{ expediente['id'] }}/documentos" method="post" data-required-selection="documento_ids" data-clippy-tip="Marca uno o varios documentos de la lista; al vincularlos seguirán también disponibles en Biblioteca.">
+            <form action="/expedientes/{{ expediente['id'] }}/documentos" method="post" data-required-selection="documento_ids" data-clippy-tip="Marca uno o varios documentos de la lista; al vincularlos seguirán también disponibles en Biblioteca."><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div class="barra-seleccion">
                 <label class="control-seleccionar-todos">
                     <input type="checkbox" class="seleccion-checkbox" onchange="document.querySelectorAll('.seleccion-para-expediente').forEach(c => c.checked = this.checked)">

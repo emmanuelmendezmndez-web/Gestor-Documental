@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{% block titulo %}SIGED | Panel de Control{% endblock %}</title>
     <link rel="icon" type="image/png" href="{{ url_for('static', path='img/siged-isotipo.png') }}?v=1">
     <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}?v=23">
@@ -70,7 +71,7 @@
                     </span>
                     <span class="usuario-info"><strong>{{ usuario["nombre"] }}</strong><small>{{ usuario["rol_nombre"] }}</small></span>
                 </a>
-                <form action="/salir" method="post">
+                <form action="/salir" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button type="submit" class="boton-cerrar-sesion" title="Cerrar sesión" aria-label="Cerrar sesión">
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H5v16h5m4-4 4-4-4-4m4 4H9"/></svg>
                         <span>Cerrar sesión</span>
@@ -165,7 +166,7 @@
                 data-opciones='{{ dict(categorias=asistente_categorias, areas=asistente_areas, usuarioId=usuario["id"], rol=usuario["rol"], areaUsuario=usuario["departamento"])|tojson }}'
                 data-clippy='{{ dict(basePath=url_for("static", path="clippy/agents") ~ "/", cantidadExpediente=(documentos|length if expediente is defined and documentos is defined else none), bibliotecaSinResultados=(pagina == "biblioteca" and hay_filtros|default(false) and total|default(0) == 0), busquedaSinResultados=(pagina == "buscar" and not buscar_vacio|default(true) and not documentos_encontrados|default([]) and not expedientes_encontrados|default([])), discoLleno=(almacenamiento is defined and almacenamiento["disponible"] and almacenamiento["porcentaje"] >= 90), saludoEntrada=saludo_clippy_entrada|default(false), nombre=(usuario["nombre"].split()|first|default("Usuario", true)), usuarioId=usuario["id"], puedeSubir=puede("subir"), puedeRestaurar=puede("restaurar"), puedeUsuarios=puede("usuarios"), puedeActividad=puede("actividad"))|tojson }}'></div>
             <script src="{{ url_for('static', path='siged_configuracion.js') }}?v=1"></script>
-            <script src="{{ url_for('static', path='busqueda_asistida.js') }}?v=6"></script>
+            <script src="{{ url_for('static', path='busqueda_asistida.js') }}?v=7"></script>
             <script src="{{ url_for('static', path='clippy/jquery.min.js') }}"></script>
             <script src="{{ url_for('static', path='clippy/clippy.min.js') }}"></script>
             <script src="{{ url_for('static', path='clippy_asistente.js') }}?v=1"></script>

@@ -8,7 +8,7 @@
 
     {% if documentos %}
     <div class="papelera-toolbar">
-        <form id="acciones-papelera" action="/papelera/restaurar" method="post" class="barra-seleccion" data-required-selection="documento_ids">
+        <form id="acciones-papelera" action="/papelera/restaurar" method="post" class="barra-seleccion" data-required-selection="documento_ids"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <label class="control-seleccionar-todos">
                 <input type="checkbox" class="seleccion-checkbox" data-select-all="seleccion-papelera" aria-label="Seleccionar todos los documentos" data-clippy-tip="Selecciona los documentos que quieras restaurar o eliminar definitivamente. La eliminación permanente no se puede deshacer.">
                 Seleccionar todos los documentos
@@ -25,7 +25,7 @@
             {% endif %}
         </form>
         {% if puede("eliminar") %}
-        <form id="form-vaciar-papelera" action="/papelera/vaciar" method="post" class="form-vaciar-papelera" data-confirm-title="Vaciar toda la papelera" data-confirm="Se eliminarán definitivamente todos los documentos y archivos que están en la papelera. Para continuar, confirma tu contraseña de administrador." data-confirm-label="Vaciar papelera" data-confirm-tone="danger" data-confirm-password="true">
+        <form id="form-vaciar-papelera" action="/papelera/vaciar" method="post" class="form-vaciar-papelera" data-confirm-title="Vaciar toda la papelera" data-confirm="Se eliminarán definitivamente todos los documentos y archivos que están en la papelera. Para continuar, confirma tu contraseña de administrador." data-confirm-label="Vaciar papelera" data-confirm-tone="danger" data-confirm-password="true"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button type="submit" class="boton-peligro">Vaciar toda la papelera</button>
         </form>
         {% endif %}
@@ -73,9 +73,9 @@
         </table>
     </div>
     {% for documento in documentos %}
-    <form id="restaurar-individual-{{ documento['id'] }}" action="/documentos/{{ documento['id'] }}/restaurar" method="post"></form>
+    <form id="restaurar-individual-{{ documento['id'] }}" action="/documentos/{{ documento['id'] }}/restaurar" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"></form>
     {% if puede("eliminar") %}
-    <form id="eliminar-individual-{{ documento['id'] }}" action="/papelera/eliminar-seleccionados" method="post">
+    <form id="eliminar-individual-{{ documento['id'] }}" action="/papelera/eliminar-seleccionados" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <input type="hidden" name="documento_ids" value="{{ documento['id'] }}">
     </form>
     {% endif %}

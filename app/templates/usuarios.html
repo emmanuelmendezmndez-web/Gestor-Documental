@@ -67,7 +67,7 @@
 <section class="panel">
     <h2>Crear usuario</h2>
 
-    <form action="/usuarios" method="post" data-clippy-tip="Al crear una cuenta, asigna únicamente el rol y el área necesarios para sus tareas.">
+    <form action="/usuarios" method="post" data-clippy-tip="Al crear una cuenta, asigna únicamente el rol y el área necesarios para sus tareas."><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div class="campo">
             <label for="nuevo-usuario">Usuario</label>
             <input
