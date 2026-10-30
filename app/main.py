@@ -32,11 +32,11 @@ from app.previsualizacion import (
 from app.respuestas_documentos import avisar, avisar_edicion, avisar_eliminacion
 from app.seleccion import leer_seleccion
 from app.servicios.papelera import purgar_documentos_papelera
-from app.servicios.inicio import buscar_global_datos, dashboard_datos
 from app.servicios.avisos import crear_aviso_servicio
 from app.rutas_actividad import router as router_actividad
 from app.rutas_cuenta import router as router_cuenta
 from app.rutas_usuarios import router as router_usuarios
+from app.rutas_inicio import router as router_rutas_inicio
 from app.rutas_sesion import router as router_rutas_sesion
 from app.tipos_archivo import EXTENSIONES_PERMITIDAS, TIPOS_ARCHIVO
 from app.utilidades import escapar_like, fecha_valida, formatear_tamano
@@ -106,6 +106,7 @@ app.include_router(router_usuarios)
 app.include_router(router_actividad)
 app.include_router(router_cuenta)
 app.include_router(router_asistente)
+app.include_router(router_rutas_inicio)
 app.include_router(router_rutas_sesion)
 
 
@@ -179,25 +180,8 @@ def fallo_subida(
 
 # ---------- Inicio / Dashboard ----------
 
-@app.get(
-    "/buscar",
-    response_class=HTMLResponse,
-    dependencies=[Depends(requiere_permiso("ver"))],
-)
-def buscar_global(request: Request, q: str = ""):
-    return templates.TemplateResponse(request=request, name="buscar.html",
-                                      context=buscar_global_datos(request.state.usuario, q))
 
 
-@app.get(
-    "/inicio",
-    response_class=HTMLResponse,
-    dependencies=[Depends(requiere_permiso("ver"))],
-)
-def dashboard(request: Request):
-    contexto = dashboard_datos(request.state.usuario, STORAGE_DIR)
-    contexto["saludo_clippy_entrada"] = bool(request.session.pop("saludo_clippy_pendiente", False))
-    return templates.TemplateResponse(request=request, name="inicio.html", context=contexto)
 
 
 # ---------- Gestión de avisos (solo administradores) ----------
