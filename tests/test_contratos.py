@@ -52,7 +52,7 @@ class ContratosTest(unittest.TestCase):
                     indice, catalogo = 0, AVISOS_CUENTA
                 elif archivo.name == "rutas_usuarios.py" and nombre == "redirigir":
                     indice, catalogo = 1, AVISOS_USUARIOS
-                elif archivo.name == "main.py" and nombre in {"avisar", "fallo_subida", "avisar_edicion", "avisar_eliminacion"}:
+                elif nombre in {"avisar", "fallo_subida", "avisar_edicion", "avisar_eliminacion"}:
                     indice = {"avisar": 0, "fallo_subida": 1, "avisar_edicion": 1, "avisar_eliminacion": 1}[nombre]
                 if indice is not None and len(nodo.args) > indice:
                     argumento = nodo.args[indice]
