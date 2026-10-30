@@ -4,9 +4,15 @@
 {% from "_iconos.html" import icono_archivo %}
 
 <section class="panel">
-    <h2>Biblioteca de documentos</h2>
+    <div class="encabezado-biblioteca">
+        <h2>Biblioteca de documentos</h2>
+        <a href="/expedientes" class="boton-secundario boton-expedientes">
+            <svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true" focusable="false"><path d="M3.5 7.5h6l2 2h9v9.75H3.5zM3.5 10h17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>
+            <span>Expedientes</span>
+        </a>
+    </div>
 
-    <form action="/" method="get" class="filtros-biblioteca">
+    <form action="/" method="get" class="filtros-biblioteca" data-clippy-tip="Combina título, categoría, área y fechas para acotar los resultados de Biblioteca.">
         <div class="busqueda">
             <div>
                 <label for="buscar">Buscar documento</label>
@@ -58,6 +64,7 @@
                         maxlength="60"
                         placeholder="Por ejemplo: 123/2026"
                         value="{{ filtros['oficio'] }}"
+                        data-clippy-read="Número de oficio"
                     >
                 </div>
 
@@ -79,6 +86,7 @@
                         name="autor"
                         maxlength="100"
                         value="{{ filtros['autor'] }}"
+                        data-clippy-read="Autor"
                     >
                 </div>
 
@@ -100,10 +108,28 @@
         {{ total }} documento{{ "" if total == 1 else "s" }}{% if hay_filtros %} con esos filtros{% endif %}.
     </p>
 
+    {% if puede("papelera") %}
+    <form id="seleccion-papelera" action="/documentos/papelera" method="post" data-required-selection="documento_ids" data-confirm-title="Enviar documentos a la papelera" data-confirm="Los documentos seleccionados dejarán de aparecer en la biblioteca. Podrás restaurarlos desde la papelera." data-confirm-label="Enviar a papelera" data-confirm-tone="danger">
+        <div class="barra-seleccion">
+            <label class="control-seleccionar-todos">
+                <input type="checkbox" class="seleccion-checkbox" data-select-all="seleccion-documento" aria-label="Seleccionar todos los documentos de esta página">
+                Seleccionar todos los de esta página
+            </label>
+            <button type="submit" class="boton-eliminar boton-con-texto accion-seleccion-papelera" data-requires-selection="documento_ids" disabled aria-disabled="true">
+                <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+                    <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>Enviar selección a papelera</span>
+            </button>
+        </div>
+    </form>
+    {% endif %}
+
     <div class="tabla-scroll">
         <table>
             <thead>
                 <tr>
+                    {% if puede("papelera") %}<th scope="col">Seleccionar</th>{% endif %}
                     <th scope="col">Título</th>
                     <th scope="col">Archivo</th>
                     <th scope="col">Categoría</th>
@@ -114,6 +140,9 @@
             <tbody>
                 {% for documento in documentos %}
                 <tr>
+                    {% if puede("papelera") %}
+                    <td><input type="checkbox" class="seleccion-checkbox seleccion-documento" name="documento_ids" value="{{ documento['id'] }}" form="seleccion-papelera" aria-label="Seleccionar {{ documento['titulo'] }}"></td>
+                    {% endif %}
                     <td>
                         <a href="/documentos/{{ documento['id'] }}" class="enlace-titulo">{{ documento["titulo"] }}</a>
                         {% if documento["numero_oficio"] or documento["departamento"] %}
@@ -205,12 +234,21 @@
                             </a>
                             {% endif %}
 
-                            {% if puede("eliminar") %}
-                            <a
-                                href="/documentos/{{ documento['id'] }}/eliminar"
+                            {% if puede("papelera") %}
+                            <form
+                                action="/documentos/{{ documento['id'] }}/eliminar"
+                                method="post"
+                                class="form-accion-inline"
+                                data-confirm-title="Enviar documento a la papelera"
+                                data-confirm="«{{ documento['titulo'] }}» dejará de aparecer en la biblioteca. Podrás restaurarlo desde la papelera."
+                                data-confirm-label="Enviar a papelera"
+                                data-confirm-tone="danger"
+                            >
+                            <button
+                                type="submit"
                                 class="boton-eliminar"
                                 aria-label="Eliminar {{ documento['titulo'] }}"
-                                title="Eliminar"
+                                title="Enviar a papelera"
                             >
                                 <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
                                     <path
@@ -222,7 +260,8 @@
                                         stroke-linejoin="round"
                                     />
                                 </svg>
-                            </a>
+                            </button>
+                            </form>
                             {% endif %}
                         </div>
                     </td>
@@ -231,7 +270,6 @@
             </tbody>
         </table>
     </div>
-
     {% if total_paginas > 1 %}
     <nav class="paginacion" aria-label="Paginación">
         {% if enlace_anterior %}

@@ -4,10 +4,10 @@
 {% from "_iconos.html" import icono_archivo %}
 
 <section class="panel ficha confirmacion">
-    <h2>¿Eliminar este documento?</h2>
+    <h2>¿Enviar este documento a la papelera?</h2>
 
     <div class="ficha-alerta" role="alert">
-        Esta acción no se puede deshacer. Se borrarán el registro y el archivo guardado.
+        El documento dejará de aparecer en la biblioteca. Podrás restaurarlo desde la papelera.
     </div>
 
     <div class="ficha-encabezado">
@@ -33,9 +33,9 @@
         </div>
     </dl>
 
-    <form action="/documentos/{{ documento['id'] }}/eliminar" method="post">
+    <form action="/documentos/{{ documento['id'] }}/eliminar" method="post" data-confirm-title="Enviar documento a la papelera" data-confirm="«{{ documento['titulo'] }}» dejará de aparecer en la biblioteca. Podrás restaurarlo desde la papelera." data-confirm-label="Enviar a papelera" data-confirm-tone="danger">
         <div class="acciones-formulario">
-            <button type="submit" class="boton-peligro">Sí, eliminar definitivamente</button>
+            <button type="submit" class="boton-peligro">Sí, enviar a papelera</button>
             <a href="/documentos/{{ documento['id'] }}" class="boton-secundario">Cancelar</a>
         </div>
     </form>

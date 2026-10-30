@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block contenido %}
+<section class="panel">
+    <a href="/inicio" class="enlace-volver">← Volver a Inicio</a>
+    <div class="titulo-panel">
+        <div><p class="sobrelinea">Administración</p><h2>Gestionar avisos</h2></div>
+    </div>
+    <p class="nota">Los avisos publicados aparecen en Inicio. Puedes mostrarlos a todos o dirigirlos a un departamento. Las cuentas sin departamento asignado solo reciben avisos generales; asígnalo desde Usuarios.</p>
+
+    <form action="/avisos" method="post" enctype="multipart/form-data" class="formulario-aviso" data-clippy-tip="Redacta el comunicado, elige si va dirigido a un área y publícalo cuando esté listo.">
+        <h3>Nuevo aviso</h3>
+        <div class="campo">
+            <label for="titulo-aviso">Título</label>
+            <input type="text" id="titulo-aviso" name="titulo" maxlength="200" data-clippy-read="Título del aviso" required>
+        </div>
+        <div class="campo">
+            <label for="cuerpo-aviso">Mensaje</label>
+            <textarea id="cuerpo-aviso" name="cuerpo" maxlength="5000" rows="5" placeholder="Escribe el comunicado"></textarea>
+        </div>
+        <div class="campo">
+            <label for="area-aviso">Mostrar a</label>
+            <select id="area-aviso" name="departamento">
+                <option value="">Todos los usuarios</option>
+                {% for departamento in departamentos %}
+                <option value="{{ departamento }}">{{ departamento }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="campo">
+            <label for="imagen-aviso">Imagen o banner (opcional)</label>
+            <input type="file" id="imagen-aviso" name="imagen" accept="image/png,image/jpeg,.png,.jpg,.jpeg" data-clippy-tip="Puedes adjuntar un cartel PNG o JPEG de hasta 8 MB.">
+            <p class="nota">PNG o JPG/JPEG, hasta 8 MB.</p>
+        </div>
+        <div class="campo">
+            <label for="estado-aviso">Estado inicial</label>
+            <select id="estado-aviso" name="publicado">
+                <option value="1" selected>Publicar ahora</option>
+                <option value="0">Guardar oculto</option>
+            </select>
+        </div>
+        <button type="submit">Guardar aviso</button>
+    </form>
+</section>
+
+<section class="panel">
+    <h2>Avisos existentes</h2>
+    {% if avisos %}
+    <div class="avisos-admin-lista">
+        {% for aviso in avisos %}
+        <article class="aviso-admin-card">
+            <div class="aviso-admin-contenido">
+                <div class="aviso-meta">
+                    <span class="avatar avatar-pequeno" aria-hidden="true">{{ aviso["autor"][:1]|upper }}</span>
+                    <span><strong>{{ aviso["autor"] }}</strong><small>{{ aviso["fecha_creacion"] }} · {{ aviso["departamento"] or "Todos" }}</small></span>
+                    {% if aviso["publicado"] %}<span class="etiqueta activo">Publicado</span>{% else %}<span class="etiqueta inactivo">Oculto</span>{% endif %}
+                </div>
+                <h3>{{ aviso["titulo"] }}</h3>
+                {% if aviso["cuerpo"] %}<p class="aviso-cuerpo">{{ aviso["cuerpo"] }}</p>{% endif %}
+                {% if aviso["imagen_guardada"] %}
+                <img class="aviso-banner aviso-banner-admin" src="/avisos/{{ aviso['id'] }}/imagen" alt="Imagen del aviso: {{ aviso['titulo'] }}">
+                {% endif %}
+            </div>
+            <div class="acciones-aviso">
+                <form action="/avisos/{{ aviso['id'] }}/estado" method="post">
+                    {% if aviso["publicado"] %}
+                    <input type="hidden" name="publicado" value="0">
+                    <button type="submit" class="boton-secundario">Ocultar</button>
+                    {% else %}
+                    <input type="hidden" name="publicado" value="1">
+                    <button type="submit" class="boton-secundario">Publicar</button>
+                    {% endif %}
+                </form>
+                <form action="/avisos/{{ aviso['id'] }}/eliminar" method="post">
+                    <button type="submit" class="boton-peligro" data-confirm-title="Eliminar aviso" data-confirm="El aviso «{{ aviso['titulo'] }}» se eliminará definitivamente." data-confirm-label="Eliminar aviso" data-confirm-tone="danger">Eliminar</button>
+                </form>
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p>Aún no hay avisos creados.</p>
+    {% endif %}
+</section>
+{% endblock %}

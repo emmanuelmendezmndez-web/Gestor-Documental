@@ -1,4 +1,5 @@
 import logging
+import os
 from contextlib import asynccontextmanager
 from datetime import date
 from math import ceil
@@ -12,12 +13,31 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
+from app.acceso_documentos import condicion_area_documento, filtro_area_documento
 from app.actividad import registrar
+from app.archivos import ArchivoInvalido, TAMANO_BLOQUE, TAMANO_MAXIMO, guardar_en_disco
+from app.asistente import router as router_asistente
+from app.catalogos import CATEGORIAS, DEPARTAMENTOS
 from app.database import conectar, inicializar_db, normalizar_texto
+from app.ediciones import CAMPOS_COMPARABLES, describir_cambios
+from app.metadatos import limpiar_metadatos
+from app.mensajes import AVISOS, MENSAJES_HTTP, MOTIVOS_SUBIDA
+from app.ordenes_biblioteca import EXPR_EXTENSION, EXPR_FECHA, ORDENES, ORDEN_PREDETERMINADO
 from app.plantillas import templates
+from app.previsualizacion import (
+    ArchivoNoPrevisualizable,
+    convertir_office_a_pdf,
+)
+from app.respuestas_documentos import avisar, avisar_edicion, avisar_eliminacion
+from app.seleccion import leer_seleccion
+from app.servicios.papelera import purgar_documentos_papelera
+from app.servicios.inicio import buscar_global_datos, dashboard_datos
+from app.servicios.avisos import crear_aviso_servicio
 from app.rutas_actividad import router as router_actividad
 from app.rutas_cuenta import router as router_cuenta
 from app.rutas_usuarios import router as router_usuarios
+from app.tipos_archivo import EXTENSIONES_PERMITIDAS, TIPOS_ARCHIVO
+from app.utilidades import escapar_like, fecha_valida, formatear_espacio_disco, formatear_tamano
 from app.seguridad import (
     NoAutenticado,
     autenticar,
@@ -28,122 +48,29 @@ from app.seguridad import (
     registrar_fallo,
     requiere_permiso,
     usuario_actual,
+    verificar_password,
 )
 
 logger = logging.getLogger("gestor")
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 APP_DIR = BASE_DIR / "app"
-STORAGE_DIR = BASE_DIR / "storage"  # fuera de app/static: los archivos no son públicos
+DATA_DIR = Path(os.environ.get("GESTOR_DATA_DIR", str(BASE_DIR))).expanduser().resolve()
+STORAGE_DIR = DATA_DIR / "storage"  # separado del código y fuera de app/static
+AVISOS_DIR = STORAGE_DIR / "avisos"
 
-CATEGORIAS = ["Oficios", "Actas", "Informes", "Contratos", "Otros"]
 
-# Departamentos disponibles. Los de abajo son ejemplos: cámbialos por los reales.
-DEPARTAMENTOS = [
-    "Presidencia Municipal",
-    "Secretaría Municipal",
-    "Tesorería",
-    "Obras Públicas",
-    "Desarrollo Social",
-    "Recursos Humanos",
-    "Seguridad Pública",
-    "Servicios Públicos",
-    "Otro",
-]
-
-EXTENSIONES_PERMITIDAS = {".pdf", ".docx", ".xlsx", ".txt", ".png", ".jpg", ".jpeg"}
-TIPOS_ARCHIVO = {
-    ".pdf": "Documento PDF",
-    ".docx": "Documento de Word",
-    ".xlsx": "Hoja de cálculo de Excel",
-    ".txt": "Archivo de texto",
-    ".png": "Imagen PNG",
-    ".jpg": "Imagen JPG",
-    ".jpeg": "Imagen JPG",
-}
-TAMANO_MAXIMO = 20 * 1024 * 1024  # 20 MB
-TAMANO_BLOQUE = 1024 * 1024  # se lee de 1 MB en 1 MB
 POR_PAGINA = 20  # documentos por página en la biblioteca
-
-# Fecha "efectiva" de un documento: la fecha del oficio y, si no se indicó,
-# la fecha en que se registró. Así los documentos antiguos también se ordenan y filtran.
-EXPR_FECHA = "COALESCE(NULLIF(fecha_documento, ''), date(fecha_subida, 'localtime'))"
-
-# Extensión del archivo (lo que va después del último punto), para ordenar por tipo
-EXPR_EXTENSION = (
-    "lower(substr(nombre_archivo, "
-    "length(rtrim(nombre_archivo, replace(nombre_archivo, '.', ''))) + 1))"
-)
-
-# Ordenamientos disponibles. Lo que llega por la URL solo se usa como clave de este
-# diccionario; nunca se inserta directamente en la consulta.
-ORDENES = {
-    "reciente": ("Recién subidos", "id DESC"),
-    "fecha_desc": ("Fecha del documento (más recientes)", f"{EXPR_FECHA} DESC, id DESC"),
-    "fecha_asc": ("Fecha del documento (más antiguos)", f"{EXPR_FECHA} ASC, id ASC"),
-    "titulo_asc": ("Título (A-Z)", "normalizar(titulo) ASC, id DESC"),
-    "titulo_desc": ("Título (Z-A)", "normalizar(titulo) DESC, id DESC"),
-    "categoria": ("Categoría", "normalizar(categoria) ASC, normalizar(titulo) ASC"),
-    "tipo": ("Tipo de archivo", f"{EXPR_EXTENSION} ASC, normalizar(titulo) ASC"),
-}
-ORDEN_PREDETERMINADO = "reciente"
-
-# Los avisos se piden por código, así nadie puede inyectar texto en la página desde la URL
-AVISOS = {
-    "subido": ("exito", "Documento subido correctamente."),
-    "editado": ("exito", "Documento actualizado correctamente."),
-    "eliminado": ("exito", "Documento eliminado correctamente."),
-    "sesion_cerrada": ("exito", "Sesión cerrada correctamente."),
-    "campos": ("error", "Revisa los datos: el título es obligatorio (máx. 200 caracteres), la descripción admite hasta 2000, el número de oficio hasta 60 y el autor hasta 100."),
-    "categoria": ("error", "La categoría seleccionada no es válida."),
-    "departamento": ("error", "El departamento seleccionado no es válido."),
-    "fecha": ("error", "La fecha del documento no es válida."),
-    "formato": ("error", "Formato no permitido. Usa PDF, DOCX, XLSX, TXT, PNG o JPG."),
-    "grande": ("error", "El archivo supera el máximo de 20 MB."),
-    "vacio": ("error", "El archivo está vacío."),
-    "error": ("error", "Ocurrió un error al guardar el documento. Inténtalo de nuevo."),
-    "error_eliminar": ("error", "No se pudo eliminar el documento. Inténtalo de nuevo."),
-    "credenciales": ("error", "Usuario o contraseña incorrectos."),
-    "bloqueado": ("error", "Demasiados intentos fallidos. Espera unos minutos e inténtalo de nuevo."),
+COOKIE_HTTPS_ONLY = os.environ.get("GESTOR_HTTPS_ONLY", "").strip().lower() in {
+    "1", "true", "yes", "si"
 }
 
-# Motivos que se anotan en el registro cuando falla una subida
-MOTIVOS_SUBIDA = {
-    "campos": "datos inválidos (título, descripción, oficio o autor)",
-    "categoria": "categoría no válida",
-    "departamento": "departamento no válido",
-    "fecha": "fecha del documento no válida",
-    "formato": "formato no permitido",
-    "grande": "archivo mayor al máximo permitido",
-    "vacio": "archivo vacío",
-    "error": "error al guardar",
-}
-
-# Campos que se comparan para describir una edición en el registro de actividad
-CAMPOS_COMPARABLES = [
-    ("titulo", "título"),
-    ("categoria", "categoría"),
-    ("numero_oficio", "n.º de oficio"),
-    ("departamento", "departamento"),
-    ("fecha_documento", "fecha del documento"),
-    ("autor", "autor"),
-]
-
-MENSAJES_HTTP = {
-    403: ("Acceso denegado", "No tienes permiso para realizar esta acción."),
-    404: ("No encontrado", "No se encontró lo que buscas."),
-    405: ("Acción no permitida", "Esta dirección no admite esa acción."),
-}
-
-
-class ArchivoInvalido(Exception):
-    def __init__(self, codigo: str):
-        self.codigo = codigo
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    STORAGE_DIR.mkdir(exist_ok=True)
+    STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+    AVISOS_DIR.mkdir(parents=True, exist_ok=True)
     inicializar_db()
 
     with conectar() as conexion:
@@ -162,9 +89,9 @@ app.add_middleware(
     SessionMiddleware,
     secret_key=obtener_clave_secreta(),
     session_cookie="gestor_sesion",
-    max_age=8 * 60 * 60,  # la sesión dura 8 horas desde la última actividad
+    max_age=10 * 60 * 60,  # la sesión dura 10 horas desde la última actividad
     same_site="lax",
-    https_only=False,  # cámbialo a True cuando uses HTTPS
+    https_only=COOKIE_HTTPS_ONLY,  # activa GESTOR_HTTPS_ONLY detrás de HTTPS
 )
 
 app.mount(
@@ -173,9 +100,19 @@ app.mount(
     name="static",
 )
 
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    return FileResponse(
+        APP_DIR / "static" / "img" / "siged-isotipo.png",
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
 app.include_router(router_usuarios)
 app.include_router(router_actividad)
 app.include_router(router_cuenta)
+app.include_router(router_asistente)
 
 
 # ---------- Errores ----------
@@ -214,31 +151,6 @@ async def manejar_error_http(request: Request, exc: StarletteHTTPException):
 
 # ---------- Funciones de apoyo ----------
 
-def avisar(codigo: str) -> RedirectResponse:
-    # Éxito: a la biblioteca para ver el documento. Error: de vuelta al formulario.
-    # 303: tras el POST el navegador hace GET, y recargar no reenvía el formulario
-    ruta = "/" if codigo == "subido" else "/subir"
-    return RedirectResponse(url=f"{ruta}?aviso={codigo}", status_code=303)
-
-
-def avisar_edicion(documento_id: int, codigo: str) -> RedirectResponse:
-    # Éxito: a la ficha del documento. Error: de vuelta al formulario de edición.
-    if codigo == "editado":
-        ruta = f"/documentos/{documento_id}"
-    else:
-        ruta = f"/documentos/{documento_id}/editar"
-    return RedirectResponse(url=f"{ruta}?aviso={codigo}", status_code=303)
-
-
-def avisar_eliminacion(documento_id: int, codigo: str) -> RedirectResponse:
-    # Éxito: a la biblioteca. Error: de vuelta a la pantalla de confirmación.
-    if codigo == "eliminado":
-        ruta = "/"
-    else:
-        ruta = f"/documentos/{documento_id}/eliminar"
-    return RedirectResponse(url=f"{ruta}?aviso={codigo}", status_code=303)
-
-
 def fallo_subida(
     request: Request,
     codigo: str,
@@ -261,106 +173,6 @@ def fallo_subida(
     return avisar(codigo)
 
 
-def limpiar_metadatos(
-    titulo: str,
-    categoria: str,
-    descripcion: str,
-    numero_oficio: str,
-    departamento: str,
-    fecha_documento: str,
-    autor: str,
-):
-    """Limpia y valida los datos que comparten 'subir' y 'editar'.
-    Devuelve (datos, None) si todo está bien, o (None, código_de_error)."""
-    datos = {
-        "titulo": titulo.strip(),
-        "categoria": categoria,
-        "descripcion": descripcion.strip(),
-        "numero_oficio": numero_oficio.strip(),
-        "departamento": departamento,
-        "fecha_documento": fecha_documento.strip(),
-        "autor": autor.strip(),
-    }
-
-    if (
-        not datos["titulo"]
-        or len(datos["titulo"]) > 200
-        or len(datos["descripcion"]) > 2000
-        or len(datos["numero_oficio"]) > 60
-        or len(datos["autor"]) > 100
-    ):
-        return None, "campos"
-
-    if datos["categoria"] not in CATEGORIAS:
-        return None, "categoria"
-
-    # El departamento es opcional, pero si se indica debe estar en la lista
-    if datos["departamento"] and datos["departamento"] not in DEPARTAMENTOS:
-        return None, "departamento"
-
-    if datos["fecha_documento"]:
-        try:
-            datos["fecha_documento"] = date.fromisoformat(
-                datos["fecha_documento"]
-            ).isoformat()
-        except ValueError:
-            return None, "fecha"
-
-    return datos, None
-
-
-def describir_cambios(anterior, datos: dict) -> list[str]:
-    """Texto de lo que cambió en una edición, para el registro de actividad.
-    De la descripción solo se indica que cambió, no su contenido."""
-    cambios = []
-    for campo, etiqueta in CAMPOS_COMPARABLES:
-        antes = anterior[campo] or ""
-        despues = datos[campo] or ""
-        if antes != despues:
-            cambios.append(f"{etiqueta}: «{antes or '—'}» → «{despues or '—'}»")
-
-    if (anterior["descripcion"] or "") != datos["descripcion"]:
-        cambios.append("descripción modificada")
-
-    return cambios
-
-
-def fecha_valida(texto: str) -> str:
-    """Devuelve la fecha como AAAA-MM-DD, o una cadena vacía si no es válida."""
-    try:
-        return date.fromisoformat(texto).isoformat()
-    except ValueError:
-        return ""
-
-
-def formatear_tamano(total_bytes: int) -> str:
-    """Convierte bytes a un texto legible: 512 B, 48.3 KB, 2.3 MB..."""
-    tamano = float(total_bytes)
-    for unidad in ("B", "KB", "MB", "GB"):
-        if tamano < 1024 or unidad == "GB":
-            if unidad == "B":
-                return f"{int(tamano)} B"
-            return f"{tamano:.1f} {unidad}"
-        tamano /= 1024
-
-
-def guardar_en_disco(archivo: UploadFile, destino: Path) -> int:
-    """Copia el archivo por bloques, valida el tamaño real y devuelve los bytes escritos."""
-    tamano = 0
-    with destino.open("wb") as salida:
-        while bloque := archivo.file.read(TAMANO_BLOQUE):
-            tamano += len(bloque)
-            if tamano > TAMANO_MAXIMO:
-                raise ArchivoInvalido("grande")
-            salida.write(bloque)
-    if tamano == 0:
-        raise ArchivoInvalido("vacio")
-    return tamano
-
-
-def escapar_like(texto: str) -> str:
-    """Evita que % y _ escritos por el usuario se comporten como comodines."""
-    return texto.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 # ---------- Inicio y cierre de sesión ----------
@@ -368,7 +180,7 @@ def escapar_like(texto: str) -> str:
 @app.get("/login", response_class=HTMLResponse)
 def pagina_login(request: Request, aviso: str | None = None):
     if usuario_actual(request):
-        return RedirectResponse(url="/", status_code=303)
+        return RedirectResponse(url="/inicio", status_code=303)
 
     tipo, mensaje = AVISOS.get(aviso, (None, None))
 
@@ -424,13 +236,14 @@ def iniciar_sesion(
     request.session.clear()  # sesión nueva en cada inicio
     request.session["usuario_id"] = fila["id"]
     request.session["version"] = fila["version_sesion"]
+    request.session["saludo_clippy_pendiente"] = True
 
     registrar(
         request,
         "inicio_sesion",
         usuario={"id": fila["id"], "usuario": fila["usuario"]},
     )
-    return RedirectResponse(url="/", status_code=303)
+    return RedirectResponse(url="/inicio", status_code=303)
 
 
 @app.post("/salir")
@@ -441,6 +254,173 @@ def cerrar_sesion(request: Request):
 
     request.session.clear()
     return RedirectResponse(url="/login?aviso=sesion_cerrada", status_code=303)
+
+
+# ---------- Inicio / Dashboard ----------
+
+@app.get(
+    "/buscar",
+    response_class=HTMLResponse,
+    dependencies=[Depends(requiere_permiso("ver"))],
+)
+def buscar_global(request: Request, q: str = ""):
+    return templates.TemplateResponse(request=request, name="buscar.html",
+                                      context=buscar_global_datos(request.state.usuario, q))
+
+
+@app.get(
+    "/inicio",
+    response_class=HTMLResponse,
+    dependencies=[Depends(requiere_permiso("ver"))],
+)
+def dashboard(request: Request):
+    contexto = dashboard_datos(request.state.usuario, STORAGE_DIR)
+    contexto["saludo_clippy_entrada"] = bool(request.session.pop("saludo_clippy_pendiente", False))
+    return templates.TemplateResponse(request=request, name="inicio.html", context=contexto)
+
+
+# ---------- Gestión de avisos (solo administradores) ----------
+
+@app.get(
+    "/avisos",
+    response_class=HTMLResponse,
+    dependencies=[Depends(requiere_permiso("avisos"))],
+)
+def gestionar_avisos(request: Request, aviso: str | None = None):
+    tipo, mensaje = AVISOS.get(aviso, (None, None))
+    with conectar() as conexion:
+        avisos = conexion.execute(
+            """
+            SELECT a.id, a.titulo, a.cuerpo, a.imagen_guardada,
+                   a.imagen_nombre, a.departamento, a.publicado,
+                   datetime(a.fecha_creacion, 'localtime') AS fecha_creacion,
+                   COALESCE(u.nombre, u.usuario, 'Administrador') AS autor
+            FROM avisos a
+            LEFT JOIN usuarios u ON u.id = a.autor_id
+            ORDER BY a.fecha_creacion DESC, a.id DESC
+            """
+        ).fetchall()
+
+    return templates.TemplateResponse(
+        request=request,
+        name="avisos_admin.html",
+        context={
+            "titulo": "Gestor Documental",
+            "pagina": "inicio",
+            "avisos": avisos,
+            "departamentos": DEPARTAMENTOS,
+            "mensaje": mensaje,
+            "tipo": tipo,
+        },
+    )
+
+
+@app.post("/avisos", dependencies=[Depends(requiere_permiso("avisos"))])
+def crear_aviso(
+    request: Request, titulo: str = Form(...), cuerpo: str = Form(""),
+    departamento: str = Form(""), publicado: int = Form(1),
+    imagen: UploadFile | None = File(None),
+):
+    codigo = crear_aviso_servicio(request, titulo, cuerpo, departamento, publicado, imagen, AVISOS_DIR)
+    return RedirectResponse(url=f"/avisos?aviso={codigo}", status_code=303)
+
+
+@app.post(
+    "/avisos/{aviso_id}/estado",
+    dependencies=[Depends(requiere_permiso("avisos"))],
+)
+def cambiar_estado_aviso(
+    request: Request,
+    aviso_id: int,
+    publicado: int = Form(...),
+):
+    if publicado not in (0, 1):
+        raise HTTPException(status_code=400, detail="Estado de aviso no válido.")
+    with conectar() as conexion:
+        aviso = conexion.execute(
+            "SELECT titulo FROM avisos WHERE id = ?",
+            (aviso_id,),
+        ).fetchone()
+        if aviso is None:
+            raise HTTPException(status_code=404, detail="Aviso no encontrado.")
+        conexion.execute("UPDATE avisos SET publicado = ? WHERE id = ?", (publicado, aviso_id))
+
+    registrar(
+        request,
+        "aviso_estado",
+        entidad="aviso",
+        entidad_id=aviso_id,
+        entidad_nombre=aviso["titulo"],
+        detalle="publicado" if publicado else "oculto",
+    )
+    return RedirectResponse(url="/avisos?aviso=aviso_estado", status_code=303)
+
+
+@app.post(
+    "/avisos/{aviso_id}/eliminar",
+    dependencies=[Depends(requiere_permiso("avisos"))],
+)
+def eliminar_aviso(request: Request, aviso_id: int):
+    with conectar() as conexion:
+        aviso = conexion.execute(
+            "SELECT titulo, imagen_guardada FROM avisos WHERE id = ?",
+            (aviso_id,),
+        ).fetchone()
+        if aviso is None:
+            raise HTTPException(status_code=404, detail="Aviso no encontrado.")
+        conexion.execute("DELETE FROM avisos WHERE id = ?", (aviso_id,))
+
+    if aviso["imagen_guardada"]:
+        try:
+            (AVISOS_DIR / aviso["imagen_guardada"]).unlink(missing_ok=True)
+        except OSError:
+            logger.exception("No se pudo borrar la imagen del aviso %s", aviso_id)
+    registrar(
+        request,
+        "aviso_eliminar",
+        entidad="aviso",
+        entidad_id=aviso_id,
+        entidad_nombre=aviso["titulo"],
+    )
+    return RedirectResponse(url="/avisos?aviso=aviso_eliminado", status_code=303)
+
+
+@app.get(
+    "/avisos/{aviso_id}/imagen",
+    dependencies=[Depends(requiere_permiso("ver"))],
+)
+def imagen_aviso(request: Request, aviso_id: int):
+    with conectar() as conexion:
+        aviso = conexion.execute(
+            "SELECT imagen_guardada, imagen_nombre, departamento, publicado FROM avisos WHERE id = ?",
+            (aviso_id,),
+        ).fetchone()
+
+    if aviso is None or not aviso["imagen_guardada"]:
+        raise HTTPException(status_code=404, detail="Imagen del aviso no encontrada.")
+    usuario = request.state.usuario
+    es_admin = usuario["rol"] == "admin"
+    visible = aviso["publicado"] and (
+        not aviso["departamento"]
+        or aviso["departamento"] == usuario.get("departamento", "")
+    )
+    if not es_admin and not visible:
+        raise HTTPException(status_code=404, detail="Imagen del aviso no encontrada.")
+
+    extension = Path(aviso["imagen_guardada"]).suffix.lower()
+    tipos_imagen = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg"}
+    if extension not in tipos_imagen:
+        raise HTTPException(status_code=404, detail="Imagen del aviso no encontrada.")
+    ruta_imagen = AVISOS_DIR / aviso["imagen_guardada"]
+    if not ruta_imagen.is_file():
+        raise HTTPException(status_code=404, detail="Imagen del aviso no encontrada.")
+    return FileResponse(
+        path=ruta_imagen,
+        media_type=tipos_imagen[extension],
+        filename=aviso["imagen_nombre"] or ruta_imagen.name,
+        content_disposition_type="inline",
+        headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store"},
+    )
 
 
 # ---------- Biblioteca ----------
@@ -476,8 +456,13 @@ def inicio(
         "orden": orden if orden in ORDENES else ORDEN_PREDETERMINADO,
     }
 
-    condiciones = []
+    # Los elementos enviados a la papelera no aparecen en la biblioteca.
+    condiciones = ["eliminado_en IS NULL"]
     parametros = []
+    condicion_area, parametros_area = condicion_area_documento(request.state.usuario)
+    if condicion_area:
+        condiciones.append(condicion_area)
+        parametros.extend(parametros_area)
 
     # Búsqueda general: cada palabra debe aparecer en el título, el archivo o la
     # descripción, sin importar mayúsculas ni acentos.
@@ -581,6 +566,346 @@ def inicio(
     )
 
 
+# ---------- Expedientes ----------
+
+@app.get(
+    "/expedientes",
+    response_class=HTMLResponse,
+    dependencies=[Depends(requiere_permiso("ver_expedientes"))],
+)
+def lista_expedientes(request: Request, aviso: str | None = None):
+    tipo, mensaje = AVISOS.get(aviso, (None, None))
+    filtro_area_documento_sql, parametros_area = filtro_area_documento(
+        request.state.usuario, "d."
+    )
+    with conectar() as conexion:
+        expedientes = conexion.execute(
+            """
+            SELECT e.id, e.folio, e.titulo, e.descripcion,
+                   datetime(e.fecha_creacion, 'localtime') AS fecha_creacion,
+                   COALESCE(u.nombre, u.usuario) AS creador,
+                   COUNT(d.id) AS total_documentos
+            FROM expedientes e
+            LEFT JOIN usuarios u ON u.id = e.creado_por
+            LEFT JOIN expediente_documentos ed ON ed.expediente_id = e.id
+            LEFT JOIN documentos d
+                   ON d.id = ed.documento_id AND d.eliminado_en IS NULL"""
+            + filtro_area_documento_sql
+            + """
+            GROUP BY e.id
+            ORDER BY e.id DESC
+            """,
+            parametros_area,
+        ).fetchall()
+
+    return templates.TemplateResponse(
+        request=request,
+        name="expedientes.html",
+        context={
+            "titulo": "Gestor Documental",
+            "pagina": "biblioteca",
+            "expedientes": expedientes,
+            "mensaje": mensaje,
+            "tipo": tipo,
+        },
+    )
+
+
+@app.post(
+    "/expedientes",
+    dependencies=[Depends(requiere_permiso("gestionar_expedientes"))],
+)
+def crear_expediente(
+    request: Request,
+    titulo: str = Form(...),
+    descripcion: str = Form(""),
+):
+    titulo = titulo.strip()
+    descripcion = descripcion.strip()
+    if not titulo or len(titulo) > 200 or len(descripcion) > 2000:
+        return RedirectResponse(url="/expedientes?aviso=expediente_campos", status_code=303)
+
+    try:
+        with conectar() as conexion:
+            resultado = conexion.execute(
+                "INSERT INTO expedientes (titulo, descripcion, creado_por) VALUES (?, ?, ?)",
+                (titulo, descripcion, request.state.usuario["id"]),
+            )
+            expediente_id = resultado.lastrowid
+            folio = f"EXP-{date.today().year}-{expediente_id:06d}"
+            conexion.execute(
+                "UPDATE expedientes SET folio = ? WHERE id = ?",
+                (folio, expediente_id),
+            )
+    except Exception:
+        logger.exception("No se pudo crear el expediente")
+        return RedirectResponse(url="/expedientes?aviso=error_expediente", status_code=303)
+
+    registrar(
+        request,
+        "expediente_crear",
+        entidad="expediente",
+        entidad_id=expediente_id,
+        entidad_nombre=folio,
+        detalle=titulo,
+    )
+    return RedirectResponse(
+        url=f"/expedientes/{expediente_id}?aviso=expediente_creado",
+        status_code=303,
+    )
+
+
+@app.get(
+    "/expedientes/{expediente_id}/eliminar",
+    response_class=HTMLResponse,
+    dependencies=[Depends(requiere_permiso("gestionar_expedientes"))],
+)
+def pagina_eliminar_expediente(request: Request, expediente_id: int):
+    with conectar() as conexion:
+        expediente = conexion.execute(
+            "SELECT id, folio, titulo, descripcion FROM expedientes WHERE id = ?",
+            (expediente_id,),
+        ).fetchone()
+    if expediente is None:
+        raise HTTPException(status_code=404, detail="Expediente no encontrado.")
+
+    return templates.TemplateResponse(
+        request=request,
+        name="eliminar_expediente.html",
+        context={
+            "titulo": "Gestor Documental",
+            "pagina": "biblioteca",
+            "expediente": expediente,
+        },
+    )
+
+
+@app.post(
+    "/expedientes/{expediente_id}/eliminar",
+    dependencies=[Depends(requiere_permiso("gestionar_expedientes"))],
+)
+def eliminar_expediente(request: Request, expediente_id: int):
+    try:
+        with conectar() as conexion:
+            expediente = conexion.execute(
+                "SELECT folio, titulo FROM expedientes WHERE id = ?",
+                (expediente_id,),
+            ).fetchone()
+            if expediente is None:
+                raise HTTPException(status_code=404, detail="Expediente no encontrado.")
+
+            # La FK ON DELETE CASCADE elimina solo las asociaciones del expediente;
+            # los documentos originales permanecen en la biblioteca.
+            conexion.execute("DELETE FROM expedientes WHERE id = ?", (expediente_id,))
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("No se pudo eliminar el expediente %s", expediente_id)
+        return RedirectResponse(
+            url="/expedientes?aviso=error_eliminar_expediente",
+            status_code=303,
+        )
+
+    registrar(
+        request,
+        "expediente_eliminar",
+        entidad="expediente",
+        entidad_id=expediente_id,
+        entidad_nombre=expediente["folio"],
+        detalle=expediente["titulo"],
+    )
+    return RedirectResponse(url="/expedientes?aviso=expediente_eliminado", status_code=303)
+
+
+@app.get(
+    "/expedientes/{expediente_id}",
+    response_class=HTMLResponse,
+    dependencies=[Depends(requiere_permiso("ver_expedientes"))],
+)
+def ficha_expediente(
+    request: Request,
+    expediente_id: int,
+    buscar: str = "",
+    aviso: str | None = None,
+):
+    tipo, mensaje = AVISOS.get(aviso, (None, None))
+    buscar = buscar.strip()[:200]
+    filtro_area_documento_sql, parametros_area = filtro_area_documento(
+        request.state.usuario, "d."
+    )
+    with conectar() as conexion:
+        expediente = conexion.execute(
+            """
+            SELECT e.id, e.folio, e.titulo, e.descripcion,
+                   datetime(e.fecha_creacion, 'localtime') AS fecha_creacion,
+                   COALESCE(u.nombre, u.usuario) AS creador
+            FROM expedientes e
+            LEFT JOIN usuarios u ON u.id = e.creado_por
+            WHERE e.id = ?
+            """,
+            (expediente_id,),
+        ).fetchone()
+        if expediente is None:
+            raise HTTPException(status_code=404, detail="Expediente no encontrado.")
+
+        documentos_vinculados = conexion.execute(
+            """
+            SELECT d.id, d.titulo, d.nombre_archivo, d.categoria,
+                   d.numero_oficio, d.fecha_documento,
+                   datetime(ed.fecha_vinculacion, 'localtime') AS fecha_vinculacion
+            FROM expediente_documentos ed
+            JOIN documentos d ON d.id = ed.documento_id
+            WHERE ed.expediente_id = ? AND d.eliminado_en IS NULL"""
+            + filtro_area_documento_sql
+            + """
+            ORDER BY ed.fecha_vinculacion DESC, d.id DESC
+            """,
+            [expediente_id, *parametros_area],
+        ).fetchall()
+
+        resultados = []
+        if buscar:
+            termino = f"%{escapar_like(normalizar_texto(buscar))}%"
+            resultados = conexion.execute(
+                """
+                SELECT d.id, d.titulo, d.nombre_archivo, d.categoria,
+                       d.numero_oficio, d.fecha_documento
+                FROM documentos d
+                WHERE d.eliminado_en IS NULL
+                """ + filtro_area_documento_sql + """
+                  AND (
+                    normalizar(d.titulo) LIKE ? ESCAPE '\\'
+                    OR normalizar(d.nombre_archivo) LIKE ? ESCAPE '\\'
+                    OR normalizar(d.numero_oficio) LIKE ? ESCAPE '\\'
+                    OR CAST(d.id AS TEXT) LIKE ? ESCAPE '\\'
+                  )
+                  AND NOT EXISTS (
+                    SELECT 1 FROM expediente_documentos ed
+                    WHERE ed.expediente_id = ? AND ed.documento_id = d.id
+                  )
+                ORDER BY d.id DESC
+                LIMIT 30
+                """,
+                [*parametros_area, termino, termino, termino, termino, expediente_id],
+            ).fetchall()
+
+    return templates.TemplateResponse(
+        request=request,
+        name="expediente.html",
+        context={
+            "titulo": "Gestor Documental",
+            "pagina": "biblioteca",
+            "expediente": expediente,
+            "documentos": documentos_vinculados,
+            "buscar": buscar,
+            "resultados": resultados,
+            "mensaje": mensaje,
+            "tipo": tipo,
+        },
+    )
+
+
+@app.post(
+    "/expedientes/{expediente_id}/documentos",
+    dependencies=[Depends(requiere_permiso("gestionar_expedientes"))],
+)
+def vincular_documentos_masivo(
+    request: Request,
+    expediente_id: int,
+    documento_ids: list[int] = Form(default=[]),
+):
+    ids, placeholders, error = leer_seleccion(documento_ids)
+    if error:
+        return RedirectResponse(
+            url=f"/expedientes/{expediente_id}?aviso={error}",
+            status_code=303,
+        )
+
+    filtro_area, parametros_area = filtro_area_documento(request.state.usuario, "d.")
+    with conectar() as conexion:
+        expediente = conexion.execute(
+            "SELECT folio FROM expedientes WHERE id = ?", (expediente_id,)
+        ).fetchone()
+        if expediente is None:
+            raise HTTPException(status_code=404, detail="Expediente no encontrado.")
+        documentos = conexion.execute(
+            "SELECT d.id, d.titulo FROM documentos d "
+            f"WHERE d.id IN ({placeholders}) AND d.eliminado_en IS NULL" + filtro_area,
+            [*ids, *parametros_area],
+        ).fetchall()
+        if len(documentos) != len(ids):
+            raise HTTPException(status_code=404, detail="Uno o más documentos no están disponibles.")
+        conexion.executemany(
+            "INSERT OR IGNORE INTO expediente_documentos "
+            "(expediente_id, documento_id, vinculado_por) VALUES (?, ?, ?)",
+            [(expediente_id, documento["id"], request.state.usuario["id"]) for documento in documentos],
+        )
+
+    for documento in documentos:
+        registrar(
+            request,
+            "expediente_vincular",
+            entidad="documento",
+            entidad_id=documento["id"],
+            entidad_nombre=documento["titulo"],
+            detalle=f"expediente {expediente['folio']} (selección múltiple)",
+        )
+    return RedirectResponse(
+        url=f"/expedientes/{expediente_id}?aviso=documentos_vinculados",
+        status_code=303,
+    )
+
+
+@app.post(
+    "/expedientes/{expediente_id}/documentos/{documento_id}",
+    dependencies=[Depends(requiere_permiso("gestionar_expedientes"))],
+)
+def vincular_documento(
+    request: Request,
+    expediente_id: int,
+    documento_id: int,
+):
+    filtro_area, parametros_area = filtro_area_documento(request.state.usuario)
+    with conectar() as conexion:
+        expediente = conexion.execute(
+            "SELECT folio FROM expedientes WHERE id = ?",
+            (expediente_id,),
+        ).fetchone()
+        if expediente is None:
+            raise HTTPException(status_code=404, detail="Expediente no encontrado.")
+
+        documento = conexion.execute(
+            "SELECT id, titulo FROM documentos WHERE id = ? AND eliminado_en IS NULL"
+            + filtro_area,
+            [documento_id, *parametros_area],
+        ).fetchone()
+        if documento is None:
+            raise HTTPException(status_code=404, detail="Documento no encontrado en la biblioteca.")
+
+        resultado = conexion.execute(
+            """
+            INSERT OR IGNORE INTO expediente_documentos
+                (expediente_id, documento_id, vinculado_por)
+            VALUES (?, ?, ?)
+            """,
+            (expediente_id, documento_id, request.state.usuario["id"]),
+        )
+
+    if resultado.rowcount:
+        registrar(
+            request,
+            "expediente_vincular",
+            entidad="documento",
+            entidad_id=documento_id,
+            entidad_nombre=documento["titulo"],
+            detalle=f"expediente {expediente['folio']}",
+        )
+    return RedirectResponse(
+        url=f"/expedientes/{expediente_id}?aviso=documento_vinculado",
+        status_code=303,
+    )
+
+
 # ---------- Subir ----------
 
 @app.get(
@@ -599,6 +924,8 @@ def pagina_subir(request: Request, aviso: str | None = None):
             "pagina": "subir",
             "categorias": CATEGORIAS,
             "departamentos": DEPARTAMENTOS,
+            "es_admin": request.state.usuario["rol"] == "admin",
+            "area_usuario": request.state.usuario.get("departamento", ""),
             "mensaje": mensaje,
             "tipo": tipo,
         },
@@ -623,6 +950,13 @@ def subir(
     )
     if error:
         return fallo_subida(request, error, titulo.strip())
+
+    if request.state.usuario["rol"] != "admin":
+        area_usuario = request.state.usuario.get("departamento", "")
+        if area_usuario not in DEPARTAMENTOS:
+            return fallo_subida(request, "area_usuario", datos["titulo"])
+        # Nunca confiar en el área enviada por el formulario del navegador.
+        datos["departamento"] = area_usuario
 
     # Path(...).name descarta cualquier carpeta que venga en el nombre ("../../x.pdf")
     nombre_completo = Path((archivo.filename or "").replace("\\", "/")).name
@@ -700,6 +1034,7 @@ def ficha_documento(
     aviso: str | None = None,
 ):
     tipo, mensaje = AVISOS.get(aviso, (None, None))
+    filtro_area, parametros_area = filtro_area_documento(request.state.usuario)
 
     with conectar() as conexion:
         documento = conexion.execute(
@@ -710,8 +1045,9 @@ def ficha_documento(
                    datetime(fecha_subida, 'localtime') AS fecha_subida
             FROM documentos
             WHERE id = ?
-            """,
-            (documento_id,),
+              AND eliminado_en IS NULL
+            """ + filtro_area,
+            [documento_id, *parametros_area],
         ).fetchone()
 
     if documento is None:
@@ -741,12 +1077,105 @@ def ficha_documento(
             "pagina": "biblioteca",
             "documento": documento,
             "tipo_archivo": TIPOS_ARCHIVO.get(extension, "Archivo"),
+            "extension": extension,
             "tamano": formatear_tamano(documento["tamano_bytes"]),
             "disponible": disponible,
             "mensaje": mensaje,
             "tipo": tipo,
         },
     )
+
+
+@app.get(
+    "/documentos/{documento_id}/vista",
+    dependencies=[Depends(requiere_permiso("ver"))],
+)
+def previsualizar_documento(request: Request, documento_id: int):
+    filtro_area, parametros_area = filtro_area_documento(request.state.usuario)
+    with conectar() as conexion:
+        documento = conexion.execute(
+            """
+            SELECT id, titulo, nombre_archivo, nombre_guardado
+            FROM documentos
+            WHERE id = ? AND eliminado_en IS NULL""" + filtro_area,
+            [documento_id, *parametros_area],
+        ).fetchone()
+
+    if documento is None:
+        raise HTTPException(status_code=404, detail="Documento no encontrado.")
+
+    ruta_archivo = STORAGE_DIR / documento["nombre_guardado"]
+    if not ruta_archivo.is_file():
+        raise HTTPException(status_code=404, detail="El archivo no existe en el almacenamiento.")
+
+    extension = Path(documento["nombre_archivo"]).suffix.lower()
+    registrar(
+        request,
+        "previsualizar",
+        entidad="documento",
+        entidad_id=documento_id,
+        entidad_nombre=documento["titulo"],
+    )
+
+    tipos_en_linea = {
+        ".pdf": "application/pdf",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+    }
+    if extension in tipos_en_linea:
+        return FileResponse(
+            path=ruta_archivo,
+            media_type=tipos_en_linea[extension],
+            filename=Path(documento["nombre_archivo"]).name,
+            content_disposition_type="inline",
+            headers={
+                "X-Content-Type-Options": "nosniff",
+                "Cache-Control": "private, no-store",
+            },
+        )
+
+    error = None
+    texto = None
+    if extension in {".xlsx", ".docx", ".pptx"}:
+        try:
+            pdf, _ = convertir_office_a_pdf(ruta_archivo)
+        except ArchivoNoPrevisualizable as exc:
+            logger.warning("No se pudo convertir el documento %s con LibreOffice: %s", documento_id, exc)
+            error = str(exc)
+        else:
+            return FileResponse(
+                path=pdf,
+                media_type="application/pdf",
+                filename=f"{Path(documento['nombre_archivo']).stem}.pdf",
+                content_disposition_type="inline",
+                headers={
+                    "X-Content-Type-Options": "nosniff",
+                    "Cache-Control": "private, no-store",
+                },
+            )
+
+    try:
+        if not error and extension == ".txt":
+            texto = ruta_archivo.read_text(encoding="utf-8-sig", errors="replace")
+    except (ArchivoNoPrevisualizable, OSError) as exc:
+        logger.warning("No se pudo previsualizar el documento %s: %s", documento_id, exc)
+        error = str(exc) if isinstance(exc, ArchivoNoPrevisualizable) else "No se pudo leer el archivo."
+
+    respuesta = templates.TemplateResponse(
+        request=request,
+        name="previsualizacion.html",
+        context={
+            "nombre_archivo": documento["nombre_archivo"],
+            "extension": extension,
+            "texto": texto,
+            "error": error,
+        },
+    )
+    respuesta.headers["X-Content-Type-Options"] = "nosniff"
+    respuesta.headers["Cache-Control"] = "private, no-store"
+    respuesta.headers["Content-Security-Policy"] = "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'self'"
+    return respuesta
 
 
 # ---------- Editar ----------
@@ -762,17 +1191,19 @@ def pagina_editar(
     aviso: str | None = None,
 ):
     tipo, mensaje = AVISOS.get(aviso, (None, None))
+    filtro_area, parametros_area = filtro_area_documento(request.state.usuario)
 
     with conectar() as conexion:
         documento = conexion.execute(
             """
-            SELECT id, titulo, nombre_archivo, categoria, descripcion,
+            SELECT id, titulo, nombre_archivo, categoria, descripcion, version,
                    numero_oficio, departamento, autor, fecha_documento,
                    datetime(fecha_subida, 'localtime') AS fecha_subida
             FROM documentos
             WHERE id = ?
-            """,
-            (documento_id,),
+              AND eliminado_en IS NULL
+            """ + filtro_area,
+            [documento_id, *parametros_area],
         ).fetchone()
 
     if documento is None:
@@ -790,6 +1221,7 @@ def pagina_editar(
             "documento": documento,
             "categorias": CATEGORIAS,
             "departamentos": DEPARTAMENTOS,
+            "es_admin": request.state.usuario["rol"] == "admin",
             "mensaje": mensaje,
             "tipo": tipo,
         },
@@ -810,6 +1242,7 @@ def editar_documento(
     departamento: str = Form(""),
     fecha_documento: str = Form(""),
     autor: str = Form(""),
+    version: int = Form(1),
 ):
     datos, error = limpiar_metadatos(
         titulo, categoria, descripcion, numero_oficio,
@@ -819,28 +1252,35 @@ def editar_documento(
         return avisar_edicion(documento_id, error)
 
     anterior = None
+    filtro_area, parametros_area = filtro_area_documento(request.state.usuario)
 
     try:
         with conectar() as conexion:
             anterior = conexion.execute(
                 """
                 SELECT titulo, categoria, descripcion, numero_oficio,
-                       departamento, fecha_documento, autor
+                       departamento, fecha_documento, autor, version
                 FROM documentos
                 WHERE id = ?
-                """,
-                (documento_id,),
+                  AND eliminado_en IS NULL
+                """ + filtro_area,
+                [documento_id, *parametros_area],
             ).fetchone()
 
             if anterior is not None:
-                conexion.execute(
+                if anterior["version"] != version:
+                    return avisar_edicion(documento_id, "conflicto_edicion")
+                if request.state.usuario["rol"] != "admin":
+                    # El usuario puede editar metadatos del documento accesible,
+                    # pero no reclasificarlo para otro departamento ni hacerlo público.
+                    datos["departamento"] = anterior["departamento"]
+                resultado = conexion.execute(
                     """
                     UPDATE documentos
                     SET titulo = ?, categoria = ?, descripcion = ?,
                         numero_oficio = ?, departamento = ?,
-                        fecha_documento = ?, autor = ?
-                    WHERE id = ?
-                    """,
+                        fecha_documento = ?, autor = ?, version = version + 1
+                    WHERE id = ? AND version = ?""" + filtro_area,
                     (
                         datos["titulo"],
                         datos["categoria"],
@@ -850,8 +1290,12 @@ def editar_documento(
                         datos["fecha_documento"] or None,
                         datos["autor"],
                         documento_id,
+                        version,
+                        *parametros_area,
                     ),
                 )
+                if resultado.rowcount != 1:
+                    return avisar_edicion(documento_id, "conflicto_edicion")
     except Exception:
         logger.exception("No se pudo editar el documento %s", documento_id)
         registrar(
@@ -890,7 +1334,7 @@ def editar_documento(
 @app.get(
     "/documentos/{documento_id}/eliminar",
     response_class=HTMLResponse,
-    dependencies=[Depends(requiere_permiso("eliminar"))],
+    dependencies=[Depends(requiere_permiso("papelera"))],
 )
 def pagina_eliminar(
     request: Request,
@@ -899,6 +1343,7 @@ def pagina_eliminar(
 ):
     # Esta ruta solo MUESTRA la confirmación: no borra nada.
     tipo, mensaje = AVISOS.get(aviso, (None, None))
+    filtro_area, parametros_area = filtro_area_documento(request.state.usuario)
 
     with conectar() as conexion:
         documento = conexion.execute(
@@ -907,8 +1352,9 @@ def pagina_eliminar(
                    datetime(fecha_subida, 'localtime') AS fecha_subida
             FROM documentos
             WHERE id = ?
-            """,
-            (documento_id,),
+              AND eliminado_en IS NULL
+            """ + filtro_area,
+            [documento_id, *parametros_area],
         ).fetchone()
 
     if documento is None:
@@ -933,38 +1379,41 @@ def pagina_eliminar(
 
 @app.post(
     "/documentos/{documento_id}/eliminar",
-    dependencies=[Depends(requiere_permiso("eliminar"))],
+    dependencies=[Depends(requiere_permiso("papelera"))],
 )
 def eliminar_documento(request: Request, documento_id: int):
     documento = None
+    filtro_area, parametros_area = filtro_area_documento(request.state.usuario)
 
-    # 1) Primero el registro: si esto falla, el documento queda intacto.
+    # Enviar a papelera conserva el registro y el archivo para poder restaurarlos.
     try:
         with conectar() as conexion:
             fila = conexion.execute(
                 """
-                SELECT titulo, nombre_archivo, nombre_guardado
+                SELECT titulo, nombre_archivo
                 FROM documentos
-                WHERE id = ?
-                """,
-                (documento_id,),
+                WHERE id = ? AND eliminado_en IS NULL""" + filtro_area,
+                [documento_id, *parametros_area],
             ).fetchone()
 
             if fila is not None:
                 documento = dict(fila)
                 conexion.execute(
-                    "DELETE FROM documentos WHERE id = ?",
-                    (documento_id,),
+                    """
+                    UPDATE documentos
+                    SET eliminado_en = CURRENT_TIMESTAMP, eliminado_por = ?
+                    WHERE id = ? AND eliminado_en IS NULL""" + filtro_area,
+                    (request.state.usuario["id"], documento_id, *parametros_area),
                 )
     except Exception:
         logger.exception("No se pudo eliminar el registro %s", documento_id)
         registrar(
             request,
-            "eliminar",
+            "papelera_enviar",
             "fallo",
             entidad="documento",
             entidad_id=documento_id,
-            detalle="error al eliminar el registro",
+            detalle="error al enviar el documento a la papelera",
         )
         return avisar_eliminacion(documento_id, "error_eliminar")
 
@@ -974,33 +1423,224 @@ def eliminar_documento(request: Request, documento_id: int):
             detail="Documento no encontrado.",
         )
 
-    # 2) Después el archivo. Si no se puede borrar (por ejemplo, está abierto en
-    #    otro programa en Windows), el registro ya no existe: solo lo anotamos.
-    archivo_borrado = True
-    try:
-        (STORAGE_DIR / documento["nombre_guardado"]).unlink(missing_ok=True)
-    except OSError:
-        archivo_borrado = False
-        logger.exception(
-            "Registro %s eliminado, pero el archivo %s sigue en storage/",
-            documento_id,
-            documento["nombre_guardado"],
-        )
-
-    detalle = f"archivo: {documento['nombre_archivo']}"
-    if not archivo_borrado:
-        detalle += " (el archivo no se pudo borrar de storage/)"
-
     registrar(
         request,
-        "eliminar",
+        "papelera_enviar",
         entidad="documento",
         entidad_id=documento_id,
         entidad_nombre=documento["titulo"],
-        detalle=detalle,
+        detalle=f"enviado a papelera · archivo: {documento['nombre_archivo']}",
     )
 
-    return avisar_eliminacion(documento_id, "eliminado")
+    return RedirectResponse(url="/?aviso=eliminado", status_code=303)
+
+
+@app.post(
+    "/documentos/papelera",
+    dependencies=[Depends(requiere_permiso("papelera"))],
+)
+def enviar_documentos_papelera(
+    request: Request,
+    documento_ids: list[int] = Form(default=[]),
+):
+    ids, placeholders, error = leer_seleccion(documento_ids)
+    if error:
+        return RedirectResponse(url=f"/?aviso={error}", status_code=303)
+
+    filtro_area, parametros_area = filtro_area_documento(request.state.usuario, "d.")
+    # La lectura usa el alias ``d``; el UPDATE no. Necesita el filtro sin alias.
+    filtro_area_actualizacion, parametros_area_actualizacion = filtro_area_documento(
+        request.state.usuario
+    )
+    try:
+        with conectar() as conexion:
+            documentos = conexion.execute(
+                "SELECT d.id, d.titulo, d.nombre_archivo FROM documentos d "
+                f"WHERE d.id IN ({placeholders}) AND d.eliminado_en IS NULL" + filtro_area,
+                [*ids, *parametros_area],
+            ).fetchall()
+            if len(documentos) != len(ids):
+                raise HTTPException(status_code=404, detail="Uno o más documentos no están disponibles.")
+            conexion.execute(
+                "UPDATE documentos SET eliminado_en = CURRENT_TIMESTAMP, eliminado_por = ? "
+                f"WHERE id IN ({placeholders}) AND eliminado_en IS NULL" + filtro_area_actualizacion,
+                [request.state.usuario["id"], *ids, *parametros_area_actualizacion],
+            )
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("No se pudieron enviar documentos seleccionados a la papelera")
+        return RedirectResponse(url="/?aviso=error_papelera", status_code=303)
+
+    for documento in documentos:
+        registrar(
+            request,
+            "papelera_enviar",
+            entidad="documento",
+            entidad_id=documento["id"],
+            entidad_nombre=documento["titulo"],
+            detalle=f"enviado a papelera en lote · archivo: {documento['nombre_archivo']}",
+        )
+    return RedirectResponse(url="/?aviso=documentos_papelera", status_code=303)
+
+
+# ---------- Papelera ----------
+
+@app.get(
+    "/papelera",
+    response_class=HTMLResponse,
+    dependencies=[Depends(requiere_permiso("restaurar"))],
+)
+def ver_papelera(request: Request, aviso: str | None = None):
+    tipo, mensaje = AVISOS.get(aviso, (None, None))
+    filtro_area, parametros_area = filtro_area_documento(request.state.usuario, "d.")
+    with conectar() as conexion:
+        documentos = conexion.execute(
+            """
+            SELECT d.id, d.titulo, d.nombre_archivo, d.categoria,
+                   d.eliminado_en, u.usuario AS eliminado_por_nombre
+            FROM documentos d
+            LEFT JOIN usuarios u ON u.id = d.eliminado_por
+            WHERE d.eliminado_en IS NOT NULL""" + filtro_area + """
+            ORDER BY d.eliminado_en DESC, d.id DESC
+            """,
+            parametros_area,
+        ).fetchall()
+
+    return templates.TemplateResponse(
+        request=request,
+        name="papelera.html",
+        context={
+            "titulo": "Gestor Documental",
+            "pagina": "papelera",
+            "documentos": documentos,
+            "mensaje": mensaje,
+            "tipo": tipo,
+        },
+    )
+
+
+@app.post(
+    "/documentos/{documento_id}/restaurar",
+    dependencies=[Depends(requiere_permiso("restaurar"))],
+)
+def restaurar_documento(request: Request, documento_id: int):
+    filtro_area, parametros_area = filtro_area_documento(request.state.usuario)
+    with conectar() as conexion:
+        fila = conexion.execute(
+            "SELECT titulo FROM documentos WHERE id = ? AND eliminado_en IS NOT NULL" + filtro_area,
+            [documento_id, *parametros_area],
+        ).fetchone()
+        if fila is None:
+            raise HTTPException(status_code=404, detail="Documento no encontrado en la papelera.")
+        conexion.execute(
+            "UPDATE documentos SET eliminado_en = NULL, eliminado_por = NULL "
+            "WHERE id = ? AND eliminado_en IS NOT NULL" + filtro_area,
+            (documento_id, *parametros_area),
+        )
+
+    registrar(request, "restaurar", entidad="documento", entidad_id=documento_id,
+              entidad_nombre=fila["titulo"])
+    return RedirectResponse(url="/papelera?aviso=restaurado", status_code=303)
+
+
+@app.post(
+    "/papelera/restaurar",
+    dependencies=[Depends(requiere_permiso("restaurar"))],
+)
+def restaurar_documentos_masivo(
+    request: Request,
+    documento_ids: list[int] = Form(default=[]),
+):
+    ids, placeholders, error = leer_seleccion(documento_ids)
+    if error:
+        return RedirectResponse(url=f"/papelera?aviso={error}", status_code=303)
+
+    filtro_area, parametros_area = filtro_area_documento(request.state.usuario, "d.")
+    # El SELECT usa el alias ``d`` y el UPDATE no; filtrar cada consulta
+    # con su referencia correcta evita que SQLite rechace la restauración.
+    filtro_area_actualizacion, parametros_area_actualizacion = filtro_area_documento(
+        request.state.usuario
+    )
+    with conectar() as conexion:
+        documentos = conexion.execute(
+            "SELECT d.id, d.titulo FROM documentos d "
+            f"WHERE d.id IN ({placeholders}) AND d.eliminado_en IS NOT NULL" + filtro_area,
+            [*ids, *parametros_area],
+        ).fetchall()
+        if len(documentos) != len(ids):
+            raise HTTPException(status_code=404, detail="Uno o más documentos no están disponibles en tu papelera.")
+        conexion.execute(
+            "UPDATE documentos SET eliminado_en = NULL, eliminado_por = NULL "
+            f"WHERE id IN ({placeholders}) AND eliminado_en IS NOT NULL" + filtro_area_actualizacion,
+            [*ids, *parametros_area_actualizacion],
+        )
+
+    for documento in documentos:
+        registrar(
+            request,
+            "restaurar",
+            entidad="documento",
+            entidad_id=documento["id"],
+            entidad_nombre=documento["titulo"],
+            detalle="restauración en lote",
+        )
+    return RedirectResponse(url="/papelera?aviso=documentos_restaurados", status_code=303)
+
+
+@app.post(
+    "/papelera/eliminar-seleccionados",
+    dependencies=[Depends(requiere_permiso("eliminar"))],
+)
+def eliminar_documentos_seleccionados(request: Request, documento_ids: list[int] = Form(default=[])):
+    ids, _, error = leer_seleccion(documento_ids)
+    if error:
+        return RedirectResponse(url=f"/papelera?aviso={error}", status_code=303)
+    try:
+        purgar_documentos_papelera(request, STORAGE_DIR, ids)
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("No se pudieron eliminar los documentos seleccionados de la papelera")
+        return RedirectResponse(url="/papelera?aviso=error_papelera", status_code=303)
+    return RedirectResponse(url="/papelera?aviso=documentos_purgados", status_code=303)
+
+
+@app.post(
+    "/papelera/vaciar",
+    dependencies=[Depends(requiere_permiso("eliminar"))],
+)
+def vaciar_papelera(request: Request, password: str = Form(...)):
+    if request.state.usuario["rol"] != "admin":
+        return RedirectResponse(url="/papelera?aviso=clave_incorrecta", status_code=303)
+    ip = request.client.host if request.client else "desconocida"
+    clave = f"vaciar_papelera|{request.state.usuario['id']}|{ip}"
+    if demasiados_intentos(clave):
+        return RedirectResponse(url="/papelera?aviso=bloqueado", status_code=303)
+    with conectar() as conexion:
+        usuario = conexion.execute(
+            "SELECT password_hash FROM usuarios WHERE id = ? AND activo = 1",
+            (request.state.usuario["id"],),
+        ).fetchone()
+    if usuario is None or not password or len(password) > 200 or not verificar_password(password, usuario["password_hash"]):
+        registrar_fallo(clave)
+        return RedirectResponse(url="/papelera?aviso=clave_incorrecta", status_code=303)
+    limpiar_fallos(clave)
+    try:
+        purgar_documentos_papelera(request, STORAGE_DIR)
+    except Exception:
+        logger.exception("No se pudo vaciar la papelera")
+        return RedirectResponse(url="/papelera?aviso=error_papelera", status_code=303)
+    return RedirectResponse(url="/papelera?aviso=papelera_vacia", status_code=303)
+
+
+@app.post(
+    "/documentos/{documento_id}/eliminar-definitivamente",
+    dependencies=[Depends(requiere_permiso("eliminar"))],
+)
+def eliminar_definitivamente(request: Request, documento_id: int):
+    purgar_documentos_papelera(request, STORAGE_DIR, [documento_id], individual=True)
+    return RedirectResponse(url="/papelera?aviso=eliminado_definitivo", status_code=303)
 
 
 # ---------- Descargar ----------
@@ -1010,14 +1650,14 @@ def eliminar_documento(request: Request, documento_id: int):
     dependencies=[Depends(requiere_permiso("descargar"))],
 )
 def descargar_documento(request: Request, documento_id: int):
+    filtro_area, parametros_area = filtro_area_documento(request.state.usuario)
     with conectar() as conexion:
         documento = conexion.execute(
             """
             SELECT titulo, nombre_archivo, nombre_guardado
             FROM documentos
-            WHERE id = ?
-            """,
-            (documento_id,),
+            WHERE id = ? AND eliminado_en IS NULL""" + filtro_area,
+            [documento_id, *parametros_area],
         ).fetchone()
 
     if documento is None:

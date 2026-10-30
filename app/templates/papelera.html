@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block contenido %}
+<section class="panel">
+    <h2>Papelera</h2>
+    <p class="nota">Los documentos aquí no aparecen en la biblioteca. Puedes restaurarlos{% if puede("eliminar") %} o eliminarlos definitivamente{% endif %}.</p>
+    <p class="nota nota-retencion">Los elementos permanecen aquí hasta que se restauren o se eliminen definitivamente; no hay purga automática.</p>
+
+    {% if documentos %}
+    <div class="papelera-toolbar">
+        <form id="acciones-papelera" action="/papelera/restaurar" method="post" class="barra-seleccion" data-required-selection="documento_ids">
+            <label class="control-seleccionar-todos">
+                <input type="checkbox" class="seleccion-checkbox" data-select-all="seleccion-papelera" aria-label="Seleccionar todos los documentos" data-clippy-tip="Selecciona los documentos que quieras restaurar o eliminar definitivamente. La eliminación permanente no se puede deshacer.">
+                Seleccionar todos los documentos
+            </label>
+            <button type="submit" class="boton-con-icono" data-requires-selection="documento_ids" disabled aria-disabled="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path d="M9 14 4 9l5-5M4 9h10a6 6 0 1 1 0 12h-2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span>Restaurar selección</span>
+            </button>
+            {% if puede("eliminar") %}
+            <button type="submit" class="boton-peligro boton-con-icono" formaction="/papelera/eliminar-seleccionados" data-requires-selection="documento_ids" disabled aria-disabled="true" data-confirm-title="Eliminar documentos definitivamente" data-confirm="Los documentos seleccionados y sus archivos se borrarán y no podrán recuperarse." data-confirm-label="Eliminar definitivamente" data-confirm-tone="danger">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path d="M4 7h16M9 7V4h6v3m-9 0 1 13h10l1-13M10 11l4 4m0-4-4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span>Eliminar selección definitivamente</span>
+            </button>
+            {% endif %}
+        </form>
+        {% if puede("eliminar") %}
+        <form id="form-vaciar-papelera" action="/papelera/vaciar" method="post" class="form-vaciar-papelera" data-confirm-title="Vaciar toda la papelera" data-confirm="Se eliminarán definitivamente todos los documentos y archivos que están en la papelera. Para continuar, confirma tu contraseña de administrador." data-confirm-label="Vaciar papelera" data-confirm-tone="danger" data-confirm-password="true">
+            <button type="submit" class="boton-peligro">Vaciar toda la papelera</button>
+        </form>
+        {% endif %}
+    </div>
+
+    <div class="tabla-scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th scope="col">Seleccionar</th>
+                    <th scope="col">Título</th>
+                    <th scope="col">Archivo</th>
+                    <th scope="col">Categoría</th>
+                    <th scope="col">Eliminado el</th>
+                    <th scope="col">Eliminado por</th>
+                    <th scope="col">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for documento in documentos %}
+                <tr>
+                    <td><input type="checkbox" class="seleccion-checkbox seleccion-papelera" name="documento_ids" value="{{ documento['id'] }}" form="acciones-papelera" aria-label="Seleccionar {{ documento['titulo'] }}" data-clippy-tip="Puedes restaurar este documento para devolverlo a Biblioteca o eliminarlo definitivamente si tienes permiso."></td>
+                    <td>{{ documento["titulo"] }}</td>
+                    <td>{{ documento["nombre_archivo"] }}</td>
+                    <td>{{ documento["categoria"] }}</td>
+                    <td>{{ documento["eliminado_en"] }}</td>
+                    <td>{{ documento["eliminado_por_nombre"] or "—" }}</td>
+                    <td>
+                        <div class="acciones-papelera">
+                            <button type="submit" class="boton-secundario boton-accion-papelera" form="restaurar-individual-{{ documento['id'] }}">
+                                <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" focusable="false"><path d="M9 14 4 9l5-5M4 9h10a6 6 0 1 1 0 12h-2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                <span>Restaurar</span>
+                            </button>
+                            {% if puede("eliminar") %}
+                            <button type="submit" class="boton-peligro boton-accion-papelera" form="eliminar-individual-{{ documento['id'] }}" data-confirm-title="Eliminar archivo definitivamente" data-confirm="Se borrará «{{ documento['nombre_archivo'] }}» y no podrá recuperarse." data-confirm-label="Eliminar definitivamente" data-confirm-tone="danger">
+                                <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" focusable="false"><path d="M4 7h16M9 7V4h6v3m-9 0 1 13h10l1-13M10 11l4 4m0-4-4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                <span>Eliminar definitivamente</span>
+                            </button>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% for documento in documentos %}
+    <form id="restaurar-individual-{{ documento['id'] }}" action="/documentos/{{ documento['id'] }}/restaurar" method="post"></form>
+    {% if puede("eliminar") %}
+    <form id="eliminar-individual-{{ documento['id'] }}" action="/papelera/eliminar-seleccionados" method="post">
+        <input type="hidden" name="documento_ids" value="{{ documento['id'] }}">
+    </form>
+    {% endif %}
+    {% endfor %}
+    {% else %}
+    <p>La papelera está vacía.</p>
+    {% endif %}
+</section>
+{% endblock %}

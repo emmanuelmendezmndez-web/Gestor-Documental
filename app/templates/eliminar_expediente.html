@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block contenido %}
+<section class="panel ficha confirmacion">
+    <h2>¿Eliminar este expediente?</h2>
+
+    <div class="ficha-alerta" role="alert">
+        Se eliminará la ficha y sus vínculos. Los documentos originales seguirán disponibles en la biblioteca.
+    </div>
+
+    <dl class="ficha-datos">
+        <div>
+            <dt>Folio</dt>
+            <dd>{{ expediente["folio"] }}</dd>
+        </div>
+        <div>
+            <dt>Nombre o asunto</dt>
+            <dd>{{ expediente["titulo"] }}</dd>
+        </div>
+        {% if expediente["descripcion"] %}
+        <div>
+            <dt>Descripción</dt>
+            <dd>{{ expediente["descripcion"] }}</dd>
+        </div>
+        {% endif %}
+    </dl>
+
+    <form
+        action="/expedientes/{{ expediente['id'] }}/eliminar"
+        method="post"
+        data-confirm-title="Eliminar expediente"
+        data-confirm="Se eliminará la ficha de «{{ expediente['folio'] }} — {{ expediente['titulo'] }}» y sus vínculos. Los documentos originales seguirán disponibles en la biblioteca."
+        data-confirm-label="Eliminar expediente"
+        data-confirm-tone="danger"
+    >
+        <div class="acciones-formulario">
+            <button type="submit" class="boton-peligro">Sí, eliminar expediente</button>
+            <a href="/expedientes/{{ expediente['id'] }}" class="boton-secundario">Cancelar</a>
+        </div>
+    </form>
+</section>
+{% endblock %}

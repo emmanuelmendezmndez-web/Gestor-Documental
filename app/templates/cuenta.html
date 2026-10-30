@@ -2,32 +2,75 @@
 
 {% block contenido %}
 <section class="panel">
-    <h2>Mi cuenta</h2>
+    <div class="cuenta-perfil-cabecera">
+        <span class="cuenta-avatar" aria-hidden="true">
+            {% set iniciales = usuario["nombre"].split() %}
+            <span class="cuenta-avatar-iniciales">{{ iniciales[0][:1]|upper }}{% if iniciales|length > 1 %}{{ iniciales[-1][:1]|upper }}{% endif %}</span>
+            {% if usuario["foto_perfil"] %}<img class="cuenta-avatar-foto" src="/cuenta/foto?v={{ usuario['foto_perfil'] }}" alt="" onerror="this.hidden=true">{% endif %}
+        </span>
+        <div>
+            <p class="sobrelinea">Perfil de usuario</p>
+            <h2>{{ usuario["nombre"] }}</h2>
+            <p class="nota">@{{ usuario["usuario"] }}</p>
+        </div>
+    </div>
 
     <dl class="ficha-datos">
-        <div>
-            <dt>Usuario</dt>
-            <dd>{{ usuario["usuario"] }}</dd>
-        </div>
-        <div>
-            <dt>Nombre</dt>
-            <dd>{{ usuario["nombre"] }}</dd>
-        </div>
         <div>
             <dt>Rol</dt>
             <dd>{{ usuario["rol_nombre"] }}</dd>
         </div>
+        {% if usuario["correo"] %}
+        <div><dt>Correo electrónico</dt><dd>{{ usuario["correo"] }}</dd></div>
+        {% endif %}
+        {% if usuario["telefono"] %}
+        <div><dt>Teléfono</dt><dd>{{ usuario["telefono"] }}</dd></div>
+        {% endif %}
+        {% if usuario["departamento"] %}
+        <div>
+            <dt>Área</dt>
+            <dd>{{ usuario["departamento"] }}</dd>
+        </div>
+        {% endif %}
     </dl>
 
     <p class="nota">{{ descripcion_rol }}</p>
-    <p class="nota">Si necesitas cambiar tu nombre o tu rol, pídeselo a un administrador.</p>
+    <p class="nota">Tu rol y área los administra un administrador.</p>
+
+    <details class="cuenta-edicion">
+        <summary class="boton-secundario">Editar mis datos</summary>
+        <form action="/cuenta/perfil" method="post" class="formulario-cuenta-perfil" enctype="multipart/form-data" data-clippy-tip="Actualiza tus datos de contacto. Si no eliges una foto, SIGED conservará la actual o mostrará tus iniciales.">
+            <div class="campo">
+                <label for="nombre-perfil">Nombre para mostrar</label>
+                <input type="text" id="nombre-perfil" name="nombre" value="{{ usuario['nombre'] }}" maxlength="100" autocomplete="name" data-clippy-read="Tu nombre" required>
+            </div>
+            <div class="campo">
+                <label for="correo-perfil">Correo electrónico</label>
+                <input type="email" id="correo-perfil" name="correo" value="{{ usuario['correo'] }}" maxlength="254" autocomplete="email">
+            </div>
+            <div class="campo">
+                <label for="telefono-perfil">Teléfono</label>
+                <input type="tel" id="telefono-perfil" name="telefono" value="{{ usuario['telefono'] }}" maxlength="30" autocomplete="tel" inputmode="tel">
+                <p class="nota">Incluye de 7 a 15 dígitos; puedes añadir espacios, paréntesis, guiones o el prefijo +.</p>
+            </div>
+            <div class="campo">
+                <label for="foto-perfil">Foto de perfil</label>
+                <input type="file" id="foto-perfil" name="foto" accept="image/png,image/jpeg,.png,.jpg,.jpeg">
+                <p class="nota">PNG o JPEG, máximo 5 MB. Si no seleccionas una foto, se mostrarán tus iniciales.</p>
+                {% if usuario["foto_perfil"] %}
+                <label class="opcion-quitar-foto"><input type="checkbox" name="quitar_foto" value="true"> Quitar foto y mostrar iniciales</label>
+                {% endif %}
+            </div>
+            <button type="submit">Guardar datos del perfil</button>
+        </form>
+    </details>
 </section>
 
 <section class="panel">
     <h2>Cambiar contraseña</h2>
     <p class="nota">Al cambiarla se cerrarán tus otras sesiones abiertas (por ejemplo, en otro navegador). Esta seguirá abierta.</p>
 
-    <form action="/cuenta/password" method="post">
+        <form action="/cuenta/password" method="post" data-clippy-tip="Elige una contraseña nueva que no uses en otros servicios. El indicador te mostrará su fortaleza mientras escribes.">
         <div class="campo">
             <label for="actual">Contraseña actual</label>
             <input
@@ -49,9 +92,19 @@
                 minlength="{{ password_minimo }}"
                 maxlength="200"
                 autocomplete="new-password"
+                aria-describedby="ayuda-nueva fortaleza-nueva-texto"
                 required
             >
-            <p class="nota">Mínimo {{ password_minimo }} caracteres y distinta de la actual.</p>
+            <p class="nota" id="ayuda-nueva">Mínimo {{ password_minimo }} caracteres y distinta de la actual.</p>
+            <div class="fortaleza-password">
+                <div class="fortaleza-password-etiqueta">
+                    <span>Fortaleza</span>
+                    <strong id="fortaleza-nueva-texto" aria-live="polite">Sin evaluar</strong>
+                </div>
+                <div class="fortaleza-password-fondo" role="meter" aria-label="Fortaleza de la contraseña" aria-valuemin="0" aria-valuemax="3" aria-valuenow="0" aria-valuetext="Sin evaluar">
+                    <span id="fortaleza-nueva-barra"></span>
+                </div>
+            </div>
         </div>
 
         <div class="campo">
@@ -70,4 +123,54 @@
         <button type="submit">Cambiar contraseña</button>
     </form>
 </section>
+
+<script>
+    (() => {
+        const campo = document.getElementById("nueva");
+        const barra = document.getElementById("fortaleza-nueva-barra");
+        const texto = document.getElementById("fortaleza-nueva-texto");
+        const medidor = document.querySelector(".fortaleza-password-fondo");
+        if (!campo || !barra || !texto || !medidor) return;
+
+        campo.addEventListener("input", () => {
+            const valor = campo.value;
+            if (!valor) {
+                barra.style.width = "0";
+                barra.className = "";
+                texto.textContent = "Sin evaluar";
+                medidor.setAttribute("aria-valuenow", "0");
+                medidor.setAttribute("aria-valuetext", "Sin evaluar");
+                return;
+            }
+
+            const tipos = [
+                /[a-z]/.test(valor),
+                /[A-Z]/.test(valor),
+                /[0-9]/.test(valor),
+                /[^A-Za-z0-9]/.test(valor),
+            ].filter(Boolean).length;
+            let nivel = "debil";
+            let etiqueta = "Débil";
+            let valorMedidor = 1;
+            let ancho = "33%";
+            if (valor.length >= 10 && tipos >= 2 && (valor.length >= 14 || tipos >= 3)) {
+                nivel = "fuerte";
+                etiqueta = "Fuerte";
+                valorMedidor = 3;
+                ancho = "100%";
+            } else if (valor.length >= 10 || tipos >= 2) {
+                nivel = "media";
+                etiqueta = "Media";
+                valorMedidor = 2;
+                ancho = "66%";
+            }
+
+            barra.className = "fortaleza-" + nivel;
+            barra.style.width = ancho;
+            texto.textContent = etiqueta;
+            medidor.setAttribute("aria-valuenow", String(valorMedidor));
+            medidor.setAttribute("aria-valuetext", etiqueta);
+        });
+    })();
+</script>
 {% endblock %}

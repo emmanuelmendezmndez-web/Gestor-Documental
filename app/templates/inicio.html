@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block contenido %}
+<section class="dashboard-encabezado">
+    <div>
+        <p class="sobrelinea">{{ usuario["departamento"] or usuario["rol_nombre"] }}</p>
+        <h1>Panel de control</h1>
+        <p class="nota">Visualización de indicadores, acervo documental y comunicados oficiales.</p>
+    </div>
+    {% if puede("avisos") %}
+    <a href="/avisos" class="boton-secundario">Gestionar avisos</a>
+    {% endif %}
+</section>
+
+<section class="kpis" aria-label="Estadísticas generales">
+    <article class="kpi-card">
+        <span class="kpi-icono documentos" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M5 3.5h9l5 5v12H5zM14 4v5h5M8.5 13h7M8.5 16.5h7"/></svg>
+        </span>
+        <div><span class="kpi-label">Total de documentos</span><strong>{{ total_documentos }}</strong></div>
+    </article>
+    <article class="kpi-card">
+        <span class="kpi-icono subidas" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M4 15v5h16v-5"/></svg>
+        </span>
+        <div><span class="kpi-label">Subidos en 30 días</span><strong>{{ documentos_30_dias }}</strong></div>
+    </article>
+    <article class="kpi-card">
+        <span class="kpi-icono expedientes" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M3.5 6.5h6l2 2h9v10.75H3.5zM3.5 9h17"/></svg>
+        </span>
+        <div><span class="kpi-label">Expedientes activos</span><strong>{{ total_expedientes }}</strong></div>
+    </article>
+    {% if puede("eliminar") %}
+    <article class="kpi-card">
+        <span class="kpi-icono papelera" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m-9 0 1 13h10l1-13M10 11v5m4-5v5"/></svg>
+        </span>
+        <div><span class="kpi-label">En papelera</span><strong>{{ documentos_en_papelera }}</strong></div>
+    </article>
+    {% endif %}
+</section>
+
+<div class="dashboard-grid">
+    <div class="dashboard-principal">
+        <section class="panel avisos-dashboard">
+            <div class="titulo-panel">
+                <div><p class="sobrelinea">Comunicados internos</p><h2>Avisos y comunicados</h2></div>
+                {% if puede("avisos") %}<a href="/avisos" class="enlace-discreto">Administrar</a>{% endif %}
+            </div>
+            {% if avisos %}
+                {% for aviso in avisos %}
+                <article class="aviso-card">
+                    {% if aviso["imagen_guardada"] %}
+                    <img class="aviso-banner" src="/avisos/{{ aviso['id'] }}/imagen" alt="Imagen del aviso: {{ aviso['titulo'] }}">
+                    {% endif %}
+                    <div class="aviso-meta">
+                        <span class="avatar avatar-pequeno" aria-hidden="true">{{ aviso["autor"][:1]|upper }}</span>
+                        <span><strong>{{ aviso["autor"] }}</strong><small>{{ aviso["fecha_creacion"] }} · {{ aviso["departamento"] or "Todos" }}</small></span>
+                    </div>
+                    <h3>{{ aviso["titulo"] }}</h3>
+                    {% if aviso["cuerpo"] %}<p class="aviso-cuerpo">{{ aviso["cuerpo"] }}</p>{% endif %}
+                </article>
+                {% endfor %}
+            {% else %}
+            <div class="estado-vacio">
+                <span class="estado-vacio-icono" aria-hidden="true">✦</span>
+                <h3>Aún no hay avisos</h3>
+                <p class="nota">Cuando se publique un comunicado, aparecerá aquí.</p>
+            </div>
+            {% endif %}
+        </section>
+
+        <section class="panel documentos-recientes">
+            <div class="titulo-panel">
+                <div><p class="sobrelinea">Novedades</p><h2>Últimos documentos</h2></div>
+                <a href="/" class="enlace-discreto">Ver biblioteca</a>
+            </div>
+            {% if ultimos_documentos %}
+            <div class="tabla-scroll">
+                <table>
+                    <thead><tr><th scope="col">Documento</th><th scope="col">Categoría</th><th scope="col">Fecha</th></tr></thead>
+                    <tbody>
+                        {% for documento in ultimos_documentos %}
+                        <tr>
+                            <td><a href="/documentos/{{ documento['id'] }}" class="enlace-titulo">{{ documento["titulo"] }}</a><span class="subtexto">{{ documento["nombre_archivo"] }}</span></td>
+                            <td>{{ documento["categoria"] }}</td>
+                            <td>{{ documento["fecha_subida"] }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="nota">Todavía no hay documentos registrados.</p>
+            {% endif %}
+        </section>
+    </div>
+
+    <aside class="dashboard-lateral">
+        <section class="panel almacenamiento-panel" aria-labelledby="almacenamiento-titulo">
+            <div class="titulo-panel">
+                <div>
+                    <p class="sobrelinea">Servidor principal</p>
+                    <h2 id="almacenamiento-titulo">Almacenamiento en disco</h2>
+                </div>
+            </div>
+            <p class="almacenamiento-ubicacion">Unidad donde se guardan los documentos de SIGED</p>
+            {% if almacenamiento["disponible"] %}
+            <div class="almacenamiento-resumen">
+                <div class="medidor-disco" role="img" aria-label="{{ almacenamiento['porcentaje'] }} por ciento del disco ocupado">
+                    <svg viewBox="0 0 200 112" aria-hidden="true">
+                        <defs>
+                            <linearGradient id="gradiente-disco" x1="0" y1="0" x2="1" y2="0">
+                                <stop offset="0%" stop-color="#2563eb"/>
+                                <stop offset="100%" stop-color="#10b981"/>
+                            </linearGradient>
+                        </defs>
+                        <path class="medidor-disco-fondo" d="M16 98 A84 84 0 0 1 184 98"/>
+                        <path class="medidor-disco-valor" d="M16 98 A84 84 0 0 1 184 98" pathLength="100" stroke-dasharray="{{ almacenamiento['porcentaje'] }} 100"/>
+                    </svg>
+                    <strong class="medidor-disco-porcentaje">{{ almacenamiento["porcentaje"] }}%</strong>
+                </div>
+                <dl class="almacenamiento-datos">
+                    <div><dt>Espacio ocupado</dt><dd>{{ almacenamiento["ocupado"] }}</dd></div>
+                    <div><dt>Capacidad total</dt><dd>{{ almacenamiento["total"] }}</dd></div>
+                    <div><dt>Disponible</dt><dd>{{ almacenamiento["libre"] }}</dd></div>
+                </dl>
+            </div>
+            <div class="barra-capacidad" role="progressbar" aria-label="Uso del almacenamiento" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ almacenamiento['porcentaje'] }}" aria-valuetext="{{ almacenamiento['porcentaje'] }}% ocupado">
+                <svg width="100%" height="100%" aria-hidden="true" focusable="false">
+                    <defs>
+                        <linearGradient id="gradiente-barra-capacidad" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stop-color="#2563eb"/>
+                            <stop offset="100%" stop-color="#10b981"/>
+                        </linearGradient>
+                    </defs>
+                    <rect width="{{ almacenamiento['porcentaje'] }}%" height="100%" rx="4" fill="url(#gradiente-barra-capacidad)"/>
+                </svg>
+            </div>
+            {% else %}
+            <p class="nota">No se pudo consultar el espacio de la unidad donde se guardan los documentos.</p>
+            {% endif %}
+        </section>
+
+        <section class="panel categorias-panel">
+            <div class="titulo-panel"><div><p class="sobrelinea">Biblioteca</p><h2>Distribución por categoría</h2></div></div>
+            {% if distribucion %}
+                {% for item in distribucion %}
+                <div class="categoria-barra">
+                    <div><span>{{ item["categoria"] }}</span><strong>{{ item["total"] }}</strong></div>
+                    <div class="barra-fondo" role="img" aria-label="{{ item['porcentaje'] }} por ciento">
+                        <svg width="100%" height="100%" aria-hidden="true" focusable="false">
+                            <rect width="{{ item['porcentaje'] }}%" height="100%" rx="4" fill="#6791c0"/>
+                        </svg>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+            <p class="nota">Las categorías aparecerán cuando haya documentos.</p>
+            {% endif %}
+        </section>
+
+        <section class="panel accesos-panel">
+            <div class="titulo-panel"><div><p class="sobrelinea">Atajos</p><h2>Accesos rápidos</h2></div></div>
+            <a href="/" class="acceso-rapido"><span class="acceso-icono biblioteca"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3.5h9l5 5v12H5zM14 4v5h5M8.5 13h7M8.5 16.5h7"/></svg></span><span><strong>Biblioteca</strong><small>Buscar documentos</small></span><span class="flecha">›</span></a>
+            {% if puede("subir") %}
+            <a href="/subir" class="acceso-rapido"><span class="acceso-icono subir"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M4 15v5h16v-5"/></svg></span><span><strong>Subir documento</strong><small>Agregar un archivo</small></span><span class="flecha">›</span></a>
+            {% endif %}
+            <a href="/expedientes" class="acceso-rapido"><span class="acceso-icono expediente"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 6.5h6l2 2h9v10.75H3.5zM3.5 9h17"/></svg></span><span><strong>Expedientes</strong><small>Consultar expedientes</small></span><span class="flecha">›</span></a>
+            {% if puede("usuarios") %}
+            <a href="/usuarios" class="acceso-rapido"><span class="acceso-icono usuarios"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.25"/><path d="M3.5 19c.5-3.1 2.4-4.75 5.5-4.75s5 1.65 5.5 4.75M16 5.2a3.25 3.25 0 0 1 0 6.2M17 14.5c2.1.55 3.25 2.05 3.5 4.5"/></svg></span><span><strong>Usuarios</strong><small>Administrar cuentas</small></span><span class="flecha">›</span></a>
+            {% endif %}
+        </section>
+    </aside>
+</div>
+{% endblock %}

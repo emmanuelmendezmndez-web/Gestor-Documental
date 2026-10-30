@@ -1,0 +1,68 @@
+"""Mensajes y códigos utilizados por las rutas de SIGED."""
+
+# Los avisos se piden por código, así nadie puede inyectar texto en la página desde la URL
+AVISOS = {
+    "subido": ("exito", "Documento subido correctamente."),
+    "editado": ("exito", "Documento actualizado correctamente."),
+    "conflicto_edicion": ("error", "Otra persona modificó este documento mientras lo editabas. Revisa la versión actual y vuelve a aplicar tus cambios."),
+    "eliminado": ("exito", "Documento enviado a la papelera."),
+    "seleccion_vacia": ("error", "Selecciona al menos un documento para continuar."),
+    "seleccion_exceso": ("error", "Selecciona como máximo 200 documentos a la vez."),
+    "documentos_papelera": ("exito", "Los documentos seleccionados se enviaron a la papelera."),
+    "documentos_restaurados": ("exito", "Los documentos seleccionados se restauraron correctamente."),
+    "documentos_vinculados": ("exito", "Los documentos seleccionados se vincularon al expediente."),
+    "documentos_purgados": ("exito", "Los documentos seleccionados se eliminaron definitivamente."),
+    "papelera_vacia": ("exito", "La papelera se vació correctamente."),
+    "clave_incorrecta": ("error", "La contraseña no es correcta. No se vació la papelera."),
+    "restaurado": ("exito", "Documento restaurado correctamente."),
+    "eliminado_definitivo": ("exito", "Documento eliminado definitivamente."),
+    "expediente_creado": ("exito", "Expediente creado correctamente."),
+    "expediente_eliminado": ("exito", "Expediente eliminado correctamente. Los documentos vinculados siguen disponibles en la biblioteca."),
+    "error_eliminar_expediente": ("error", "No se pudo eliminar el expediente. Inténtalo de nuevo."),
+    "documento_vinculado": ("exito", "Documento vinculado al expediente."),
+    "expediente_campos": ("error", "El nombre del expediente es obligatorio (máximo 200 caracteres) y la descripción admite hasta 2000."),
+    "error_expediente": ("error", "No se pudo guardar el expediente. Inténtalo de nuevo."),
+    "aviso_creado": ("exito", "Aviso guardado correctamente."),
+    "aviso_estado": ("exito", "El estado del aviso se actualizó."),
+    "aviso_eliminado": ("exito", "Aviso eliminado correctamente."),
+    "aviso_campos": ("error", "El título es obligatorio (máximo 200 caracteres) y el cuerpo admite hasta 5000."),
+    "aviso_area": ("error", "Selecciona un área válida."),
+    "aviso_imagen_formato": ("error", "La imagen debe ser PNG o JPG/JPEG válida."),
+    "aviso_imagen_grande": ("error", "La imagen del aviso no puede superar 8 MB."),
+    "aviso_error": ("error", "No se pudo guardar el aviso. Inténtalo de nuevo."),
+    "sesion_cerrada": ("exito", "Sesión cerrada correctamente."),
+    "campos": ("error", "Revisa los datos: el título es obligatorio (máx. 200 caracteres), la descripción admite hasta 2000, el número de oficio hasta 60 y el autor hasta 100."),
+    "categoria": ("error", "La categoría seleccionada no es válida."),
+    "departamento": ("error", "El departamento seleccionado no es válido."),
+    "area_usuario": ("error", "Tu cuenta necesita un departamento asignado para subir documentos."),
+    "fecha": ("error", "La fecha del documento no es válida."),
+    "formato": ("error", "Formato no permitido. Usa PDF, DOCX, XLSX, TXT, PNG o JPG."),
+    "grande": ("error", "El archivo supera el máximo de 20 MB."),
+    "vacio": ("error", "El archivo está vacío."),
+    "error": ("error", "Ocurrió un error al guardar el documento. Inténtalo de nuevo."),
+    "error_eliminar": ("error", "No se pudo eliminar el documento. Inténtalo de nuevo."),
+    "error_papelera": ("error", "No se pudo completar la acción de papelera. Inténtalo de nuevo."),
+    "error_vincular": ("error", "No se pudieron vincular los documentos seleccionados."),
+    "credenciales": ("error", "Usuario o contraseña incorrectos."),
+    "bloqueado": ("error", "Demasiados intentos fallidos. Espera unos minutos e inténtalo de nuevo."),
+}
+
+# Motivos que se anotan en el registro cuando falla una subida
+MOTIVOS_SUBIDA = {
+    "campos": "datos inválidos (título, descripción, oficio o autor)",
+    "categoria": "categoría no válida",
+    "departamento": "departamento no válido",
+    "area_usuario": "cuenta sin departamento asignado",
+    "fecha": "fecha del documento no válida",
+    "formato": "formato no permitido",
+    "grande": "archivo mayor al máximo permitido",
+    "vacio": "archivo vacío",
+    "error": "error al guardar",
+}
+
+MENSAJES_HTTP = {
+    403: ("Acceso denegado", "No tienes permiso para realizar esta acción."),
+    404: ("No encontrado", "No se encontró lo que buscas."),
+    405: ("Acción no permitida", "Esta dirección no admite esa acción."),
+}
+

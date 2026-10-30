@@ -12,6 +12,7 @@
                     <th scope="col">Usuario</th>
                     <th scope="col">Nombre</th>
                     <th scope="col">Rol</th>
+                    <th scope="col">Departamento</th>
                     <th scope="col">Estado</th>
                     <th scope="col">Creado</th>
                     <th scope="col">Acciones</th>
@@ -26,6 +27,7 @@
                     </td>
                     <td>{{ u["nombre"] }}</td>
                     <td>{{ nombres_rol[u["rol"]] }}</td>
+                    <td>{{ u["departamento"] or "Sin asignar" }}</td>
                     <td>
                         {% if u["activo"] %}
                         <span class="etiqueta activo">Activo</span>
@@ -65,7 +67,7 @@
 <section class="panel">
     <h2>Crear usuario</h2>
 
-    <form action="/usuarios" method="post">
+    <form action="/usuarios" method="post" data-clippy-tip="Al crear una cuenta, asigna únicamente el rol y el área necesarios para sus tareas.">
         <div class="campo">
             <label for="nuevo-usuario">Usuario</label>
             <input
@@ -76,6 +78,7 @@
                 pattern="[A-Za-z0-9._-]{3,50}"
                 title="De 3 a 50 caracteres: letras, números, punto, guion o guion bajo"
                 autocomplete="off"
+                data-clippy-read="Nombre de usuario"
                 required
             >
             <p class="nota">Con él iniciará sesión. De 3 a 50 caracteres: letras, números, punto, guion o guion bajo.</p>
@@ -83,7 +86,7 @@
 
         <div class="campo">
             <label for="nuevo-nombre">Nombre completo</label>
-            <input type="text" id="nuevo-nombre" name="nombre" maxlength="100" autocomplete="off" required>
+            <input type="text" id="nuevo-nombre" name="nombre" maxlength="100" autocomplete="off" data-clippy-read="Nombre completo" required>
         </div>
 
         <div class="campo">
@@ -97,6 +100,16 @@
                 Lector: ver y descargar. Editor: además subir y editar.
                 Administrador: además eliminar y gestionar usuarios.
             </p>
+        </div>
+
+        <div class="campo">
+            <label for="nuevo-departamento">Departamento</label>
+            <select id="nuevo-departamento" name="departamento">
+                <option value="">Sin asignar</option>
+                {% for departamento in departamentos %}
+                <option value="{{ departamento }}">{{ departamento }}</option>
+                {% endfor %}
+            </select>
         </div>
 
         <div class="campo">

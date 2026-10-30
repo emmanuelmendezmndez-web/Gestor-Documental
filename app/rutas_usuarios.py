@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.actividad import registrar
+from app.catalogos import DEPARTAMENTOS
 from app.database import conectar
 from app.plantillas import templates
 from app.seguridad import (
@@ -34,6 +35,7 @@ AVISOS_USUARIOS = {
     "usuario_reservado": ("error", "Ese nombre perteneció a un usuario eliminado y tiene historial. Usa otro para que el registro de actividad no se confunda."),
     "nombre_invalido": ("error", "El nombre es obligatorio (máximo 100 caracteres)."),
     "rol_invalido": ("error", "El rol seleccionado no es válido."),
+    "departamento_invalido": ("error", "Selecciona un departamento válido."),
     "password_corta": ("error", f"La contraseña debe tener entre {PASSWORD_MINIMO} y {PASSWORD_MAXIMO} caracteres."),
     "password_distinta": ("error", "Las contraseñas no coinciden."),
     "propio": ("error", "No puedes cambiar tu propio rol ni desactivar tu propia cuenta."),
@@ -54,7 +56,7 @@ def obtener_usuario(usuario_id: int):
     with conectar() as conexion:
         fila = conexion.execute(
             """
-            SELECT id, usuario, nombre, rol, activo,
+            SELECT id, usuario, nombre, rol, departamento, activo,
                    datetime(fecha_creacion, 'localtime') AS fecha_creacion
             FROM usuarios
             WHERE id = ?
@@ -88,7 +90,7 @@ def lista_usuarios(request: Request, aviso: str | None = None):
     with conectar() as conexion:
         usuarios = conexion.execute(
             """
-            SELECT id, usuario, nombre, rol, activo,
+            SELECT id, usuario, nombre, rol, departamento, activo,
                    datetime(fecha_creacion, 'localtime') AS fecha_creacion
             FROM usuarios
             ORDER BY activo DESC, usuario COLLATE NOCASE
@@ -104,6 +106,7 @@ def lista_usuarios(request: Request, aviso: str | None = None):
             "usuarios": usuarios,
             "roles": ROLES_PARA_FORMULARIO,
             "nombres_rol": NOMBRES_ROL,
+            "departamentos": DEPARTAMENTOS,
             "password_minimo": PASSWORD_MINIMO,
             "mensaje": mensaje,
             "tipo": tipo,
@@ -119,6 +122,7 @@ def crear_usuario_web(
     rol: str = Form(...),
     password: str = Form(...),
     confirmacion: str = Form(...),
+    departamento: str = Form(""),
 ):
     usuario = usuario.strip()
     nombre = nombre.strip()
@@ -131,6 +135,9 @@ def crear_usuario_web(
 
     if rol not in ROLES:
         return redirigir("/usuarios", "rol_invalido")
+
+    if departamento not in ("", *DEPARTAMENTOS):
+        return redirigir("/usuarios", "departamento_invalido")
 
     error = validar_password(password, confirmacion)
     if error:
@@ -157,10 +164,10 @@ def crear_usuario_web(
         with conectar() as conexion:
             resultado = conexion.execute(
                 """
-                INSERT INTO usuarios (usuario, nombre, password_hash, rol)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO usuarios (usuario, nombre, password_hash, rol, departamento)
+                VALUES (?, ?, ?, ?, ?)
                 """,
-                (usuario, nombre, password_hash, rol),
+                (usuario, nombre, password_hash, rol, departamento),
             )
             nuevo_id = resultado.lastrowid
     except sqlite3.IntegrityError:
@@ -176,7 +183,7 @@ def crear_usuario_web(
         entidad="usuario",
         entidad_id=nuevo_id,
         entidad_nombre=usuario,
-        detalle=f"rol: {NOMBRES_ROL[rol]}",
+        detalle=f"rol: {NOMBRES_ROL[rol]} · departamento: {departamento or 'sin asignar'}",
     )
     return redirigir("/usuarios", "usuario_creado")
 
@@ -202,6 +209,7 @@ def pagina_editar_usuario(
             "es_propio": editado["id"] == request.state.usuario["id"],
             "roles": ROLES_PARA_FORMULARIO,
             "password_minimo": PASSWORD_MINIMO,
+            "departamentos": DEPARTAMENTOS,
             "mensaje": mensaje,
             "tipo": tipo,
         },
@@ -214,6 +222,7 @@ def editar_usuario(
     usuario_id: int,
     nombre: str = Form(...),
     rol: str = Form(...),
+    departamento: str = Form(""),
 ):
     ruta = f"/usuarios/{usuario_id}/editar"
     nombre = nombre.strip()
@@ -224,6 +233,9 @@ def editar_usuario(
     if rol not in ROLES:
         return redirigir(ruta, "rol_invalido")
 
+    if departamento not in ("", *DEPARTAMENTOS):
+        return redirigir(ruta, "departamento_invalido")
+
     actual = obtener_usuario(usuario_id)  # 404 si no existe
 
     # Nadie puede cambiarse su propio rol: así siempre queda un administrador
@@ -233,8 +245,8 @@ def editar_usuario(
     try:
         with conectar() as conexion:
             conexion.execute(
-                "UPDATE usuarios SET nombre = ?, rol = ? WHERE id = ?",
-                (nombre, rol, usuario_id),
+                "UPDATE usuarios SET nombre = ?, rol = ?, departamento = ? WHERE id = ?",
+                (nombre, rol, departamento, usuario_id),
             )
     except Exception:
         logger.exception("No se pudo editar el usuario %s", usuario_id)
@@ -245,6 +257,10 @@ def editar_usuario(
         cambios.append(f"nombre: «{actual['nombre']}» → «{nombre}»")
     if actual["rol"] != rol:
         cambios.append(f"rol: {NOMBRES_ROL[actual['rol']]} → {NOMBRES_ROL[rol]}")
+    if actual["departamento"] != departamento:
+        cambios.append(
+            f"departamento: «{actual['departamento'] or 'sin asignar'}» → «{departamento or 'sin asignar'}»"
+        )
 
     if cambios:
         registrar(

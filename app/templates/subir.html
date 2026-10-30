@@ -5,10 +5,10 @@
     <h2>Subir documento</h2>
     <p>Completa los datos y selecciona un archivo. Solo el título, la categoría y el archivo son obligatorios.</p>
 
-    <form action="/subir" method="post" enctype="multipart/form-data">
+    <form action="/subir" method="post" enctype="multipart/form-data" data-clippy-tip="Completa los datos básicos del documento. El título, la categoría y el archivo son obligatorios.">
         <div class="campo">
             <label for="titulo">Título del documento</label>
-            <input type="text" id="titulo" name="titulo" maxlength="200" required>
+            <input type="text" id="titulo" name="titulo" maxlength="200" data-clippy-read="Título del documento" required>
         </div>
 
         <div class="campo">
@@ -23,9 +23,10 @@
 
         <div class="campo">
             <label for="numero_oficio">Número de oficio (opcional)</label>
-            <input type="text" id="numero_oficio" name="numero_oficio" maxlength="60" placeholder="Por ejemplo: OF-123/2026">
+            <input type="text" id="numero_oficio" name="numero_oficio" maxlength="60" placeholder="Por ejemplo: OF-123/2026" data-clippy-read="Número de oficio">
         </div>
 
+        {% if es_admin %}
         <div class="campo">
             <label for="departamento">Departamento (opcional)</label>
             <select id="departamento" name="departamento">
@@ -35,6 +36,15 @@
                 {% endfor %}
             </select>
         </div>
+        {% else %}
+        <div class="campo">
+            <span class="etiqueta-campo">Departamento</span>
+            <p>{{ area_usuario or "Sin asignar" }}. El documento se guardará en el área de tu cuenta.</p>
+            {% if not area_usuario %}
+            <p class="nota">Solicita al administrador que asigne un departamento antes de subir documentos.</p>
+            {% endif %}
+        </div>
+        {% endif %}
 
         <div class="campo">
             <label for="fecha_documento">Fecha del documento (opcional)</label>
@@ -44,7 +54,7 @@
 
         <div class="campo">
             <label for="autor">Autor (opcional)</label>
-            <input type="text" id="autor" name="autor" maxlength="100" value="{{ usuario['nombre'] }}">
+            <input type="text" id="autor" name="autor" maxlength="100" value="{{ usuario['nombre'] }}" data-clippy-read="Autor">
             <p class="nota">Quien redactó o firma el documento. Aparece con tu nombre, pero puedes cambiarlo.</p>
         </div>
 
@@ -59,13 +69,14 @@
                 type="file"
                 id="archivo"
                 name="archivo"
-                accept=".pdf,.docx,.xlsx,.txt,.png,.jpg,.jpeg"
+                accept=".pdf,.docx,.xlsx,.txt,.png,.jpg,.jpeg,.pptx"
+                data-clippy-tip="Puedes subir PDF, DOCX, XLSX, TXT, PNG, JPG o PPTX de hasta 20 MB."
                 required
             >
-            <p class="nota">Formatos permitidos: PDF, DOCX, XLSX, TXT, PNG y JPG. Máximo 20 MB.</p>
+            <p class="nota">Formatos permitidos: PDF, DOCX, XLSX, TXT, PNG, JPG y PPTX. Máximo 20 MB.</p>
         </div>
 
-        <button type="submit">Subir documento</button>
+        <button type="submit" {% if not es_admin and not area_usuario %}disabled{% endif %}>Subir documento</button>
     </form>
 </section>
 {% endblock %}

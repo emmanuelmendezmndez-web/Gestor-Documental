@@ -9,7 +9,8 @@
         Aquí solo se cambian los datos: el archivo en sí no se modifica.
     </p>
 
-    <form action="/documentos/{{ documento['id'] }}/editar" method="post">
+    <form action="/documentos/{{ documento['id'] }}/editar" method="post" data-clippy-tip="Puedes corregir los metadatos; al guardar, SIGED conserva las versiones anteriores del documento.">
+        <input type="hidden" name="version" value="{{ documento['version'] }}">
         <div class="campo">
             <label for="titulo">Título del documento</label>
             <input
@@ -18,6 +19,7 @@
                 name="titulo"
                 maxlength="200"
                 value="{{ documento['titulo'] }}"
+                data-clippy-read="Título del documento"
                 required
             >
         </div>
@@ -40,9 +42,11 @@
                 maxlength="60"
                 value="{{ documento['numero_oficio'] }}"
                 placeholder="Por ejemplo: OF-123/2026"
+                data-clippy-read="Número de oficio"
             >
         </div>
 
+        {% if es_admin %}
         <div class="campo">
             <label for="departamento">Departamento (opcional)</label>
             <select id="departamento" name="departamento">
@@ -52,6 +56,12 @@
                 {% endfor %}
             </select>
         </div>
+        {% else %}
+        <div class="campo">
+            <span class="etiqueta-campo">Departamento</span>
+            <p>{{ documento["departamento"] or "General (compartido)" }}. El área de acceso no se puede cambiar desde esta cuenta.</p>
+        </div>
+        {% endif %}
 
         <div class="campo">
             <label for="fecha_documento">Fecha del documento (opcional)</label>
@@ -66,7 +76,7 @@
 
         <div class="campo">
             <label for="autor">Autor (opcional)</label>
-            <input type="text" id="autor" name="autor" maxlength="100" value="{{ documento['autor'] }}">
+            <input type="text" id="autor" name="autor" maxlength="100" value="{{ documento['autor'] }}" data-clippy-read="Autor">
         </div>
 
         <div class="campo">

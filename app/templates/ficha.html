@@ -4,7 +4,7 @@
 {% from "_iconos.html" import icono_archivo %}
 
 <section class="panel ficha">
-    <a href="/" class="enlace-volver">← Volver a la biblioteca</a>
+    <a href="/" class="enlace-volver"><span aria-hidden="true">←</span> Volver a la biblioteca</a>
 
     <div class="ficha-encabezado">
         {{ icono_archivo(documento["nombre_archivo"], 56) }}
@@ -67,7 +67,26 @@
     <p class="nota">Este documento no tiene descripción.</p>
     {% endif %}
 
+    {% if disponible and extension in [".pdf", ".docx", ".xlsx", ".pptx"] %}
+    <section class="vista-previa-integrada" aria-labelledby="vista-previa-titulo">
+        <div class="vista-previa-encabezado">
+            <div>
+                <h3 id="vista-previa-titulo">Vista previa</h3>
+                <p class="nota">Contenido de solo lectura. Usa el visor para recorrer las páginas.</p>
+            </div>
+            <a href="/documentos/{{ documento['id'] }}/vista" class="enlace-abrir-vista" target="_blank" rel="noopener">Abrir en pestaña nueva</a>
+        </div>
+        <iframe class="visor-documento" src="/documentos/{{ documento['id'] }}/vista" title="Vista previa de {{ documento['nombre_archivo'] }}" loading="lazy"></iframe>
+    </section>
+    {% endif %}
+
     <div class="ficha-acciones">
+        {% if disponible %}
+        <a href="/documentos/{{ documento['id'] }}/vista" class="boton-ver boton-con-texto" target="_blank" rel="noopener">
+            <span>Abrir vista completa</span>
+        </a>
+        {% endif %}
+
         {% if disponible and puede("descargar") %}
         <a href="/documentos/{{ documento['id'] }}/descargar" class="boton-descargar boton-con-texto">
             <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
@@ -100,8 +119,9 @@
         </a>
         {% endif %}
 
-        {% if puede("eliminar") %}
-        <a href="/documentos/{{ documento['id'] }}/eliminar" class="boton-eliminar boton-con-texto">
+        {% if puede("papelera") %}
+        <form action="/documentos/{{ documento['id'] }}/eliminar" method="post" class="form-accion-inline" data-confirm-title="Enviar documento a la papelera" data-confirm="«{{ documento['titulo'] }}» dejará de aparecer en la biblioteca. Podrás restaurarlo desde la papelera." data-confirm-label="Enviar a papelera" data-confirm-tone="danger">
+        <button type="submit" class="boton-eliminar boton-con-texto">
             <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
                 <path
                     d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"
@@ -113,7 +133,8 @@
                 />
             </svg>
             <span>Eliminar</span>
-        </a>
+        </button>
+        </form>
         {% endif %}
     </div>
 </section>

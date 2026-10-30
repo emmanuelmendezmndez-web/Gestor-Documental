@@ -1,0 +1,108 @@
+.clippy, .clippy-balloon {
+    position: fixed;
+    z-index: 1000;
+    cursor: pointer;
+}
+
+.clippy-balloon {
+    position: fixed;
+    z-index: 1100;
+    box-sizing: border-box;
+    width: min(260px, calc(100vw - 24px));
+    max-width: calc(100vw - 24px);
+    max-height: min(240px, calc(100vh - var(--clippy-bocadillo-abajo, 140px) - 12px));
+    overflow: auto;
+    right: 12px !important;
+    left: auto !important;
+    bottom: var(--clippy-bocadillo-abajo, 140px) !important;
+    top: auto !important;
+
+    background: #ffffff;
+    color: #1e293b;
+    padding: 16px 34px 16px 16px;
+    border: 1px solid #bfdbfe;
+    border-radius: 14px;
+    box-shadow: 0 12px 30px rgb(15 23 42 / 16%);
+
+}
+
+.clippy-content {
+    width: 100% !important;
+    max-width: 100%;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 0.88rem;
+    line-height: 1.45;
+}
+
+.clippy-tip { display: none; }
+.clippy-cerrar {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 26px;
+    height: 26px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: #475569;
+    cursor: pointer;
+    font: 600 20px/1 system-ui, sans-serif;
+}
+.clippy-cerrar:hover, .clippy-cerrar:focus-visible { background: #dbeafe; color: #1d4ed8; }
+.clippy-accion {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 6px 10px;
+    border-radius: 7px;
+    background: #2563eb;
+    color: white;
+    font: 600 .8rem system-ui, sans-serif;
+    text-decoration: none;
+}
+.clippy-accion:hover, .clippy-accion:focus-visible { background: #1d4ed8; color: white; }
+.clippy-accion[hidden] { display: none; }
+.clippy { transform-origin: right bottom; transition: transform 0.3s ease; }
+.clippy.clippy-inactivo { transform: scale(0.72); }
+
+
+.clippy-tip {
+    width: 10px;
+    height: 16px;
+    background: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAgCAMAAAAlvKiEAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAAlQTFRF///MAAAA////52QwgAAAAAN0Uk5T//8A18oNQQAAAGxJREFUeNqs0kEOwCAIRFHn3//QTUU6xMyyxii+jQosrTPkyPEM6IN3FtzIRk1U4dFeKWQiH6pRRowMVKEmvronEynkwj0uZJgR22+YLopPSo9P34wJSamLSU7lSIWLJU7NkNomNlhqxUeAAQC+TQLZyEuJBwAAAABJRU5ErkJggg==) no-repeat;
+    position: absolute;
+}
+
+.clippy-top-left .clippy-tip {
+    top: 100%;
+    margin-top: 0px;
+    left: 100%;
+    margin-left: -50px;
+}
+
+.clippy-top-right .clippy-tip {
+    top: 100%;
+    margin-top: 0px;
+    left: 0;
+    margin-left: 50px;
+    background-position: -10px 0;
+
+}
+
+.clippy-bottom-right .clippy-tip {
+    top: 0;
+    margin-top: -16px;
+    left: 0;
+    margin-left: 50px;
+    background-position: -10px -16px;
+}
+
+.clippy-bottom-left .clippy-tip {
+    top: 0;
+    margin-top: -16px;
+    left: 100%;
+    margin-left: -50px;
+    background-position: 0px -16px;
+}
+

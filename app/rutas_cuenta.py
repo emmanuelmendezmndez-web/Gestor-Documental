@@ -1,7 +1,11 @@
 import logging
+import os
+import re
+from pathlib import Path
+from uuid import uuid4
 
-from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 
 from app.actividad import registrar
 from app.database import conectar
@@ -19,6 +23,14 @@ from app.seguridad import (
 )
 
 logger = logging.getLogger("gestor")
+DATA_DIR = Path(
+    os.environ.get("GESTOR_DATA_DIR", str(Path(__file__).resolve().parent.parent))
+).expanduser().resolve()
+FOTOS_PERFIL_DIR = DATA_DIR / "storage" / "perfiles"
+TAMANO_MAXIMO_FOTO = 5 * 1024 * 1024
+PIXELES_MAXIMOS_FOTO = 16_000_000
+CORREO_RE = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
+TELEFONO_RE = re.compile(r"[0-9+().\-\s]{7,30}")
 
 
 def requiere_sesion(request: Request):
@@ -33,6 +45,10 @@ def requiere_sesion(request: Request):
 router = APIRouter(dependencies=[Depends(requiere_sesion)])
 
 AVISOS_CUENTA = {
+    "perfil_actualizado": ("exito", "Los datos de tu perfil se actualizaron correctamente."),
+    "perfil_igual": ("exito", "Los datos de tu perfil ya estaban actualizados."),
+    "perfil_invalido": ("error", "Revisa tu nombre, correo electrónico y teléfono."),
+    "foto_invalida": ("error", "La foto debe ser una imagen PNG o JPEG válida de hasta 5 MB."),
     "password_cambiada": ("exito", "Contraseña actualizada. Se cerraron tus otras sesiones abiertas, si las había."),
     "actual_incorrecta": ("error", "La contraseña actual no es correcta."),
     "password_corta": ("error", f"La contraseña nueva debe tener entre {PASSWORD_MINIMO} y {PASSWORD_MAXIMO} caracteres."),
@@ -54,6 +70,72 @@ def redirigir(codigo: str) -> RedirectResponse:
     return RedirectResponse(url=f"/cuenta?aviso={codigo}", status_code=303)
 
 
+def detectar_foto_perfil(contenido: bytes) -> tuple[str, str] | None:
+    """Comprueba la firma y dimensiones de PNG/JPEG sin confiar en su nombre o MIME."""
+    def dimensiones_validas(ancho: int, alto: int) -> bool:
+        return (
+            ancho > 0
+            and alto > 0
+            and ancho <= 8192
+            and alto <= 8192
+            and ancho * alto <= PIXELES_MAXIMOS_FOTO
+        )
+
+    if (
+        len(contenido) >= 24
+        and contenido.startswith(b"\x89PNG\r\n\x1a\n")
+        and contenido[12:16] == b"IHDR"
+    ):
+        ancho = int.from_bytes(contenido[16:20], "big")
+        alto = int.from_bytes(contenido[20:24], "big")
+        if dimensiones_validas(ancho, alto):
+            return ".png", "image/png"
+        return None
+
+    if not contenido.startswith(b"\xff\xd8"):
+        return None
+
+    marcadores_sof = {0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF}
+    cursor = 2
+    while cursor + 3 < len(contenido):
+        if contenido[cursor] != 0xFF:
+            return None
+        while cursor < len(contenido) and contenido[cursor] == 0xFF:
+            cursor += 1
+        if cursor >= len(contenido):
+            return None
+        marcador = contenido[cursor]
+        cursor += 1
+        if marcador in {0xD9, 0xDA}:
+            return None
+        if marcador == 0x01 or 0xD0 <= marcador <= 0xD7:
+            continue
+        if cursor + 2 > len(contenido):
+            return None
+        largo = int.from_bytes(contenido[cursor:cursor + 2], "big")
+        if largo < 2 or cursor + largo > len(contenido):
+            return None
+        if marcador in marcadores_sof:
+            if largo < 7:
+                return None
+            alto = int.from_bytes(contenido[cursor + 3:cursor + 5], "big")
+            ancho = int.from_bytes(contenido[cursor + 5:cursor + 7], "big")
+            if dimensiones_validas(ancho, alto):
+                return ".jpg", "image/jpeg"
+            return None
+        cursor += largo
+    return None
+
+
+def borrar_archivo_foto(ruta: Path | None) -> None:
+    if ruta is None:
+        return
+    try:
+        ruta.unlink(missing_ok=True)
+    except OSError:
+        logger.warning("No se pudo limpiar un archivo de foto de perfil", exc_info=True)
+
+
 @router.get("/cuenta", response_class=HTMLResponse)
 def mi_cuenta(request: Request, aviso: str | None = None):
     tipo, mensaje = AVISOS_CUENTA.get(aviso, (None, None))
@@ -69,6 +151,136 @@ def mi_cuenta(request: Request, aviso: str | None = None):
             "password_minimo": PASSWORD_MINIMO,
             "mensaje": mensaje,
             "tipo": tipo,
+        },
+    )
+
+
+@router.post("/cuenta/perfil")
+def actualizar_perfil(
+    request: Request,
+    nombre: str = Form(...),
+    correo: str = Form(""),
+    telefono: str = Form(""),
+    foto: UploadFile | None = File(default=None),
+    quitar_foto: bool = Form(False),
+):
+    usuario = request.state.usuario
+    nombre = nombre.strip()
+    correo = correo.strip()
+    telefono = telefono.strip()
+    digitos_telefono = sum(caracter.isdigit() for caracter in telefono)
+    if (
+        not nombre
+        or len(nombre) > 100
+        or len(correo) > 254
+        or (correo and not CORREO_RE.fullmatch(correo))
+        or len(telefono) > 30
+        or (telefono and (not TELEFONO_RE.fullmatch(telefono) or not 7 <= digitos_telefono <= 15))
+    ):
+        return redirigir("perfil_invalido")
+
+    contenido_foto = b""
+    tipo_foto = None
+    if foto and foto.filename:
+        contenido_foto = foto.file.read(TAMANO_MAXIMO_FOTO + 1)
+        if len(contenido_foto) > TAMANO_MAXIMO_FOTO:
+            return redirigir("foto_invalida")
+        tipo_foto = detectar_foto_perfil(contenido_foto)
+        if tipo_foto is None:
+            return redirigir("foto_invalida")
+
+    nombre_foto_anterior = usuario.get("foto_perfil")
+    nueva_foto = None
+    ruta_foto_nueva = None
+    ruta_temporal = None
+    if tipo_foto:
+        extension, _ = tipo_foto
+        nueva_foto = f"{uuid4().hex}{extension}"
+        ruta_foto_nueva = FOTOS_PERFIL_DIR / nueva_foto
+        ruta_temporal = FOTOS_PERFIL_DIR / f".{uuid4().hex}.tmp"
+        try:
+            FOTOS_PERFIL_DIR.mkdir(parents=True, exist_ok=True)
+            ruta_temporal.write_bytes(contenido_foto)
+            os.replace(ruta_temporal, ruta_foto_nueva)
+        except OSError:
+            borrar_archivo_foto(ruta_temporal)
+            borrar_archivo_foto(ruta_foto_nueva)
+            logger.exception("No se pudo guardar la foto de perfil del usuario %s", usuario["id"])
+            return redirigir("error")
+
+    foto_perfil = nueva_foto or (None if quitar_foto else nombre_foto_anterior)
+    cambios = []
+    for clave, valor, etiqueta in (
+        ("nombre", nombre, "nombre"),
+        ("correo", correo, "correo"),
+        ("telefono", telefono, "teléfono"),
+    ):
+        if valor != usuario.get(clave, ""):
+            cambios.append(etiqueta)
+    if foto_perfil != nombre_foto_anterior:
+        cambios.append("foto de perfil")
+    if not cambios:
+        borrar_archivo_foto(ruta_foto_nueva)
+        return redirigir("perfil_igual")
+
+    try:
+        with conectar() as conexion:
+            resultado = conexion.execute(
+                """
+                UPDATE usuarios
+                SET nombre = ?, correo = ?, telefono = ?, foto_perfil = ?
+                WHERE id = ? AND activo = 1
+                """,
+                (nombre, correo, telefono, foto_perfil, usuario["id"]),
+            )
+            if resultado.rowcount != 1:
+                borrar_archivo_foto(ruta_foto_nueva)
+                return redirigir("error")
+    except Exception:
+        borrar_archivo_foto(ruta_foto_nueva)
+        logger.exception("No se pudo actualizar el nombre del usuario %s", usuario["id"])
+        return redirigir("error")
+
+    if nombre_foto_anterior and foto_perfil != nombre_foto_anterior:
+        foto_anterior = Path(nombre_foto_anterior).name
+        if foto_anterior == nombre_foto_anterior:
+            borrar_archivo_foto(FOTOS_PERFIL_DIR / foto_anterior)
+
+    registrar(
+        request,
+        "cuenta_perfil",
+        entidad="usuario",
+        entidad_id=usuario["id"],
+        entidad_nombre=usuario["usuario"],
+        detalle="actualizó: " + ", ".join(cambios),
+    )
+    return redirigir("perfil_actualizado")
+
+
+@router.get("/cuenta/foto")
+def obtener_foto_perfil(request: Request):
+    with conectar() as conexion:
+        fila = conexion.execute(
+            "SELECT foto_perfil FROM usuarios WHERE id = ? AND activo = 1",
+            (request.state.usuario["id"],),
+        ).fetchone()
+    if fila is None or not fila["foto_perfil"]:
+        raise HTTPException(status_code=404, detail="Foto de perfil no encontrada.")
+
+    nombre = fila["foto_perfil"]
+    if Path(nombre).name != nombre:
+        raise HTTPException(status_code=404, detail="Foto de perfil no encontrada.")
+    extension = Path(nombre).suffix.lower()
+    tipos = {".png": "image/png", ".jpg": "image/jpeg"}
+    ruta = FOTOS_PERFIL_DIR / nombre
+    if extension not in tipos or not ruta.is_file():
+        raise HTTPException(status_code=404, detail="Foto de perfil no encontrada.")
+    return FileResponse(
+        ruta,
+        media_type=tipos[extension],
+        headers={
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "private, no-store",
         },
     )
 

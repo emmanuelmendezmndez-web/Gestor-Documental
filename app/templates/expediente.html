@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block contenido %}
+<section class="panel">
+    <a href="/expedientes" class="enlace-volver">← Volver a expedientes</a>
+    <div class="ficha-encabezado">
+        <div>
+            <span class="etiqueta">{{ expediente["folio"] }}</span>
+            <h2>{{ expediente["titulo"] }}</h2>
+            <p class="nota">Creado el {{ expediente["fecha_creacion"] }}{% if expediente["creador"] %} · por {{ expediente["creador"] }}{% endif %}</p>
+        </div>
+    </div>
+
+    {% if expediente["descripcion"] %}
+    <p class="descripcion">{{ expediente["descripcion"] }}</p>
+    {% endif %}
+
+    {% if puede("gestionar_expedientes") %}
+    <section class="panel panel-secundario-expediente">
+        <h3>Vincular documento existente</h3>
+        <p class="nota">Busca por título, número de oficio o número de registro interno.</p>
+        <form action="/expedientes/{{ expediente['id'] }}" method="get" class="busqueda">
+            <div>
+                <label for="buscar-documento">Buscar documento</label>
+                <input
+                    type="search"
+                    id="buscar-documento"
+                    name="buscar"
+                    maxlength="200"
+                    value="{{ buscar }}"
+                    placeholder="Título, oficio o registro"
+                    data-clippy-read="Búsqueda del expediente"
+                >
+            </div>
+            <button type="submit">Buscar</button>
+        </form>
+
+        {% if buscar %}
+            {% if resultados %}
+            <form action="/expedientes/{{ expediente['id'] }}/documentos" method="post" data-required-selection="documento_ids" data-clippy-tip="Marca uno o varios documentos de la lista; al vincularlos seguirán también disponibles en Biblioteca.">
+            <div class="barra-seleccion">
+                <label class="control-seleccionar-todos">
+                    <input type="checkbox" class="seleccion-checkbox" onchange="document.querySelectorAll('.seleccion-para-expediente').forEach(c => c.checked = this.checked)">
+                    Seleccionar todos los resultados
+                </label>
+                <button type="submit">Vincular selección al expediente</button>
+            </div>
+            <div class="tabla-scroll">
+                <table>
+                    <thead>
+                        <tr>
+                            <th scope="col">Seleccionar</th>
+                            <th scope="col">Registro</th>
+                            <th scope="col">Título</th>
+                            <th scope="col">Número de oficio</th>
+                            <th scope="col">Archivo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for documento in resultados %}
+                        <tr>
+                            <td><input type="checkbox" class="seleccion-checkbox seleccion-para-expediente" name="documento_ids" value="{{ documento['id'] }}" aria-label="Seleccionar {{ documento['titulo'] }}"></td>
+                            <td>{{ documento["id"] }}</td>
+                            <td>{{ documento["titulo"] }}</td>
+                            <td>{{ documento["numero_oficio"] or "—" }}</td>
+                            <td>{{ documento["nombre_archivo"] }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            </form>
+            {% else %}
+            <p>No se encontraron documentos disponibles con ese criterio.</p>
+            {% endif %}
+        {% endif %}
+    </section>
+    {% endif %}
+
+    <h3>Documentación vinculada</h3>
+    {% if documentos %}
+    <div class="tabla-scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th scope="col">Registro</th>
+                    <th scope="col">Título</th>
+                    <th scope="col">Número de oficio</th>
+                    <th scope="col">Archivo</th>
+                    <th scope="col">Vinculado el</th>
+                    <th scope="col">Acción</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for documento in documentos %}
+                <tr>
+                    <td>{{ documento["id"] }}</td>
+                    <td>{{ documento["titulo"] }}</td>
+                    <td>{{ documento["numero_oficio"] or "—" }}</td>
+                    <td>{{ documento["nombre_archivo"] }}</td>
+                    <td>{{ documento["fecha_vinculacion"] }}</td>
+                    <td><a href="/documentos/{{ documento['id'] }}" class="boton-secundario">Consultar</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p>Aún no hay documentos vinculados a este expediente.</p>
+    {% endif %}
+</section>
+{% endblock %}

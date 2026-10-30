@@ -9,6 +9,7 @@
         "png":  ("#8e44ad", "IMG"),
         "jpg":  ("#8e44ad", "IMG"),
         "jpeg": ("#8e44ad", "IMG"),
+        "pptx": ("#d24726", "PPT"),
     } %}
     {% set extension = nombre.rsplit(".", 1)[-1] | lower %}
     {% set color, etiqueta = tipos.get(extension, ("#6b7280", "")) %}

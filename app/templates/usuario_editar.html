@@ -15,10 +15,10 @@
     </p>
     <p class="nota">El nombre de usuario no se puede cambiar.</p>
 
-    <form action="/usuarios/{{ editado['id'] }}/editar" method="post">
+    <form action="/usuarios/{{ editado['id'] }}/editar" method="post" data-clippy-tip="Puedes actualizar nombre, rol y área. Los cambios de acceso se aplican a la cuenta al guardar.">
         <div class="campo">
             <label for="nombre">Nombre completo</label>
-            <input type="text" id="nombre" name="nombre" maxlength="100" value="{{ editado['nombre'] }}" required>
+            <input type="text" id="nombre" name="nombre" maxlength="100" value="{{ editado['nombre'] }}" data-clippy-read="Nombre de usuario" required>
         </div>
 
         <div class="campo">
@@ -32,6 +32,17 @@
             <input type="hidden" name="rol" value="{{ editado['rol'] }}">
             <p class="nota">No puedes cambiar tu propio rol.</p>
             {% endif %}
+        </div>
+
+        <div class="campo">
+            <label for="departamento">Departamento</label>
+            <select id="departamento" name="departamento">
+                <option value="">Sin asignar</option>
+                {% for departamento in departamentos %}
+                <option value="{{ departamento }}" {% if editado["departamento"] == departamento %}selected{% endif %}>{{ departamento }}</option>
+                {% endfor %}
+            </select>
+            <p class="nota">Los avisos dirigidos a un área se mostrarán a las cuentas asignadas a ese departamento.</p>
         </div>
 
         <div class="acciones-formulario">
@@ -87,7 +98,10 @@
     <form
         action="/usuarios/{{ editado['id'] }}/estado"
         method="post"
-        onsubmit="return confirm('¿Desactivar a este usuario? No podrá iniciar sesión hasta que lo actives de nuevo.');"
+        data-confirm-title="Desactivar usuario"
+        data-confirm="{{ editado['nombre'] }} no podrá iniciar sesión hasta que vuelvas a activar su cuenta. Sus datos se conservarán y se cerrarán sus sesiones actuales."
+        data-confirm-label="Desactivar usuario"
+        data-confirm-tone="danger"
     >
         <input type="hidden" name="activo" value="0">
         <button type="submit" class="boton-peligro">Desactivar usuario</button>
@@ -110,19 +124,29 @@
     <p class="nota">Para poder eliminar una cuenta, primero hay que desactivarla. Así se evita borrar por error a alguien que sigue trabajando.</p>
     {% else %}
     <p class="nota">Elimina la cuenta de forma definitiva. Su historial en el registro de actividad se conserva.</p>
-    <a href="/usuarios/{{ editado['id'] }}/eliminar" class="boton-eliminar boton-con-texto">
-        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
-            <path
-                d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2.2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-            />
-        </svg>
-        <span>Eliminar cuenta</span>
-    </a>
+    <form
+        action="/usuarios/{{ editado['id'] }}/eliminar"
+        method="post"
+        class="form-accion-inline"
+        data-confirm-title="Eliminar cuenta definitivamente"
+        data-confirm="La cuenta de «{{ editado['nombre'] }}» se borrará por completo y esa persona no podrá volver a entrar. Su historial de actividad se conservará."
+        data-confirm-label="Eliminar definitivamente"
+        data-confirm-tone="danger"
+    >
+        <button type="submit" class="boton-eliminar boton-con-texto">
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
+                <path
+                    d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                />
+            </svg>
+            <span>Eliminar cuenta</span>
+        </button>
+    </form>
     {% endif %}
 </section>
 {% endblock %}

@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block contenido %}
+<section class="panel">
+    <a href="/" class="enlace-volver">← Volver a la biblioteca</a>
+    <h2>Expedientes</h2>
+
+    {% if puede("gestionar_expedientes") %}
+    <form action="/expedientes" method="post" class="formulario-expediente" data-clippy-tip="Al guardar, SIGED asignará un folio único. Después podrás abrir la ficha y vincular documentos existentes.">
+        <h3>Crear expediente</h3>
+        <div class="campo">
+            <label for="titulo-expediente">Nombre o asunto</label>
+            <input type="text" id="titulo-expediente" name="titulo" maxlength="200" data-clippy-read="Nombre del expediente" required>
+        </div>
+        <div class="campo">
+            <label for="descripcion-expediente">Descripción (opcional)</label>
+            <textarea id="descripcion-expediente" name="descripcion" maxlength="2000" rows="3"></textarea>
+        </div>
+        <button type="submit">Crear expediente</button>
+        <p class="nota">El sistema asignará un folio único automáticamente.</p>
+    </form>
+    {% endif %}
+
+    <h3>Expedientes registrados</h3>
+    {% if expedientes %}
+    <div class="tabla-scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th scope="col">Folio</th>
+                    <th scope="col">Nombre o asunto</th>
+                    <th scope="col">Documentos</th>
+                    <th scope="col">Fecha de creación</th>
+                    <th scope="col">Creado por</th>
+                    <th scope="col">Acción</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for expediente in expedientes %}
+                <tr>
+                    <td>{{ expediente["folio"] }}</td>
+                    <td>
+                        <strong>{{ expediente["titulo"] }}</strong>
+                        {% if expediente["descripcion"] %}
+                        <span class="subtexto">{{ expediente["descripcion"] }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ expediente["total_documentos"] }}</td>
+                    <td>{{ expediente["fecha_creacion"] }}</td>
+                    <td>{{ expediente["creador"] or "—" }}</td>
+                    <td>
+                        <div class="acciones-formulario">
+                            <a href="/expedientes/{{ expediente['id'] }}" class="boton-secundario">Abrir</a>
+                            {% if puede("gestionar_expedientes") %}
+                            <form
+                                action="/expedientes/{{ expediente['id'] }}/eliminar"
+                                method="post"
+                                class="form-accion-inline"
+                                data-confirm-title="Eliminar expediente"
+                                data-confirm="Se eliminará la ficha de «{{ expediente['folio'] }} — {{ expediente['titulo'] }}» y sus vínculos. Los documentos originales seguirán disponibles en la biblioteca."
+                                data-confirm-label="Eliminar expediente"
+                                data-confirm-tone="danger"
+                            >
+                                <button type="submit" class="boton-eliminar" aria-label="Eliminar expediente {{ expediente['folio'] }}" title="Eliminar expediente">
+                                    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
+                                        <path
+                                            d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="2.2"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                        />
+                                    </svg>
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p>Aún no hay expedientes registrados.</p>
+    {% endif %}
+</section>
+{% endblock %}

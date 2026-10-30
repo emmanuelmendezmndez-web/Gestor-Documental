@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block contenido %}
+<section class="panel resultados-globales">
+    <div class="encabezado-resultados-globales">
+        <div>
+            <p class="sobrelinea">Búsqueda global</p>
+            <h1>Resultados para “{{ busqueda_global }}”</h1>
+        </div>
+    </div>
+
+    {% if buscar_vacio %}
+    <div class="estado-vacio">
+        <h2>¿Qué estás buscando?</h2>
+        <p class="nota">Escribe un título, número de oficio, nombre de archivo, folio o registro interno en la barra superior.</p>
+        <p class="nota"><kbd>Ctrl</kbd> + <kbd>K</kbd> enfoca la búsqueda desde cualquier sección.</p>
+    </div>
+    {% else %}
+    <section class="grupo-resultados-globales" aria-labelledby="resultados-documentos-titulo">
+        <div class="titulo-panel">
+            <h2 id="resultados-documentos-titulo">Documentos</h2>
+            <span class="contador-resultados">{{ documentos_encontrados|length }}</span>
+        </div>
+        {% if documentos_encontrados %}
+        <ul class="lista-resultados-globales">
+            {% for documento in documentos_encontrados %}
+            <li>
+                <a href="/documentos/{{ documento['id'] }}" class="enlace-titulo">{{ documento["titulo"] }}</a>
+                <span class="subtexto">{{ documento["nombre_archivo"] }}</span>
+                <span class="detalle-resultado">
+                    {% if documento["numero_oficio"] %}Of. {{ documento["numero_oficio"] }} · {% endif %}
+                    {{ documento["categoria"] }}{% if documento["departamento"] %} · {{ documento["departamento"] }}{% endif %}
+                </span>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="nota">No se encontraron documentos con esa búsqueda.</p>
+        {% endif %}
+    </section>
+
+    {% if puede("ver_expedientes") %}
+    <section class="grupo-resultados-globales" aria-labelledby="resultados-expedientes-titulo">
+        <div class="titulo-panel">
+            <h2 id="resultados-expedientes-titulo">Expedientes</h2>
+            <span class="contador-resultados">{{ expedientes_encontrados|length }}</span>
+        </div>
+        {% if expedientes_encontrados %}
+        <ul class="lista-resultados-globales">
+            {% for expediente in expedientes_encontrados %}
+            <li>
+                <a href="/expedientes/{{ expediente['id'] }}" class="enlace-titulo">{{ expediente["titulo"] }}</a>
+                <span class="detalle-resultado">Folio {{ expediente["folio"] }}</span>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="nota">No se encontraron expedientes con esa búsqueda.</p>
+        {% endif %}
+    </section>
+    {% endif %}
+    {% endif %}
+</section>
+{% endblock %}

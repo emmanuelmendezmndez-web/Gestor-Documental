@@ -12,6 +12,7 @@ from app.actividad import registrar
 from app.database import conectar
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = Path(os.environ.get("GESTOR_DATA_DIR", str(BASE_DIR))).expanduser().resolve()
 
 ROLES = ("lector", "editor", "admin")
 
@@ -23,11 +24,14 @@ NOMBRES_ROL = {
 
 # Qué puede hacer cada rol
 PERMISOS = {
-    "lector": {"ver", "descargar"},
-    "editor": {"ver", "descargar", "subir", "editar"},
+    "lector": {"ver", "descargar", "ver_expedientes"},
+    "editor": {
+        "ver", "descargar", "subir", "editar",
+        "ver_expedientes", "gestionar_expedientes", "restaurar", "papelera",
+    },
     "admin": {
-        "ver", "descargar", "subir", "editar", "eliminar",
-        "usuarios", "actividad",
+        "ver", "descargar", "subir", "editar", "eliminar", "restaurar", "papelera",
+        "usuarios", "actividad", "avisos", "ver_expedientes", "gestionar_expedientes",
     },
 }
 
@@ -50,10 +54,11 @@ def obtener_clave_secreta() -> str:
     if clave:
         return clave
 
-    ruta = BASE_DIR / ".secret_key"
+    ruta = DATA_DIR / ".secret_key"
     if ruta.is_file():
         return ruta.read_text(encoding="utf-8").strip()
 
+    ruta.parent.mkdir(parents=True, exist_ok=True)
     clave = secrets.token_hex(32)
     ruta.write_text(clave, encoding="utf-8")
     return clave
@@ -171,7 +176,8 @@ def usuario_actual(request: Request):
     with conectar() as conexion:
         fila = conexion.execute(
             """
-            SELECT id, usuario, nombre, rol, version_sesion
+            SELECT id, usuario, nombre, correo, telefono, foto_perfil,
+                   rol, departamento, version_sesion
             FROM usuarios
             WHERE id = ? AND activo = 1
             """,
@@ -192,6 +198,9 @@ def usuario_actual(request: Request):
 
 def requiere_permiso(permiso: str):
     """Crea una dependencia de FastAPI que exige sesión iniciada y un permiso."""
+
+    if not any(permiso in permisos for permisos in PERMISOS.values()):
+        raise ValueError(f"Permiso desconocido: {permiso!r}")
 
     def dependencia(request: Request):
         usuario = usuario_actual(request)

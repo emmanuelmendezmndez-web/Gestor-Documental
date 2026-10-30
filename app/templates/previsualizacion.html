@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vista previa · {{ nombre_archivo }}</title>
+    <style>
+        :root { color-scheme: light; font-family: system-ui, "Segoe UI", Arial, sans-serif; color: #243247; }
+        body { margin: 0; padding: 24px; background: #f3f5f8; }
+        main { max-width: 1100px; margin: 0 auto; padding: 24px; background: white; border-radius: 10px; }
+        h1 { margin-top: 0; font-size: 1.35rem; overflow-wrap: anywhere; }
+        .nota { color: #55657a; }
+        .contenido-texto { white-space: pre-wrap; overflow-wrap: anywhere; font: 0.98rem/1.6 ui-monospace, Consolas, monospace; }
+        .parrafo { white-space: pre-wrap; overflow-wrap: anywhere; }
+        .tabla-scroll { overflow: auto; margin: 12px 0 28px; }
+        table { border-collapse: collapse; min-width: 100%; }
+        td { min-width: 70px; max-width: 360px; padding: 8px 10px; border: 1px solid #d9e0e8; white-space: pre-wrap; overflow-wrap: anywhere; }
+        tr:nth-child(even) { background: #f7f9fb; }
+        .aviso { padding: 14px; border-left: 5px solid #c0392b; background: #fdecec; color: #8a1f14; }
+    </style>
+</head>
+<body>
+<main>
+    <h1>{{ nombre_archivo }}</h1>
+    <p class="nota">Vista de solo lectura.</p>
+
+    {% if error %}
+    <p class="aviso" role="alert">{{ error }}</p>
+    {% elif extension == ".txt" %}
+    <pre class="contenido-texto">{{ texto }}</pre>
+    {% endif %}
+</main>
+</body>
+</html>

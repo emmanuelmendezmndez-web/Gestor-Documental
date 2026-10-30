@@ -3,54 +3,177 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block titulo %}{{ titulo }}{% endblock %}</title>
-    <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}?v=6">
+    <title>{% block titulo %}SIGED | Panel de Control{% endblock %}</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', path='img/siged-isotipo.png') }}?v=1">
+    <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}?v=23">
+    {% if usuario %}
+    <link rel="stylesheet" href="{{ url_for('static', path='clippy/clippy.css') }}?v=6">
+    {% endif %}
 </head>
 <body>
-    <header>
-        <h1>{{ titulo }}</h1>
-        <p>Centro de administración de documentos</p>
+    {% if usuario %}
+    <div class="app-shell">
+        <aside class="sidebar is-collapsed" id="sidebar-principal">
+            <a class="marca" href="/inicio" aria-label="SIGED, ir a inicio">
+                <span class="marca-icono" aria-hidden="true">
+                    <img src="{{ url_for('static', path='img/siged-isotipo.png') }}" alt="">
+                </span>
+                <span><strong>SIGED</strong><small>Sistema Integral de Gestión Documental</small></span>
+            </a>
+            <details class="sidebar-menu" open>
+                <summary>Menú principal</summary>
+                <nav class="sidebar-nav" aria-label="Navegación principal">
+                    <a class="sidebar-link" href="/inicio" title="Inicio" aria-label="Inicio" {% if pagina == "inicio" %}aria-current="page"{% endif %}>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3.5 10.5 8.5-7 8.5 7M5.5 9v11h13V9M9 20v-6h6v6"/></svg>
+                        <span>Inicio</span>
+                    </a>
+                    <a class="sidebar-link" href="/" title="Biblioteca" aria-label="Biblioteca" {% if pagina == "biblioteca" %}aria-current="page"{% endif %}>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 6.5h6l2 2h9v10.75H3.5zM3.5 9h17"/></svg>
+                        <span>Biblioteca</span>
+                    </a>
+                    {% if puede("subir") %}
+                    <a class="sidebar-link" href="/subir" title="Subir documento" aria-label="Subir documento" {% if pagina == "subir" %}aria-current="page"{% endif %}>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M4 15.5v4h16v-4"/></svg>
+                        <span>Subir documento</span>
+                    </a>
+                    {% endif %}
+                    {% if puede("usuarios") %}
+                    <a class="sidebar-link" href="/usuarios" title="Usuarios" aria-label="Usuarios" {% if pagina == "usuarios" %}aria-current="page"{% endif %}>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.25"/><path d="M3.5 19c.5-3.1 2.4-4.75 5.5-4.75s5 1.65 5.5 4.75M16 5.2a3.25 3.25 0 0 1 0 6.2M17 14.5c2.1.55 3.25 2.05 3.5 4.5"/></svg>
+                        <span>Usuarios</span>
+                    </a>
+                    {% endif %}
+                    {% if puede("eliminar") or puede("restaurar") %}
+                    <a class="sidebar-link" href="/papelera" title="Papelera" aria-label="Papelera" {% if pagina == "papelera" %}aria-current="page"{% endif %}>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-9 0 1 13h10l1-13M10 11v5m4-5v5"/></svg>
+                        <span>Papelera</span>
+                    </a>
+                    {% endif %}
+                    {% if puede("actividad") %}
+                    <a class="sidebar-link" href="/actividad" title="Actividad" aria-label="Actividad" {% if pagina == "actividad" %}aria-current="page"{% endif %}>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l2.2-6 4.1 12 2.2-6H21"/></svg>
+                        <span>Actividad</span>
+                    </a>
+                    {% endif %}
+                </nav>
+            </details>
 
-        {% if usuario %}
-        <nav class="pestanas" aria-label="Secciones">
-            <a href="/" {% if pagina == "biblioteca" %}aria-current="page"{% endif %}>Biblioteca</a>
-            {% if puede("subir") %}
-            <a href="/subir" {% if pagina == "subir" %}aria-current="page"{% endif %}>Subir documento</a>
-            {% endif %}
-            {% if puede("usuarios") %}
-            <a href="/usuarios" {% if pagina == "usuarios" %}aria-current="page"{% endif %}>Usuarios</a>
-            {% endif %}
-            {% if puede("actividad") %}
-            <a href="/actividad" {% if pagina == "actividad" %}aria-current="page"{% endif %}>Actividad</a>
-            {% endif %}
-
-            <div class="sesion">
-                <a
-                    href="/cuenta"
-                    class="sesion-usuario"
-                    title="Mi cuenta"
-                    {% if pagina == "cuenta" %}aria-current="page"{% endif %}
-                >{{ usuario["nombre"] }} · {{ usuario["rol_nombre"] }}</a>
+            <div class="sidebar-cuenta">
+                <button type="button" class="sidebar-toggle" id="sidebar-toggle" aria-label="Expandir barra lateral" aria-expanded="false" title="Expandir barra">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>
+                </button>
+                <a class="sidebar-link cuenta-link" href="/cuenta" title="Mi cuenta" aria-label="Cuenta de {{ usuario['nombre'] }}" {% if pagina == "cuenta" %}aria-current="page"{% endif %}>
+                    <span class="avatar" aria-hidden="true">
+                        {% set iniciales_sidebar = usuario["nombre"].split() %}
+                        {{ iniciales_sidebar[0][:1]|upper }}{% if iniciales_sidebar|length > 1 %}{{ iniciales_sidebar[-1][:1]|upper }}{% endif %}
+                        {% if usuario["foto_perfil"] %}<img src="/cuenta/foto?v={{ usuario['foto_perfil'] }}" alt="" onerror="this.hidden=true">{% endif %}
+                    </span>
+                    <span class="usuario-info"><strong>{{ usuario["nombre"] }}</strong><small>{{ usuario["rol_nombre"] }}</small></span>
+                </a>
                 <form action="/salir" method="post">
-                    <button type="submit" class="boton-sesion">Cerrar sesión</button>
+                    <button type="submit" class="boton-cerrar-sesion" title="Cerrar sesión" aria-label="Cerrar sesión">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H5v16h5m4-4 4-4-4-4m4 4H9"/></svg>
+                        <span>Cerrar sesión</span>
+                    </button>
                 </form>
             </div>
-        </nav>
-        {% endif %}
-    </header>
+        </aside>
 
-    <main>
-        {% if mensaje %}
-        <div class="panel aviso {{ tipo }}" role="{{ 'alert' if tipo == 'error' else 'status' }}">
-            {{ mensaje }}
+        <div class="app-content">
+            <div class="app-topbar">
+                <div class="app-topbar-identidad">
+                    <nav class="migas-pan" aria-label="Migas de pan">
+                        <a href="/inicio">SIGED</a>
+                        <span aria-hidden="true">/</span>
+                        <span aria-current="page">{% if pagina == "inicio" %}Panel de control{% elif pagina == "biblioteca" %}Biblioteca{% elif pagina == "buscar" %}Búsqueda global{% elif pagina == "subir" %}Subir documento{% elif pagina == "usuarios" %}Usuarios{% elif pagina == "papelera" %}Papelera{% elif pagina == "actividad" %}Actividad{% elif pagina == "cuenta" %}Mi cuenta{% else %}Panel de control{% endif %}</span>
+                    </nav>
+                    <span class="topbar-descripcion">Plataforma digital de archivos y control documental institucional</span>
+                </div>
+                <form action="/buscar" method="get" class="busqueda-global" role="search">
+                    <label class="sr-only" for="busqueda-global">Buscar documentos o expedientes</label>
+                    <input type="search" id="busqueda-global" name="q" value="{{ busqueda_global|default('') }}" placeholder="Buscar documentos o expedientes" maxlength="200" autocomplete="off" aria-keyshortcuts="Control+K Meta+K" data-clippy-tip="Escribe título, folio u oficio; la búsqueda global revisa documentos y expedientes. También puedes abrirla con Ctrl+K." data-clippy-read="Búsqueda">
+                    <kbd aria-hidden="true">Ctrl K</kbd>
+                    <button type="submit" aria-label="Buscar">
+                        <svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.3" fill="none" stroke="currentColor" stroke-width="2"/><path d="m15.5 15.5 4.2 4.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    </button>
+                </form>
+                <button type="button" class="boton-busqueda-asistida" id="abrir-busqueda-asistida" aria-haspopup="dialog" aria-label="Búsqueda asistida" title="Búsqueda asistida">✨ <span>Búsqueda asistida</span></button>
+                <span class="rol-topbar">{{ usuario["rol_nombre"] }}</span>
+            </div>
+    {% else %}
+    <header class="auth-header">
+        <div class="auth-identidad">
+            <img class="auth-logo" src="{{ url_for('static', path='img/siged-isotipo.png') }}" alt="">
+            <div>
+                <h1>SIGED</h1>
+                <p class="auth-subtitulo">Sistema Integral de Gestión Documental</p>
+            </div>
         </div>
-        {% endif %}
+        <p>Plataforma digital de archivos y control documental institucional</p>
+    </header>
+    {% endif %}
 
+    <main class="{{ 'app-main' if usuario else 'auth-main' }}">
+        {% if mensaje %}
+        <div class="panel aviso {{ tipo }}" role="{{ 'alert' if tipo == 'error' else 'status' }}">{{ mensaje }}</div>
+        {% endif %}
         {% block contenido %}{% endblock %}
     </main>
 
-    <footer>
-        Todos los derechos reservados &copy; 2026
-    </footer>
+    {% if usuario %}
+            <dialog class="dialogo-confirmacion" id="dialogo-confirmacion" aria-labelledby="dialogo-confirmacion-titulo" aria-describedby="dialogo-confirmacion-mensaje">
+                <div class="dialogo-confirmacion-contenido">
+                    <span class="dialogo-confirmacion-icono" aria-hidden="true">
+                        <svg viewBox="0 0 24 24"><path d="M12 3.5 21 20H3z"/><path d="M12 9v5m0 2.5v.1"/></svg>
+                    </span>
+                    <h2 id="dialogo-confirmacion-titulo">Confirma esta acción</h2>
+                    <p id="dialogo-confirmacion-mensaje">¿Deseas continuar?</p>
+                    <div class="dialogo-clave-confirmacion" id="dialogo-clave-confirmacion" hidden>
+                        <label for="dialogo-confirmacion-password">Contraseña actual del administrador</label>
+                        <input type="password" id="dialogo-confirmacion-password" autocomplete="current-password" maxlength="200" required disabled>
+                    </div>
+                    <div class="dialogo-confirmacion-acciones">
+                        <button type="button" class="boton-secundario" data-dialogo-cancelar>Cancelar</button>
+                        <button type="button" class="boton-modal-confirmar" data-dialogo-confirmar>Continuar</button>
+                    </div>
+                </div>
+            </dialog>
+            <script src="{{ url_for('static', path='dialogos.js') }}?v=1"></script>
+            <script src="{{ url_for('static', path='navegacion.js') }}?v=1"></script>
+            <dialog id="busqueda-asistida" class="busqueda-asistida-dialogo" aria-labelledby="busqueda-asistida-titulo">
+                <form method="dialog" id="form-busqueda-asistida">
+                    <h2 id="busqueda-asistida-titulo">Buscar con Clippy</h2>
+                    <p>Describe qué documento buscas. Clippy propondrá filtros que puedes revisar antes de aplicarlos.</p>
+                    <label for="frase-busqueda-asistida">¿Qué quieres encontrar?</label>
+                    <div class="campo-busqueda-asistida">
+                        <span aria-hidden="true">✨</span>
+                        <input id="frase-busqueda-asistida" type="search" maxlength="200" autocomplete="off" placeholder="Ej. contratos de Obras Públicas de marzo de 2025">
+                    </div>
+                    <div class="busquedas-rapidas" aria-label="Búsquedas rápidas">
+                        <button type="button" data-busqueda-rapida="contratos">📄 Contratos recientes</button>
+                        <button type="button" data-busqueda-rapida="obras">📁 Obras públicas</button>
+                        <button type="button" data-busqueda-rapida="mes">📅 Último mes</button>
+                    </div>
+                    <p id="filtros-sugeridos" role="status" hidden></p>
+                    <div class="busqueda-asistida-acciones">
+                        <button type="button" class="boton-secundario" id="cerrar-busqueda-asistida">Cancelar</button>
+                        <button type="submit">Buscar documentos</button>
+                    </div>
+                </form>
+            </dialog>
+            <div id="siged-configuracion" hidden
+                data-opciones='{{ dict(categorias=asistente_categorias, areas=asistente_areas, usuarioId=usuario["id"], rol=usuario["rol"], areaUsuario=usuario["departamento"])|tojson }}'
+                data-clippy='{{ dict(basePath=url_for("static", path="clippy/agents") ~ "/", cantidadExpediente=(documentos|length if expediente is defined and documentos is defined else none), bibliotecaSinResultados=(pagina == "biblioteca" and hay_filtros|default(false) and total|default(0) == 0), busquedaSinResultados=(pagina == "buscar" and not buscar_vacio|default(true) and not documentos_encontrados|default([]) and not expedientes_encontrados|default([])), discoLleno=(almacenamiento is defined and almacenamiento["disponible"] and almacenamiento["porcentaje"] >= 90), saludoEntrada=saludo_clippy_entrada|default(false), nombre=(usuario["nombre"].split()|first|default("Usuario", true)), usuarioId=usuario["id"], puedeSubir=puede("subir"), puedeRestaurar=puede("restaurar"), puedeUsuarios=puede("usuarios"), puedeActividad=puede("actividad"))|tojson }}'></div>
+            <script src="{{ url_for('static', path='siged_configuracion.js') }}?v=1"></script>
+            <script src="{{ url_for('static', path='busqueda_asistida.js') }}?v=6"></script>
+            <script src="{{ url_for('static', path='clippy/jquery.min.js') }}"></script>
+            <script src="{{ url_for('static', path='clippy/clippy.min.js') }}"></script>
+            <script src="{{ url_for('static', path='clippy_asistente.js') }}?v=1"></script>
+            <footer>Todos los derechos reservados &copy; 2026</footer>
+        </div>
+    </div>
+    {% else %}
+    <footer>Todos los derechos reservados &copy; 2026</footer>
+    {% endif %}
 </body>
 </html>
