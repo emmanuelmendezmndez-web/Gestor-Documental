@@ -16,6 +16,7 @@ AVISOS = {
     "clave_incorrecta": ("error", "La contraseña no es correcta. No se vació la papelera."),
     "restaurado": ("exito", "Documento restaurado correctamente."),
     "eliminado_definitivo": ("exito", "Documento eliminado definitivamente."),
+    "limpieza_pendiente": ("error", "Los registros se eliminaron, pero hay archivos cuya limpieza quedó pendiente de revisión o reintento."),
     "expediente_creado": ("exito", "Expediente creado correctamente."),
     "expediente_eliminado": ("exito", "Expediente eliminado correctamente. Los documentos vinculados siguen disponibles en la biblioteca."),
     "error_eliminar_expediente": ("error", "No se pudo eliminar el expediente. Inténtalo de nuevo."),

@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from app.actividad import registrar
 from app.catalogos import DEPARTAMENTOS
 from app.database import conectar
+from app.eliminaciones import encolar, procesar_tareas
 from app.plantillas import templates
 from app.seguridad import (
     NOMBRES_ROL,
@@ -29,6 +30,7 @@ AVISOS_USUARIOS = {
     "usuario_activado": ("exito", "Usuario activado."),
     "usuario_desactivado": ("exito", "Usuario desactivado. Ya no puede iniciar sesión."),
     "usuario_eliminado": ("exito", "Usuario eliminado. Su historial de actividad se conserva."),
+    "usuario_limpieza_pendiente": ("error", "La cuenta se eliminó, pero la limpieza de su fotografía quedó pendiente."),
     "password_restablecida": ("exito", "Contraseña restablecida. Se cerraron las sesiones abiertas de ese usuario."),
     "usuario_invalido": ("error", "El usuario debe tener de 3 a 50 caracteres: letras, números, punto, guion o guion bajo."),
     "usuario_existe": ("error", "Ese nombre de usuario ya existe."),
@@ -408,9 +410,14 @@ def eliminar_usuario(request: Request, usuario_id: int):
     if usuario_id == request.state.usuario["id"]:
         return redirigir(ruta, "propio_eliminar")
 
+    tarea = None
     try:
         with conectar() as conexion:
             # Solo se borra si sigue desactivada: la condición va en la misma sentencia
+            conexion.execute("BEGIN IMMEDIATE")
+            fila_foto = conexion.execute("SELECT foto_perfil FROM usuarios WHERE id=? AND activo=0", (usuario_id,)).fetchone()
+            if fila_foto is not None and fila_foto["foto_perfil"]:
+                tarea = encolar(conexion, "foto", fila_foto["foto_perfil"])
             resultado = conexion.execute(
                 "DELETE FROM usuarios WHERE id = ? AND activo = 0",
                 (usuario_id,),
@@ -423,13 +430,15 @@ def eliminar_usuario(request: Request, usuario_id: int):
     if not borrado:
         return redirigir(ruta, "eliminar_activo")
 
+    pendiente = tarea is not None and procesar_tareas([tarea])[tarea] not in {"completada", "cancelada"}
     registrar(
         request,
         "usuario_eliminar",
+        "fallo" if pendiente else "exito",
         entidad="usuario",
         entidad_id=usuario_id,
         entidad_nombre=objetivo["usuario"],
-        detalle=f"nombre: «{objetivo['nombre']}» · rol: {NOMBRES_ROL[objetivo['rol']]}",
+        detalle=f"nombre: «{objetivo['nombre']}» · rol: {NOMBRES_ROL[objetivo['rol']]}" + (f"; limpieza física pendiente; tarea {tarea}" if pendiente else ""),
     )
 
-    return redirigir("/usuarios", "usuario_eliminado")
+    return redirigir("/usuarios", "usuario_limpieza_pendiente" if pendiente else "usuario_eliminado")

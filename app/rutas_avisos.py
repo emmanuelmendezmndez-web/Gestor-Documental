@@ -1,6 +1,5 @@
 """Rutas de SIGED."""
 
-import logging
 from pathlib import Path
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
@@ -8,12 +7,12 @@ from app.actividad import registrar
 from app.catalogos import DEPARTAMENTOS
 from app.configuracion import AVISOS_DIR
 from app.database import conectar
+from app.eliminaciones import encolar, procesar_tareas
 from app.mensajes import AVISOS
 from app.plantillas import templates
 from app.servicios.avisos import crear_aviso_servicio
 from app.seguridad import requiere_permiso
 
-logger = logging.getLogger("gestor")
 router = APIRouter()
 
 @router.get(
@@ -96,28 +95,30 @@ def cambiar_estado_aviso(
     dependencies=[Depends(requiere_permiso("avisos"))],
 )
 def eliminar_aviso(request: Request, aviso_id: int):
+    tarea = None
     with conectar() as conexion:
+        conexion.execute("BEGIN IMMEDIATE")
         aviso = conexion.execute(
             "SELECT titulo, imagen_guardada FROM avisos WHERE id = ?",
             (aviso_id,),
         ).fetchone()
         if aviso is None:
             raise HTTPException(status_code=404, detail="Aviso no encontrado.")
+        if aviso["imagen_guardada"]:
+            tarea = encolar(conexion, "aviso", aviso["imagen_guardada"])
         conexion.execute("DELETE FROM avisos WHERE id = ?", (aviso_id,))
 
-    if aviso["imagen_guardada"]:
-        try:
-            (AVISOS_DIR / aviso["imagen_guardada"]).unlink(missing_ok=True)
-        except OSError:
-            logger.exception("No se pudo borrar la imagen del aviso %s", aviso_id)
+    pendiente = tarea is not None and procesar_tareas([tarea])[tarea] not in {"completada", "cancelada"}
     registrar(
         request,
         "aviso_eliminar",
+        "fallo" if pendiente else "exito",
         entidad="aviso",
         entidad_id=aviso_id,
         entidad_nombre=aviso["titulo"],
+        detalle=f"limpieza física pendiente; tarea {tarea}" if pendiente else "",
     )
-    return RedirectResponse(url="/avisos?aviso=aviso_eliminado", status_code=303)
+    return RedirectResponse(url=f"/avisos?aviso={'limpieza_pendiente' if pendiente else 'aviso_eliminado'}", status_code=303)
 
 
 @router.get(

@@ -239,6 +239,19 @@ def restaurar_respaldo(archivo: Path) -> tuple[Path, dict]:
         if not nueva_storage.is_dir():
             nueva_storage.mkdir(parents=True)
 
+        # La identidad física cambia al extraer un ZIP. Las tareas anteriores
+        # nunca deben ejecutarse sobre un archivo restaurado o un nombre reutilizado.
+        with closing(sqlite3.connect(nuevo_db)) as conexion:
+            existe_cola = conexion.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='eliminaciones_pendientes'"
+            ).fetchone()
+            if existe_cola:
+                conexion.execute(
+                    "UPDATE eliminaciones_pendientes SET estado='suspendida', "
+                    "ultimo_error='Tarea suspendida al restaurar; requiere revisión' WHERE estado='pendiente'"
+                )
+                conexion.commit()
+
         # Captura el estado actual antes de la restauración para permitir volver atrás.
         previo = crear_respaldo(BACKUP_DIR / f"previo-restauracion-{datetime.now().strftime('%Y%m%d-%H%M%S')}.zip")
         swaps: list[tuple[Path, Path | None]] = []

@@ -11,6 +11,7 @@ from app.archivos import ArchivoInvalido, guardar_en_disco
 from app.catalogos import CATEGORIAS, DEPARTAMENTOS
 from app.configuracion import STORAGE_DIR
 from app.database import conectar
+from app.eliminaciones import descartar_generado
 from app.ediciones import describir_cambios
 from app.metadatos import limpiar_metadatos
 from app.mensajes import AVISOS, MOTIVOS_SUBIDA
@@ -135,11 +136,11 @@ def subir(
             )
             nuevo_id = resultado.lastrowid
     except ArchivoInvalido as error:
-        destino.unlink(missing_ok=True)
+        descartar_generado("documento", destino.name)
         return fallo_subida(request, error.codigo, datos["titulo"], nombre_original)
     except Exception:
         # Si algo falló después de guardar el archivo, no dejamos huérfanos en storage/
-        destino.unlink(missing_ok=True)
+        descartar_generado("documento", destino.name)
         logger.exception("No se pudo guardar el documento")
         return fallo_subida(request, "error", datos["titulo"], nombre_original)
 

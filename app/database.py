@@ -39,6 +39,19 @@ def inicializar_db():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     with conectar() as conexion:
         conexion.execute("""
+            CREATE TABLE IF NOT EXISTS eliminaciones_pendientes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tipo TEXT NOT NULL CHECK(tipo IN ('documento', 'aviso', 'foto')),
+                nombre TEXT NOT NULL,
+                identidad TEXT,
+                estado TEXT NOT NULL DEFAULT 'pendiente'
+                    CHECK(estado IN ('pendiente', 'suspendida', 'completada', 'cancelada')),
+                intentos INTEGER NOT NULL DEFAULT 0,
+                ultimo_error TEXT NOT NULL DEFAULT '',
+                creado_en TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conexion.execute("""
             CREATE TABLE IF NOT EXISTS documentos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 titulo TEXT NOT NULL,

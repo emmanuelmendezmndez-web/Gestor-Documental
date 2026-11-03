@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from app.actividad import registrar
 from app.configuracion import FOTOS_PERFIL_DIR
 from app.database import conectar
+from app.eliminaciones import encolar, procesar_tareas
 from app.plantillas import templates
 from app.seguridad import (
     PASSWORD_MAXIMO,
@@ -43,6 +44,7 @@ router = APIRouter(dependencies=[Depends(requiere_sesion)])
 
 AVISOS_CUENTA = {
     "perfil_actualizado": ("exito", "Los datos de tu perfil se actualizaron correctamente."),
+    "perfil_limpieza_pendiente": ("error", "Tu perfil se actualizó, pero la limpieza de la foto anterior quedó pendiente."),
     "perfil_igual": ("exito", "Los datos de tu perfil ya estaban actualizados."),
     "perfil_invalido": ("error", "Revisa tu nombre, correo electrónico y teléfono."),
     "foto_invalida": ("error", "La foto debe ser una imagen PNG o JPEG válida de hasta 5 MB."),
@@ -124,13 +126,22 @@ def detectar_foto_perfil(contenido: bytes) -> tuple[str, str] | None:
     return None
 
 
-def borrar_archivo_foto(ruta: Path | None) -> None:
+def borrar_archivo_foto(ruta: Path | None, conexion=None) -> None:
+    """Limpia archivos generados durante una subida fallida sin saltar la cola."""
     if ruta is None:
         return
     try:
-        ruta.unlink(missing_ok=True)
-    except OSError:
-        logger.warning("No se pudo limpiar un archivo de foto de perfil", exc_info=True)
+        if ruta.parent != FOTOS_PERFIL_DIR:
+            raise ValueError("Directorio de foto no autorizado")
+        if conexion is not None:
+            encolar(conexion, "foto", ruta.name)
+            return
+        with conectar() as db:
+            db.execute("BEGIN IMMEDIATE")
+            tarea = encolar(db, "foto", ruta.name)
+        procesar_tareas([tarea])
+    except Exception:
+        logger.exception("No se pudo programar la limpieza de una foto de perfil")
 
 
 @router.get("/cuenta", response_class=HTMLResponse)
@@ -220,8 +231,14 @@ def actualizar_perfil(
         borrar_archivo_foto(ruta_foto_nueva)
         return redirigir("perfil_igual")
 
+    tarea = None
     try:
         with conectar() as conexion:
+            conexion.execute("BEGIN IMMEDIATE")
+            actual = conexion.execute("SELECT foto_perfil FROM usuarios WHERE id=? AND activo=1", (usuario["id"],)).fetchone()
+            if actual is None or actual["foto_perfil"] != nombre_foto_anterior:
+                borrar_archivo_foto(ruta_foto_nueva, conexion)
+                return redirigir("error")
             resultado = conexion.execute(
                 """
                 UPDATE usuarios
@@ -231,27 +248,27 @@ def actualizar_perfil(
                 (nombre, correo, telefono, foto_perfil, usuario["id"]),
             )
             if resultado.rowcount != 1:
-                borrar_archivo_foto(ruta_foto_nueva)
+                borrar_archivo_foto(ruta_foto_nueva, conexion)
                 return redirigir("error")
+            if nombre_foto_anterior and foto_perfil != nombre_foto_anterior:
+                tarea = encolar(conexion, "foto", nombre_foto_anterior)
     except Exception:
         borrar_archivo_foto(ruta_foto_nueva)
         logger.exception("No se pudo actualizar el nombre del usuario %s", usuario["id"])
         return redirigir("error")
 
-    if nombre_foto_anterior and foto_perfil != nombre_foto_anterior:
-        foto_anterior = Path(nombre_foto_anterior).name
-        if foto_anterior == nombre_foto_anterior:
-            borrar_archivo_foto(FOTOS_PERFIL_DIR / foto_anterior)
+    pendiente = tarea is not None and procesar_tareas([tarea])[tarea] not in {"completada", "cancelada"}
 
     registrar(
         request,
         "cuenta_perfil",
+        "fallo" if pendiente else "exito",
         entidad="usuario",
         entidad_id=usuario["id"],
         entidad_nombre=usuario["usuario"],
-        detalle="actualizó: " + ", ".join(cambios),
+        detalle="actualizó: " + ", ".join(cambios) + (f"; limpieza física pendiente; tarea {tarea}" if pendiente else ""),
     )
-    return redirigir("perfil_actualizado")
+    return redirigir("perfil_limpieza_pendiente" if pendiente else "perfil_actualizado")
 
 
 @router.get("/cuenta/foto")

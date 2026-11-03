@@ -127,13 +127,13 @@ def eliminar_documentos_seleccionados(request: Request, documento_ids: list[int]
     if error:
         return RedirectResponse(url=f"/papelera?aviso={error}", status_code=303)
     try:
-        purgar_documentos_papelera(request, STORAGE_DIR, ids)
+        _, pendientes = purgar_documentos_papelera(request, STORAGE_DIR, ids)
     except HTTPException:
         raise
     except Exception:
         logger.exception("No se pudieron eliminar los documentos seleccionados de la papelera")
         return RedirectResponse(url="/papelera?aviso=error_papelera", status_code=303)
-    return RedirectResponse(url="/papelera?aviso=documentos_purgados", status_code=303)
+    return RedirectResponse(url=f"/papelera?aviso={'limpieza_pendiente' if pendientes else 'documentos_purgados'}", status_code=303)
 
 
 @router.post(
@@ -157,11 +157,11 @@ def vaciar_papelera(request: Request, password: str = Form(...)):
         return RedirectResponse(url="/papelera?aviso=clave_incorrecta", status_code=303)
     limpiar_fallos(clave)
     try:
-        purgar_documentos_papelera(request, STORAGE_DIR)
+        _, pendientes = purgar_documentos_papelera(request, STORAGE_DIR)
     except Exception:
         logger.exception("No se pudo vaciar la papelera")
         return RedirectResponse(url="/papelera?aviso=error_papelera", status_code=303)
-    return RedirectResponse(url="/papelera?aviso=papelera_vacia", status_code=303)
+    return RedirectResponse(url=f"/papelera?aviso={'limpieza_pendiente' if pendientes else 'papelera_vacia'}", status_code=303)
 
 
 @router.post(
@@ -169,6 +169,6 @@ def vaciar_papelera(request: Request, password: str = Form(...)):
     dependencies=[Depends(requiere_permiso("eliminar"))],
 )
 def eliminar_definitivamente(request: Request, documento_id: int):
-    purgar_documentos_papelera(request, STORAGE_DIR, [documento_id], individual=True)
-    return RedirectResponse(url="/papelera?aviso=eliminado_definitivo", status_code=303)
+    _, pendientes = purgar_documentos_papelera(request, STORAGE_DIR, [documento_id], individual=True)
+    return RedirectResponse(url=f"/papelera?aviso={'limpieza_pendiente' if pendientes else 'eliminado_definitivo'}", status_code=303)
 

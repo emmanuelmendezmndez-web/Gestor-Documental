@@ -10,6 +10,7 @@ from app.actividad import registrar
 from app.archivos import ArchivoInvalido, guardar_en_disco
 from app.catalogos import DEPARTAMENTOS
 from app.database import conectar
+from app.eliminaciones import descartar_generado
 
 logger = logging.getLogger("gestor")
 TAMANO_MAXIMO_BANNER = 8 * 1024 * 1024
@@ -40,16 +41,16 @@ def crear_aviso_servicio(request: Request, titulo: str, cuerpo: str, departament
         try:
             tamano = guardar_en_disco(imagen, destino_imagen)
         except ArchivoInvalido as exc:
-            destino_imagen.unlink(missing_ok=True)
+            descartar_generado("aviso", destino_imagen.name)
             codigo = "aviso_imagen_grande" if exc.codigo == "grande" else "aviso_imagen_formato"
             return codigo
         except OSError:
-            destino_imagen.unlink(missing_ok=True)
+            descartar_generado("aviso", destino_imagen.name)
             logger.exception("No se pudo guardar la imagen del aviso")
             return "aviso_error"
 
         if tamano > TAMANO_MAXIMO_BANNER:
-            destino_imagen.unlink(missing_ok=True)
+            descartar_generado("aviso", destino_imagen.name)
             return "aviso_imagen_grande"
 
         with destino_imagen.open("rb") as archivo_imagen:
@@ -57,7 +58,7 @@ def crear_aviso_servicio(request: Request, titulo: str, cuerpo: str, departament
         es_png = extension == ".png" and firma == b"\x89PNG\r\n\x1a\n"
         es_jpg = extension in {".jpg", ".jpeg"} and firma.startswith(b"\xff\xd8\xff")
         if not (es_png or es_jpg):
-            destino_imagen.unlink(missing_ok=True)
+            descartar_generado("aviso", destino_imagen.name)
             return "aviso_imagen_formato"
 
     try:
@@ -82,7 +83,7 @@ def crear_aviso_servicio(request: Request, titulo: str, cuerpo: str, departament
             aviso_id = resultado.lastrowid
     except Exception:
         if destino_imagen:
-            destino_imagen.unlink(missing_ok=True)
+            descartar_generado("aviso", destino_imagen.name)
         logger.exception("No se pudo crear el aviso")
         return "aviso_error"
 
