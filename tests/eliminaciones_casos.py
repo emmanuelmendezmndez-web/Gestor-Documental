@@ -46,7 +46,7 @@ with conectar() as db:
     assert db.execute("SELECT name FROM sqlite_master WHERE name='eliminaciones_pendientes'").fetchone()
 
 usuario = {"id": admin, "usuario": "adminprueba", "nombre": "Admin Prueba", "rol": "admin", "departamento": "Tesorería", "correo": "", "telefono": "", "foto_perfil": None}
-request = Request({"type": "http", "method": "POST", "path": "/prueba", "headers": [], "client": ("127.0.0.1", 1), "server": ("127.0.0.1", 8000), "scheme": "http", "query_string": b""})
+request = Request({"type": "http", "method": "POST", "path": "/prueba", "headers": [], "client": ("127.0.0.1", 1), "server": ("127.0.0.1", 8000), "scheme": "http", "query_string": b"", "session": {"usuario_id": admin, "version": 0}})
 request.state.usuario = usuario
 
 
@@ -206,7 +206,7 @@ import os,sys
 from starlette.requests import Request
 from app.configuracion import STORAGE_DIR
 import app.servicios.papelera as servicio
-r=Request({'type':'http','method':'POST','path':'/','headers':[],'client':('127.0.0.1',1),'server':('127.0.0.1',8000),'scheme':'http','query_string':b''})
+r=Request({'type':'http','method':'POST','path':'/','headers':[],'client':('127.0.0.1',1),'server':('127.0.0.1',8000),'scheme':'http','query_string':b'','session':{'usuario_id':int(sys.argv[2]),'version':0}})
 r.state.usuario={'id':int(sys.argv[2]),'usuario':'adminprueba','rol':'admin'}
 servicio.procesar_tareas=lambda ids: os._exit(39)
 servicio.purgar_documentos_papelera(r, STORAGE_DIR, [int(sys.argv[1])], individual=True)

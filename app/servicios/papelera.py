@@ -7,8 +7,8 @@ from fastapi import HTTPException, Request
 from app.acceso_documentos import filtro_area_documento
 from app.actividad import registrar
 from app.configuracion import STORAGE_DIR
-from app.database import conectar
 from app.eliminaciones import encolar, procesar_tareas
+from app.operaciones_documentales import transaccion_documental
 
 
 def purgar_documentos_papelera(
@@ -17,9 +17,10 @@ def purgar_documentos_papelera(
     """Borra registros autorizados atómicamente y luego sus archivos."""
     if storage_dir.resolve() != STORAGE_DIR.resolve():
         raise ValueError("Directorio de documentos no autorizado")
-    filtro, parametros = filtro_area_documento(request.state.usuario)
-    with conectar() as conexion:
-        conexion.execute("BEGIN IMMEDIATE")
+    with transaccion_documental(request, "eliminar") as (conexion, usuario):
+        if ids is None and usuario["rol"] != "admin":
+            raise HTTPException(status_code=403, detail="Solo un administrador puede vaciar la papelera.")
+        filtro, parametros = filtro_area_documento(usuario)
         condicion = "eliminado_en IS NOT NULL" + filtro
         valores = list(parametros)
         if ids is not None:
@@ -35,7 +36,9 @@ def purgar_documentos_papelera(
         if ids is not None and len(documentos) != len(ids):
             raise HTTPException(status_code=404, detail="Uno o más documentos no están disponibles en la papelera.")
         tareas = {documento["id"]: encolar(conexion, "documento", documento["nombre_guardado"]) for documento in documentos}
-        conexion.execute("DELETE FROM documentos WHERE " + condicion, valores)
+        cambio = conexion.execute("DELETE FROM documentos WHERE " + condicion, valores)
+        if cambio.rowcount != len(documentos):
+            raise HTTPException(status_code=409, detail="La selección cambió. Actualiza la página.")
 
     resultados = procesar_tareas(list(tareas.values()))
     pendientes = 0

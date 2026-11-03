@@ -26,11 +26,12 @@ class ContratosTest(unittest.TestCase):
         encontrados = []
         for archivo in raiz.rglob("*.py"):
             for nodo in ast.walk(ast.parse(archivo.read_text(encoding="utf-8"))):
-                if isinstance(nodo, ast.Call) and isinstance(nodo.func, ast.Name) and nodo.func.id == "requiere_permiso":
-                    self.assertTrue(nodo.args and isinstance(nodo.args[0], ast.Constant)
-                                    and isinstance(nodo.args[0].value, str),
+                if isinstance(nodo, ast.Call) and isinstance(nodo.func, ast.Name) and nodo.func.id in {"requiere_permiso", "transaccion_documental"}:
+                    posicion = 0 if nodo.func.id == "requiere_permiso" else 1
+                    self.assertTrue(len(nodo.args) > posicion and isinstance(nodo.args[posicion], ast.Constant)
+                                    and isinstance(nodo.args[posicion].value, str),
                                     f"Permiso no literal en {archivo}:{nodo.lineno}")
-                    permiso = nodo.args[0].value
+                    permiso = nodo.args[posicion].value
                     encontrados.append(permiso)
                     self.assertIn(permiso, conocidos, f"Permiso desconocido en {archivo}:{nodo.lineno}")
         self.assertTrue(encontrados, "No se encontraron permisos para comprobar")

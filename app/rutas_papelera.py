@@ -8,10 +8,11 @@ from app.actividad import registrar
 from app.configuracion import STORAGE_DIR
 from app.database import conectar
 from app.mensajes import AVISOS
+from app.operaciones_documentales import transaccion_documental
 from app.plantillas import templates
 from app.seleccion import leer_seleccion
 from app.servicios.papelera import purgar_documentos_papelera
-from app.seguridad import demasiados_intentos, limpiar_fallos, registrar_fallo, requiere_permiso, verificar_password
+from app.seguridad import NoAutenticado, demasiados_intentos, limpiar_fallos, registrar_fallo, requiere_permiso, verificar_password
 
 logger = logging.getLogger("gestor")
 router = APIRouter()
@@ -55,19 +56,21 @@ def ver_papelera(request: Request, aviso: str | None = None):
     dependencies=[Depends(requiere_permiso("restaurar"))],
 )
 def restaurar_documento(request: Request, documento_id: int):
-    filtro_area, parametros_area = filtro_area_documento(request.state.usuario)
-    with conectar() as conexion:
+    with transaccion_documental(request, "restaurar") as (conexion, usuario):
+        filtro_area, parametros_area = filtro_area_documento(usuario)
         fila = conexion.execute(
             "SELECT titulo FROM documentos WHERE id = ? AND eliminado_en IS NOT NULL" + filtro_area,
             [documento_id, *parametros_area],
         ).fetchone()
         if fila is None:
             raise HTTPException(status_code=404, detail="Documento no encontrado en la papelera.")
-        conexion.execute(
+        cambio = conexion.execute(
             "UPDATE documentos SET eliminado_en = NULL, eliminado_por = NULL "
             "WHERE id = ? AND eliminado_en IS NOT NULL" + filtro_area,
             (documento_id, *parametros_area),
         )
+        if cambio.rowcount != 1:
+            raise HTTPException(status_code=409, detail="El documento cambió. Actualiza la página.")
 
     registrar(request, "restaurar", entidad="documento", entidad_id=documento_id,
               entidad_nombre=fila["titulo"])
@@ -86,13 +89,9 @@ def restaurar_documentos_masivo(
     if error:
         return RedirectResponse(url=f"/papelera?aviso={error}", status_code=303)
 
-    filtro_area, parametros_area = filtro_area_documento(request.state.usuario, "d.")
-    # El SELECT usa el alias ``d`` y el UPDATE no; filtrar cada consulta
-    # con su referencia correcta evita que SQLite rechace la restauración.
-    filtro_area_actualizacion, parametros_area_actualizacion = filtro_area_documento(
-        request.state.usuario
-    )
-    with conectar() as conexion:
+    with transaccion_documental(request, "restaurar") as (conexion, usuario):
+        filtro_area, parametros_area = filtro_area_documento(usuario, "d.")
+        filtro_area_actualizacion, parametros_area_actualizacion = filtro_area_documento(usuario)
         documentos = conexion.execute(
             "SELECT d.id, d.titulo FROM documentos d "
             f"WHERE d.id IN ({placeholders}) AND d.eliminado_en IS NOT NULL" + filtro_area,
@@ -100,11 +99,13 @@ def restaurar_documentos_masivo(
         ).fetchall()
         if len(documentos) != len(ids):
             raise HTTPException(status_code=404, detail="Uno o más documentos no están disponibles en tu papelera.")
-        conexion.execute(
+        cambio = conexion.execute(
             "UPDATE documentos SET eliminado_en = NULL, eliminado_por = NULL "
             f"WHERE id IN ({placeholders}) AND eliminado_en IS NOT NULL" + filtro_area_actualizacion,
             [*ids, *parametros_area_actualizacion],
         )
+        if cambio.rowcount != len(ids):
+            raise HTTPException(status_code=409, detail="La selección cambió. Actualiza la página.")
 
     for documento in documentos:
         registrar(
@@ -128,7 +129,7 @@ def eliminar_documentos_seleccionados(request: Request, documento_ids: list[int]
         return RedirectResponse(url=f"/papelera?aviso={error}", status_code=303)
     try:
         _, pendientes = purgar_documentos_papelera(request, STORAGE_DIR, ids)
-    except HTTPException:
+    except (HTTPException, NoAutenticado):
         raise
     except Exception:
         logger.exception("No se pudieron eliminar los documentos seleccionados de la papelera")
@@ -158,6 +159,8 @@ def vaciar_papelera(request: Request, password: str = Form(...)):
     limpiar_fallos(clave)
     try:
         _, pendientes = purgar_documentos_papelera(request, STORAGE_DIR)
+    except (HTTPException, NoAutenticado):
+        raise
     except Exception:
         logger.exception("No se pudo vaciar la papelera")
         return RedirectResponse(url="/papelera?aviso=error_papelera", status_code=303)

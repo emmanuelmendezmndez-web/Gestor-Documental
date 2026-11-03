@@ -14,6 +14,7 @@ from app.database import conectar
 from app.eliminaciones import descartar_generado
 from app.ediciones import describir_cambios
 from app.metadatos import limpiar_metadatos
+from app.operaciones_documentales import transaccion_documental
 from app.mensajes import AVISOS, MOTIVOS_SUBIDA
 from app.plantillas import templates
 from app.previsualizacion import ArchivoNoPrevisualizable, convertir_office_a_pdf
@@ -21,7 +22,7 @@ from app.respuestas_documentos import avisar, avisar_edicion, avisar_eliminacion
 from app.seleccion import leer_seleccion
 from app.tipos_archivo import EXTENSIONES_PERMITIDAS, TIPOS_ARCHIVO
 from app.utilidades import formatear_tamano
-from app.seguridad import requiere_permiso
+from app.seguridad import NoAutenticado, requiere_permiso
 
 logger = logging.getLogger("gestor")
 router = APIRouter()
@@ -388,10 +389,9 @@ def editar_documento(
         return avisar_edicion(documento_id, error)
 
     anterior = None
-    filtro_area, parametros_area = filtro_area_documento(request.state.usuario)
-
     try:
-        with conectar() as conexion:
+        with transaccion_documental(request, "editar") as (conexion, usuario):
+            filtro_area, parametros_area = filtro_area_documento(usuario)
             anterior = conexion.execute(
                 """
                 SELECT titulo, categoria, descripcion, numero_oficio,
@@ -406,7 +406,7 @@ def editar_documento(
             if anterior is not None:
                 if anterior["version"] != version:
                     return avisar_edicion(documento_id, "conflicto_edicion")
-                if request.state.usuario["rol"] != "admin":
+                if usuario["rol"] != "admin":
                     # El usuario puede editar metadatos del documento accesible,
                     # pero no reclasificarlo para otro departamento ni hacerlo público.
                     datos["departamento"] = anterior["departamento"]
@@ -416,7 +416,7 @@ def editar_documento(
                     SET titulo = ?, categoria = ?, descripcion = ?,
                         numero_oficio = ?, departamento = ?,
                         fecha_documento = ?, autor = ?, version = version + 1
-                    WHERE id = ? AND version = ?""" + filtro_area,
+                    WHERE id = ? AND version = ? AND eliminado_en IS NULL""" + filtro_area,
                     (
                         datos["titulo"],
                         datos["categoria"],
@@ -432,6 +432,8 @@ def editar_documento(
                 )
                 if resultado.rowcount != 1:
                     return avisar_edicion(documento_id, "conflicto_edicion")
+    except (HTTPException, NoAutenticado):
+        raise
     except Exception:
         logger.exception("No se pudo editar el documento %s", documento_id)
         registrar(
@@ -517,11 +519,11 @@ def pagina_eliminar(
 )
 def eliminar_documento(request: Request, documento_id: int):
     documento = None
-    filtro_area, parametros_area = filtro_area_documento(request.state.usuario)
 
     # Enviar a papelera conserva el registro y el archivo para poder restaurarlos.
     try:
-        with conectar() as conexion:
+        with transaccion_documental(request, "papelera") as (conexion, usuario):
+            filtro_area, parametros_area = filtro_area_documento(usuario)
             fila = conexion.execute(
                 """
                 SELECT titulo, nombre_archivo
@@ -532,13 +534,17 @@ def eliminar_documento(request: Request, documento_id: int):
 
             if fila is not None:
                 documento = dict(fila)
-                conexion.execute(
+                cambio = conexion.execute(
                     """
                     UPDATE documentos
                     SET eliminado_en = CURRENT_TIMESTAMP, eliminado_por = ?
                     WHERE id = ? AND eliminado_en IS NULL""" + filtro_area,
-                    (request.state.usuario["id"], documento_id, *parametros_area),
+                    (usuario["id"], documento_id, *parametros_area),
                 )
+                if cambio.rowcount != 1:
+                    raise HTTPException(status_code=409, detail="El documento cambió. Actualiza la página.")
+    except (HTTPException, NoAutenticado):
+        raise
     except Exception:
         logger.exception("No se pudo eliminar el registro %s", documento_id)
         registrar(
@@ -581,13 +587,10 @@ def enviar_documentos_papelera(
     if error:
         return RedirectResponse(url=f"/?aviso={error}", status_code=303)
 
-    filtro_area, parametros_area = filtro_area_documento(request.state.usuario, "d.")
-    # La lectura usa el alias ``d``; el UPDATE no. Necesita el filtro sin alias.
-    filtro_area_actualizacion, parametros_area_actualizacion = filtro_area_documento(
-        request.state.usuario
-    )
     try:
-        with conectar() as conexion:
+        with transaccion_documental(request, "papelera") as (conexion, usuario):
+            filtro_area, parametros_area = filtro_area_documento(usuario, "d.")
+            filtro_area_actualizacion, parametros_area_actualizacion = filtro_area_documento(usuario)
             documentos = conexion.execute(
                 "SELECT d.id, d.titulo, d.nombre_archivo FROM documentos d "
                 f"WHERE d.id IN ({placeholders}) AND d.eliminado_en IS NULL" + filtro_area,
@@ -595,12 +598,14 @@ def enviar_documentos_papelera(
             ).fetchall()
             if len(documentos) != len(ids):
                 raise HTTPException(status_code=404, detail="Uno o más documentos no están disponibles.")
-            conexion.execute(
+            cambio = conexion.execute(
                 "UPDATE documentos SET eliminado_en = CURRENT_TIMESTAMP, eliminado_por = ? "
                 f"WHERE id IN ({placeholders}) AND eliminado_en IS NULL" + filtro_area_actualizacion,
-                [request.state.usuario["id"], *ids, *parametros_area_actualizacion],
+                [usuario["id"], *ids, *parametros_area_actualizacion],
             )
-    except HTTPException:
+            if cambio.rowcount != len(ids):
+                raise HTTPException(status_code=409, detail="La selección cambió. Actualiza la página.")
+    except (HTTPException, NoAutenticado):
         raise
     except Exception:
         logger.exception("No se pudieron enviar documentos seleccionados a la papelera")

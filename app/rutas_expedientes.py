@@ -8,6 +8,7 @@ from app.acceso_documentos import filtro_area_documento
 from app.actividad import registrar
 from app.database import conectar, normalizar_texto
 from app.mensajes import AVISOS
+from app.operaciones_documentales import transaccion_documental
 from app.plantillas import templates
 from app.seleccion import leer_seleccion
 from app.utilidades import escapar_like
@@ -269,8 +270,8 @@ def vincular_documentos_masivo(
             status_code=303,
         )
 
-    filtro_area, parametros_area = filtro_area_documento(request.state.usuario, "d.")
-    with conectar() as conexion:
+    with transaccion_documental(request, "gestionar_expedientes") as (conexion, usuario):
+        filtro_area, parametros_area = filtro_area_documento(usuario, "d.")
         expediente = conexion.execute(
             "SELECT folio FROM expedientes WHERE id = ?", (expediente_id,)
         ).fetchone()
@@ -283,11 +284,19 @@ def vincular_documentos_masivo(
         ).fetchall()
         if len(documentos) != len(ids):
             raise HTTPException(status_code=404, detail="Uno o más documentos no están disponibles.")
-        conexion.executemany(
-            "INSERT OR IGNORE INTO expediente_documentos "
+        existentes = conexion.execute(
+            f"SELECT 1 FROM expediente_documentos WHERE expediente_id=? AND documento_id IN ({placeholders}) LIMIT 1",
+            [expediente_id, *ids],
+        ).fetchone()
+        if existentes:
+            raise HTTPException(status_code=409, detail="Algún documento ya está vinculado. Actualiza la página.")
+        cambio = conexion.executemany(
+            "INSERT INTO expediente_documentos "
             "(expediente_id, documento_id, vinculado_por) VALUES (?, ?, ?)",
-            [(expediente_id, documento["id"], request.state.usuario["id"]) for documento in documentos],
+            [(expediente_id, documento["id"], usuario["id"]) for documento in documentos],
         )
+        if cambio.rowcount != len(ids):
+            raise HTTPException(status_code=409, detail="La selección cambió. Actualiza la página.")
 
     for documento in documentos:
         registrar(
@@ -313,8 +322,8 @@ def vincular_documento(
     expediente_id: int,
     documento_id: int,
 ):
-    filtro_area, parametros_area = filtro_area_documento(request.state.usuario)
-    with conectar() as conexion:
+    with transaccion_documental(request, "gestionar_expedientes") as (conexion, usuario):
+        filtro_area, parametros_area = filtro_area_documento(usuario)
         expediente = conexion.execute(
             "SELECT folio FROM expedientes WHERE id = ?",
             (expediente_id,),
@@ -336,8 +345,10 @@ def vincular_documento(
                 (expediente_id, documento_id, vinculado_por)
             VALUES (?, ?, ?)
             """,
-            (expediente_id, documento_id, request.state.usuario["id"]),
+            (expediente_id, documento_id, usuario["id"]),
         )
+        if resultado.rowcount != 1:
+            raise HTTPException(status_code=409, detail="El documento ya está vinculado. Actualiza la página.")
 
     if resultado.rowcount:
         registrar(
