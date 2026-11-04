@@ -147,7 +147,7 @@ def subir(
         descartar_generado("documento", destino.name)
         return fallo_subida(request, error.codigo, datos["titulo"], nombre_original)
     except Exception:
-        # Si algo falló después de guardar el archivo, no dejamos huérfanos en storage/
+        # Programa la limpieza; si no es posible, conserva el archivo y registra el error.
         descartar_generado("documento", destino.name)
         logger.exception("No se pudo guardar el documento")
         return fallo_subida(request, "error", datos["titulo"], nombre_original)

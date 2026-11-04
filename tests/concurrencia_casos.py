@@ -1,14 +1,16 @@
 """Intercalaciones controladas con conexiones SQLite y archivos ficticios."""
 
-from contextlib import contextmanager
-import os
-from pathlib import Path
 import threading
+from contextlib import contextmanager
+
+from aislamiento import exigir_directorio_temporal
+
+exigir_directorio_temporal("siged-prueba-concurrencia-")
 
 from fastapi import HTTPException
 from starlette.requests import Request
 
-from app.configuracion import DATA_DIR, DB_PATH, STORAGE_DIR
+from app.configuracion import STORAGE_DIR
 from app.database import conectar, inicializar_db
 from app.seguridad import NoAutenticado, hashear_password, requiere_permiso
 import app.operaciones_documentales as operaciones
@@ -16,8 +18,6 @@ import app.rutas_documentos as documentos
 import app.rutas_expedientes as expedientes
 import app.rutas_papelera as papelera
 
-assert DATA_DIR == Path(os.environ['GESTOR_DATA_DIR']).resolve()
-assert DATA_DIR.name.startswith('siged-prueba-concurrencia-') and DB_PATH.parent == DATA_DIR
 inicializar_db()
 STORAGE_DIR.mkdir(exist_ok=True)
 with conectar() as db:

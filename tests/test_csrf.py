@@ -21,8 +21,11 @@ class CsrfHTTPTest(unittest.TestCase):
     def setUpClass(cls):
         cls.temp = tempfile.TemporaryDirectory(prefix="siged-csrf-")
         cls.env = os.environ.copy()
-        cls.env.update(GESTOR_DATA_DIR=cls.temp.name, GESTOR_SECRET_KEY="clave-ficticia-para-pruebas-csrf-123456", PYTHONPATH=str(RAIZ))
+        cls.env.update(GESTOR_DATA_DIR=cls.temp.name, GESTOR_SECRET_KEY="clave-ficticia-para-pruebas-csrf-123456",
+                       PYTHONPATH=os.pathsep.join((str(RAIZ / "tests"), str(RAIZ))))
         preparar = '''
+from aislamiento import exigir_directorio_temporal
+exigir_directorio_temporal('siged-csrf-')
 from app.database import inicializar_db, conectar
 from app.seguridad import hashear_password
 inicializar_db()

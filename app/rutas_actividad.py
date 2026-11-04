@@ -1,4 +1,3 @@
-from datetime import date
 from math import ceil
 from urllib.parse import urlencode
 
@@ -9,19 +8,12 @@ from app.actividad import ACCIONES, RESULTADOS
 from app.database import conectar
 from app.plantillas import templates
 from app.seguridad import requiere_permiso
+from app.utilidades import fecha_valida
 
 # Solo los administradores pueden ver el registro
 router = APIRouter(dependencies=[Depends(requiere_permiso("actividad"))])
 
 POR_PAGINA = 50
-
-
-def fecha_valida(texto: str) -> str:
-    """Devuelve la fecha como AAAA-MM-DD, o una cadena vacía si no es válida."""
-    try:
-        return date.fromisoformat(texto).isoformat()
-    except ValueError:
-        return ""
 
 
 @router.get("/actividad", response_class=HTMLResponse)

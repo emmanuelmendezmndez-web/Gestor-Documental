@@ -17,6 +17,10 @@ import traceback
 from unittest.mock import patch
 import zipfile
 
+from aislamiento import exigir_directorio_temporal
+
+exigir_directorio_temporal("siged-prueba-respaldo-")
+
 import httpx
 
 from app import respaldo
@@ -24,8 +28,6 @@ from app.configuracion import DATA_DIR, STORAGE_DIR
 from app.database import conectar, inicializar_db
 from app.seguridad import hashear_password
 
-assert DATA_DIR == Path(os.environ["GESTOR_DATA_DIR"]).resolve()
-assert DATA_DIR.name.startswith("siged-prueba-respaldo-")
 inicializar_db()
 STORAGE_DIR.mkdir(parents=True, exist_ok=True)
 with conectar() as db:
@@ -133,6 +135,8 @@ try:
             entorno["GESTOR_DATA_DIR"] = destino_raiz
             codigo = '''
 import sys
+from aislamiento import exigir_directorio_temporal
+exigir_directorio_temporal('siged-destino-restauracion-')
 from app.configuracion import STORAGE_DIR
 from app.database import inicializar_db, conectar
 from app.respaldo import restaurar_respaldo
@@ -143,6 +147,7 @@ with conectar() as db:
     assert fila is not None and (STORAGE_DIR / fila['nombre_guardado']).read_bytes() == b'contenido original ficticio'
     assert db.execute("SELECT COUNT(*) FROM documentos WHERE titulo='nuevo'").fetchone()[0] == 0
 '''
+            entorno["PYTHONPATH"] = os.pathsep.join((str(Path(__file__).resolve().parent), entorno.get("PYTHONPATH", "")))
             subprocess.run([sys.executable, "-c", codigo, str(destino)], env=entorno, check=True, timeout=60)
 
         # Si un archivo desaparece tras la captura de SQLite, no se publica un ZIP.

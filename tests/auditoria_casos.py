@@ -7,10 +7,14 @@ import sys
 from io import BytesIO
 from unittest.mock import patch
 
+from aislamiento import exigir_directorio_temporal
+
+exigir_directorio_temporal("siged-auditoria-")
+
 from starlette.requests import Request
 from starlette.datastructures import UploadFile
 
-from app.configuracion import DATA_DIR, STORAGE_DIR
+from app.configuracion import STORAGE_DIR
 from app.database import conectar, inicializar_db
 from app.rutas_documentos import editar_documento, enviar_documentos_papelera, subir
 from app.rutas_expedientes import crear_expediente
@@ -23,7 +27,6 @@ from app import crear_usuario
 from app.actividad import registrar
 
 
-assert "siged-auditoria-" in str(DATA_DIR)
 logging.getLogger("gestor").disabled = True
 inicializar_db()
 STORAGE_DIR.mkdir(exist_ok=True)

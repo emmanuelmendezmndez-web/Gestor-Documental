@@ -1,5 +1,6 @@
 .secret_key
 storage/
+respaldos/
 gestor.db
 __pycache__/
 .venv/

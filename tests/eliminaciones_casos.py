@@ -1,8 +1,6 @@
 """Casos destructivos restringidos a la base y storage temporales de la prueba."""
 
 import os
-from io import BytesIO
-from pathlib import Path
 import re
 import socket
 import subprocess
@@ -10,7 +8,13 @@ import sys
 import tempfile
 import threading
 import time
+from io import BytesIO
+from pathlib import Path
 from unittest.mock import patch
+
+from aislamiento import exigir_directorio_temporal
+
+exigir_directorio_temporal("siged-prueba-eliminaciones-")
 
 import httpx
 from fastapi import HTTPException, UploadFile
@@ -28,7 +32,6 @@ from app.seguridad import hashear_password
 from app.servicios import papelera as servicio_papelera
 from app.servicios.avisos import crear_aviso_servicio
 
-assert DATA_DIR == Path(os.environ["GESTOR_DATA_DIR"]).resolve() and DATA_DIR.name.startswith("siged-prueba-eliminaciones-")
 inicializar_db()
 for carpeta in (STORAGE_DIR, AVISOS_DIR, FOTOS_PERFIL_DIR):
     carpeta.mkdir(parents=True, exist_ok=True)
@@ -271,11 +274,12 @@ with tempfile.TemporaryDirectory(prefix="siged-destino-cola-") as carpeta:
     codigo = '''
 import sys
 from pathlib import Path
+from aislamiento import exigir_directorio_temporal
+exigir_directorio_temporal('siged-destino-cola-')
 from app.configuracion import DATA_DIR, STORAGE_DIR
 from app.database import inicializar_db, conectar
 from app.respaldo import restaurar_respaldo
 from app.eliminaciones import procesar_tarea, reintentar_pendientes
-assert DATA_DIR.name.startswith('siged-destino-cola-')
 inicializar_db(); STORAGE_DIR.mkdir(parents=True,exist_ok=True)
 restaurar_respaldo(Path(sys.argv[1]))
 archivo=STORAGE_DIR / sys.argv[2]
@@ -288,6 +292,7 @@ assert procesar_tarea(int(sys.argv[3]))=='suspendida'
 reintentar_pendientes()
 assert archivo.read_bytes()==b'archivo nuevo de nombre reutilizado'
 '''
+    entorno["PYTHONPATH"] = os.pathsep.join((str(Path(__file__).resolve().parent), entorno.get("PYTHONPATH", "")))
     subprocess.run([sys.executable, "-c", codigo, str(zip_path), archivo.name, str(pendiente["id"])], env=entorno, check=True, timeout=60)
 
 # Regresión HTTP con CSRF y fallo físico inyectado en un servidor aislado.
