@@ -107,6 +107,25 @@ def procesar_tarea(identificador: int) -> str:
             estado, error = "suspendida", str(exc)[:500]
         conexion.execute("UPDATE eliminaciones_pendientes SET estado=?, intentos=intentos+1, ultimo_error=? WHERE id=?",
                          (estado, error, identificador))
+        # Las tareas históricas pueden no tener actividad asociada. Para las
+        # nuevas, conservar el resultado físico en la misma transacción que el
+        # estado de la cola; una caída tras unlink deja la tarea reintentable.
+        if estado != "pendiente":
+            actividad = conexion.execute(
+                "SELECT usuario_id, usuario, accion, entidad, entidad_id, entidad_nombre, ip "
+                "FROM actividad WHERE detalle LIKE ? AND accion IN "
+                "('eliminar_definitivo','aviso_eliminar','usuario_eliminar','cuenta_perfil') "
+                "ORDER BY id DESC LIMIT 1", (f"%; tarea {identificador}",),
+            ).fetchone()
+            if actividad is not None:
+                conexion.execute(
+                    "INSERT INTO actividad(usuario_id,usuario,accion,resultado,entidad,entidad_id,entidad_nombre,detalle,ip) "
+                    "VALUES(?,?,?,?,?,?,?,?,?)",
+                    (actividad["usuario_id"], actividad["usuario"], actividad["accion"],
+                     "exito" if estado in {"completada", "cancelada"} else "fallo",
+                     actividad["entidad"], actividad["entidad_id"], actividad["entidad_nombre"],
+                     f"limpieza física {estado}; tarea {identificador}", actividad["ip"]),
+                )
         return estado
 
 

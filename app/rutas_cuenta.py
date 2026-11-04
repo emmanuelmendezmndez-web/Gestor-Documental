@@ -252,6 +252,10 @@ def actualizar_perfil(
                 return redirigir("error")
             if nombre_foto_anterior and foto_perfil != nombre_foto_anterior:
                 tarea = encolar(conexion, "foto", nombre_foto_anterior)
+            registrar(request, "cuenta_perfil", entidad="usuario", entidad_id=usuario["id"],
+                      entidad_nombre=usuario["usuario"],
+                      detalle="actualizó: " + ", ".join(cambios) + (f"; limpieza física pendiente; tarea {tarea}" if tarea else ""),
+                      conexion=conexion)
     except Exception:
         borrar_archivo_foto(ruta_foto_nueva)
         logger.exception("No se pudo actualizar el nombre del usuario %s", usuario["id"])
@@ -259,15 +263,6 @@ def actualizar_perfil(
 
     pendiente = tarea is not None and procesar_tareas([tarea])[tarea] not in {"completada", "cancelada"}
 
-    registrar(
-        request,
-        "cuenta_perfil",
-        "fallo" if pendiente else "exito",
-        entidad="usuario",
-        entidad_id=usuario["id"],
-        entidad_nombre=usuario["usuario"],
-        detalle="actualizó: " + ", ".join(cambios) + (f"; limpieza física pendiente; tarea {tarea}" if pendiente else ""),
-    )
     return redirigir("perfil_limpieza_pendiente" if pendiente else "perfil_actualizado")
 
 
@@ -369,6 +364,9 @@ def cambiar_password(
                 "SELECT version_sesion FROM usuarios WHERE id = ?",
                 (usuario["id"],),
             ).fetchone()["version_sesion"]
+            registrar(request, "cuenta_password", entidad="usuario", entidad_id=usuario["id"],
+                      entidad_nombre=usuario["usuario"], detalle="se cerraron las demás sesiones abiertas",
+                      conexion=conexion)
     except Exception:
         logger.exception("No se pudo cambiar la contraseña del usuario %s", usuario["id"])
         return redirigir("error")
@@ -376,15 +374,5 @@ def cambiar_password(
     # La sesión actual se queda abierta: se actualiza su versión
     request.session["version"] = nueva_version
     limpiar_fallos(clave)
-
-    # Nunca se guarda la contraseña, solo el hecho de que se cambió
-    registrar(
-        request,
-        "cuenta_password",
-        entidad="usuario",
-        entidad_id=usuario["id"],
-        entidad_nombre=usuario["usuario"],
-        detalle="se cerraron las demás sesiones abiertas",
-    )
 
     return redirigir("password_cambiada")

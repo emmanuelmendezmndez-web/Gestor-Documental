@@ -172,21 +172,20 @@ def crear_usuario_web(
                 (usuario, nombre, password_hash, rol, departamento),
             )
             nuevo_id = resultado.lastrowid
-    except sqlite3.IntegrityError:
+            registrar(request, "usuario_crear", entidad="usuario", entidad_id=nuevo_id,
+                      entidad_nombre=usuario,
+                      detalle=f"rol: {NOMBRES_ROL[rol]} · departamento: {departamento or 'sin asignar'}",
+                      conexion=conexion)
+    except sqlite3.IntegrityError as error:
         # El campo usuario es UNIQUE (sin distinguir mayúsculas)
-        return redirigir("/usuarios", "usuario_existe")
+        if "usuarios.usuario" in str(error):
+            return redirigir("/usuarios", "usuario_existe")
+        logger.exception("No se pudo crear el usuario")
+        return redirigir("/usuarios", "error")
     except Exception:
         logger.exception("No se pudo crear el usuario")
         return redirigir("/usuarios", "error")
 
-    registrar(
-        request,
-        "usuario_crear",
-        entidad="usuario",
-        entidad_id=nuevo_id,
-        entidad_nombre=usuario,
-        detalle=f"rol: {NOMBRES_ROL[rol]} · departamento: {departamento or 'sin asignar'}",
-    )
     return redirigir("/usuarios", "usuario_creado")
 
 
@@ -246,33 +245,32 @@ def editar_usuario(
 
     try:
         with conectar() as conexion:
-            conexion.execute(
+            conexion.execute("BEGIN IMMEDIATE")
+            actual = conexion.execute("SELECT usuario,nombre,rol,departamento FROM usuarios WHERE id=?", (usuario_id,)).fetchone()
+            if actual is None:
+                raise ValueError("El usuario ya no existe")
+            if usuario_id == request.state.usuario["id"] and rol != actual["rol"]:
+                return redirigir(ruta, "propio")
+            cambios = []
+            if actual["nombre"] != nombre:
+                cambios.append(f"nombre: «{actual['nombre']}» → «{nombre}»")
+            if actual["rol"] != rol:
+                cambios.append(f"rol: {NOMBRES_ROL[actual['rol']]} → {NOMBRES_ROL[rol]}")
+            if actual["departamento"] != departamento:
+                cambios.append(f"departamento: «{actual['departamento'] or 'sin asignar'}» → «{departamento or 'sin asignar'}»")
+            if not cambios:
+                return redirigir("/usuarios", "usuario_editado")
+            resultado = conexion.execute(
                 "UPDATE usuarios SET nombre = ?, rol = ?, departamento = ? WHERE id = ?",
                 (nombre, rol, departamento, usuario_id),
             )
+            if resultado.rowcount != 1:
+                raise ValueError("El usuario ya no existe")
+            registrar(request, "usuario_editar", entidad="usuario", entidad_id=usuario_id,
+                      entidad_nombre=actual["usuario"], detalle="; ".join(cambios), conexion=conexion)
     except Exception:
         logger.exception("No se pudo editar el usuario %s", usuario_id)
         return redirigir(ruta, "error")
-
-    cambios = []
-    if actual["nombre"] != nombre:
-        cambios.append(f"nombre: «{actual['nombre']}» → «{nombre}»")
-    if actual["rol"] != rol:
-        cambios.append(f"rol: {NOMBRES_ROL[actual['rol']]} → {NOMBRES_ROL[rol]}")
-    if actual["departamento"] != departamento:
-        cambios.append(
-            f"departamento: «{actual['departamento'] or 'sin asignar'}» → «{departamento or 'sin asignar'}»"
-        )
-
-    if cambios:
-        registrar(
-            request,
-            "usuario_editar",
-            entidad="usuario",
-            entidad_id=usuario_id,
-            entidad_nombre=actual["usuario"],
-            detalle="; ".join(cambios),
-        )
 
     return redirigir("/usuarios", "usuario_editado")
 
@@ -308,6 +306,8 @@ def restablecer_password(
                 "SELECT version_sesion FROM usuarios WHERE id = ?",
                 (usuario_id,),
             ).fetchone()["version_sesion"]
+            registrar(request, "usuario_password", entidad="usuario", entidad_id=usuario_id,
+                      entidad_nombre=objetivo["usuario"], detalle="se cerraron sus sesiones abiertas", conexion=conexion)
     except Exception:
         logger.exception("No se pudo restablecer la contraseña de %s", usuario_id)
         return redirigir(ruta, "error")
@@ -317,15 +317,6 @@ def restablecer_password(
         request.session["version"] = nueva_version
 
     # Nunca se guarda la contraseña, solo el hecho de que se restableció
-    registrar(
-        request,
-        "usuario_password",
-        entidad="usuario",
-        entidad_id=usuario_id,
-        entidad_nombre=objetivo["usuario"],
-        detalle="se cerraron sus sesiones abiertas",
-    )
-
     return redirigir(ruta, "password_restablecida")
 
 
@@ -345,30 +336,28 @@ def cambiar_estado(
     # Nadie puede desactivarse a sí mismo
     if usuario_id == request.state.usuario["id"]:
         return redirigir(ruta, "propio")
+    if objetivo["activo"] == activo:
+        return redirigir("/usuarios", "usuario_activado" if activo else "usuario_desactivado")
 
     try:
         with conectar() as conexion:
             # También se sube la versión: al reactivarlo no revive sesiones viejas
-            conexion.execute(
+            resultado = conexion.execute(
                 """
                 UPDATE usuarios
                 SET activo = ?, version_sesion = version_sesion + 1
-                WHERE id = ?
+                WHERE id = ? AND activo != ?
                 """,
-                (activo, usuario_id),
+                (activo, usuario_id, activo),
             )
+            if resultado.rowcount != 1:
+                raise ValueError("El estado del usuario cambió")
+            registrar(request, "usuario_estado", entidad="usuario", entidad_id=usuario_id,
+                      entidad_nombre=objetivo["usuario"], detalle="activado" if activo else "desactivado",
+                      conexion=conexion)
     except Exception:
         logger.exception("No se pudo cambiar el estado del usuario %s", usuario_id)
         return redirigir(ruta, "error")
-
-    registrar(
-        request,
-        "usuario_estado",
-        entidad="usuario",
-        entidad_id=usuario_id,
-        entidad_nombre=objetivo["usuario"],
-        detalle="activado" if activo else "desactivado",
-    )
 
     return redirigir(
         "/usuarios",
@@ -423,6 +412,11 @@ def eliminar_usuario(request: Request, usuario_id: int):
                 (usuario_id,),
             )
             borrado = resultado.rowcount > 0
+            if borrado:
+                registrar(request, "usuario_eliminar", entidad="usuario", entidad_id=usuario_id,
+                          entidad_nombre=objetivo["usuario"],
+                          detalle=f"nombre: «{objetivo['nombre']}» · rol: {NOMBRES_ROL[objetivo['rol']]}" +
+                          (f"; limpieza física pendiente; tarea {tarea}" if tarea else ""), conexion=conexion)
     except Exception:
         logger.exception("No se pudo eliminar el usuario %s", usuario_id)
         return redirigir(ruta, "error")
@@ -431,14 +425,4 @@ def eliminar_usuario(request: Request, usuario_id: int):
         return redirigir(ruta, "eliminar_activo")
 
     pendiente = tarea is not None and procesar_tareas([tarea])[tarea] not in {"completada", "cancelada"}
-    registrar(
-        request,
-        "usuario_eliminar",
-        "fallo" if pendiente else "exito",
-        entidad="usuario",
-        entidad_id=usuario_id,
-        entidad_nombre=objetivo["usuario"],
-        detalle=f"nombre: «{objetivo['nombre']}» · rol: {NOMBRES_ROL[objetivo['rol']]}" + (f"; limpieza física pendiente; tarea {tarea}" if pendiente else ""),
-    )
-
     return redirigir("/usuarios", "usuario_limpieza_pendiente" if pendiente else "usuario_eliminado")

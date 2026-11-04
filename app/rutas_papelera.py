@@ -71,9 +71,8 @@ def restaurar_documento(request: Request, documento_id: int):
         )
         if cambio.rowcount != 1:
             raise HTTPException(status_code=409, detail="El documento cambió. Actualiza la página.")
-
-    registrar(request, "restaurar", entidad="documento", entidad_id=documento_id,
-              entidad_nombre=fila["titulo"])
+        registrar(request, "restaurar", entidad="documento", entidad_id=documento_id,
+                  entidad_nombre=fila["titulo"], conexion=conexion)
     return RedirectResponse(url="/papelera?aviso=restaurado", status_code=303)
 
 
@@ -106,16 +105,16 @@ def restaurar_documentos_masivo(
         )
         if cambio.rowcount != len(ids):
             raise HTTPException(status_code=409, detail="La selección cambió. Actualiza la página.")
-
-    for documento in documentos:
-        registrar(
-            request,
-            "restaurar",
-            entidad="documento",
-            entidad_id=documento["id"],
-            entidad_nombre=documento["titulo"],
-            detalle="restauración en lote",
-        )
+        for documento in documentos:
+            registrar(
+                request,
+                "restaurar",
+                entidad="documento",
+                entidad_id=documento["id"],
+                entidad_nombre=documento["titulo"],
+                detalle="restauración en lote",
+                conexion=conexion,
+            )
     return RedirectResponse(url="/papelera?aviso=documentos_restaurados", status_code=303)
 
 

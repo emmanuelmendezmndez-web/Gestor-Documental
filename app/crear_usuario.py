@@ -7,6 +7,7 @@ import getpass
 import re
 import sys
 
+from app.actividad import registrar
 from app.database import conectar, inicializar_db
 from app.seguridad import NOMBRES_ROL, ROLES, hashear_password
 
@@ -84,11 +85,14 @@ def main() -> None:
         clave = pedir_password()
         with conectar() as conexion:
             # También lo reactiva si estaba desactivado
-                       conexion.execute(
+            conexion.execute(
                 "UPDATE usuarios SET password_hash = ?, rol = ?, activo = 1, "
                 "version_sesion = version_sesion + 1 WHERE id = ?",
                 (hashear_password(clave), rol, existente["id"]),
             )
+            registrar(None, "usuario_editar", entidad="usuario", entidad_id=existente["id"],
+                      entidad_nombre=usuario, detalle=f"administración por consola; rol: {rol}; contraseña restablecida y cuenta activada",
+                      conexion=conexion)
         print(f"Usuario '{usuario}' actualizado ({NOMBRES_ROL[rol]}).")
         return
 
@@ -101,10 +105,12 @@ def main() -> None:
     clave = pedir_password()
 
     with conectar() as conexion:
-        conexion.execute(
+        resultado = conexion.execute(
             "INSERT INTO usuarios (usuario, nombre, password_hash, rol) VALUES (?, ?, ?, ?)",
             (usuario, nombre, hashear_password(clave), rol),
         )
+        registrar(None, "usuario_crear", entidad="usuario", entidad_id=resultado.lastrowid,
+                  entidad_nombre=usuario, detalle=f"administración por consola; rol: {rol}", conexion=conexion)
     print(f"Usuario '{usuario}' creado ({NOMBRES_ROL[rol]}).")
 
 

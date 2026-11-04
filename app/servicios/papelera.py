@@ -39,6 +39,11 @@ def purgar_documentos_papelera(
         cambio = conexion.execute("DELETE FROM documentos WHERE " + condicion, valores)
         if cambio.rowcount != len(documentos):
             raise HTTPException(status_code=409, detail="La selección cambió. Actualiza la página.")
+        for documento in documentos:
+            registrar(request, "eliminar_definitivo", "fallo", entidad="documento", entidad_id=documento["id"],
+                      entidad_nombre=documento["titulo"],
+                      detalle=f"registro eliminado; limpieza física pendiente; tarea {tareas[documento['id']]}",
+                      conexion=conexion)
 
     resultados = procesar_tareas(list(tareas.values()))
     pendientes = 0
@@ -46,10 +51,4 @@ def purgar_documentos_papelera(
         estado = resultados[tareas[documento["id"]]]
         pendiente = estado not in {"completada", "cancelada"}
         pendientes += int(pendiente)
-        detalle = ("eliminación definitiva" if individual else "eliminación permanente desde papelera")
-        detalle += f" · archivo: {documento['nombre_archivo']}"
-        if pendiente:
-            detalle += f" (limpieza física pendiente; tarea {tareas[documento['id']]})"
-        registrar(request, "eliminar_definitivo", "fallo" if pendiente else "exito", entidad="documento", entidad_id=documento["id"],
-                  entidad_nombre=documento["titulo"], detalle=detalle)
     return len(documentos), pendientes

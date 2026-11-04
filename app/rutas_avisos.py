@@ -72,21 +72,16 @@ def cambiar_estado_aviso(
         raise HTTPException(status_code=400, detail="Estado de aviso no válido.")
     with conectar() as conexion:
         aviso = conexion.execute(
-            "SELECT titulo FROM avisos WHERE id = ?",
+            "SELECT titulo, publicado FROM avisos WHERE id = ?",
             (aviso_id,),
         ).fetchone()
         if aviso is None:
             raise HTTPException(status_code=404, detail="Aviso no encontrado.")
-        conexion.execute("UPDATE avisos SET publicado = ? WHERE id = ?", (publicado, aviso_id))
-
-    registrar(
-        request,
-        "aviso_estado",
-        entidad="aviso",
-        entidad_id=aviso_id,
-        entidad_nombre=aviso["titulo"],
-        detalle="publicado" if publicado else "oculto",
-    )
+        if aviso["publicado"] != publicado:
+            conexion.execute("UPDATE avisos SET publicado = ? WHERE id = ?", (publicado, aviso_id))
+            registrar(request, "aviso_estado", entidad="aviso", entidad_id=aviso_id,
+                      entidad_nombre=aviso["titulo"], detalle="publicado" if publicado else "oculto",
+                      conexion=conexion)
     return RedirectResponse(url="/avisos?aviso=aviso_estado", status_code=303)
 
 
@@ -107,17 +102,12 @@ def eliminar_aviso(request: Request, aviso_id: int):
         if aviso["imagen_guardada"]:
             tarea = encolar(conexion, "aviso", aviso["imagen_guardada"])
         conexion.execute("DELETE FROM avisos WHERE id = ?", (aviso_id,))
+        registrar(request, "aviso_eliminar", entidad="aviso", entidad_id=aviso_id,
+                  entidad_nombre=aviso["titulo"],
+                  detalle=f"limpieza física pendiente; tarea {tarea}" if tarea else "sin imagen",
+                  conexion=conexion)
 
     pendiente = tarea is not None and procesar_tareas([tarea])[tarea] not in {"completada", "cancelada"}
-    registrar(
-        request,
-        "aviso_eliminar",
-        "fallo" if pendiente else "exito",
-        entidad="aviso",
-        entidad_id=aviso_id,
-        entidad_nombre=aviso["titulo"],
-        detalle=f"limpieza física pendiente; tarea {tarea}" if pendiente else "",
-    )
     return RedirectResponse(url=f"/avisos?aviso={'limpieza_pendiente' if pendiente else 'aviso_eliminado'}", status_code=303)
 
 

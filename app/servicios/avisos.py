@@ -81,18 +81,14 @@ def crear_aviso_servicio(request: Request, titulo: str, cuerpo: str, departament
                 ),
             )
             aviso_id = resultado.lastrowid
+            registrar(request, "aviso_crear", entidad="aviso", entidad_id=aviso_id,
+                      entidad_nombre=titulo,
+                      detalle=f"{'publicado' if publicado else 'oculto'} · área: {departamento or 'todos'}",
+                      conexion=conexion)
     except Exception:
         if destino_imagen:
             descartar_generado("aviso", destino_imagen.name)
         logger.exception("No se pudo crear el aviso")
         return "aviso_error"
 
-    registrar(
-        request,
-        "aviso_crear",
-        entidad="aviso",
-        entidad_id=aviso_id,
-        entidad_nombre=titulo,
-        detalle=f"{'publicado' if publicado else 'oculto'} · área: {departamento or 'todos'}",
-    )
     return "aviso_creado"

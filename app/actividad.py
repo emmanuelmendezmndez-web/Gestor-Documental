@@ -42,14 +42,14 @@ RESULTADOS = {
 }
 
 
-def obtener_ip(request: Request) -> str | None:
+def obtener_ip(request: Request | None) -> str | None:
     """IP de la conexión directa. No se confía en cabeceras como X-Forwarded-For,
     porque cualquiera puede falsificarlas."""
-    return request.client.host if request.client else None
+    return request.client.host if request and request.client else None
 
 
 def registrar(
-    request: Request,
+    request: Request | None,
     accion: str,
     resultado: str = "exito",
     *,
@@ -58,17 +58,17 @@ def registrar(
     entidad_id: int | None = None,
     entidad_nombre: str | None = None,
     detalle: str = "",
+    conexion=None,
 ) -> None:
     """Anota una acción en el registro de actividad.
 
-    Si no se indica el usuario, se toma el de la sesión actual. Es de "mejor
-    esfuerzo": si falla, solo se avisa en la terminal y la operación sigue."""
-    if usuario is None:
+    Si se aporta una conexión, el registro es obligatorio y comparte su
+    transacción. Sin conexión es de mejor esfuerzo y solo registra el error."""
+    if usuario is None and request is not None:
         usuario = getattr(request.state, "usuario", None)
 
-    try:
-        with conectar() as conexion:
-            conexion.execute(
+    def escribir(db):
+        db.execute(
                 """
                 INSERT INTO actividad
                     (usuario_id, usuario, accion, resultado,
@@ -87,5 +87,14 @@ def registrar(
                     obtener_ip(request),
                 ),
             )
+
+    # Una conexión aportada por la operación hace obligatorio el registro:
+    # cualquier error debe alcanzar el gestor de transacciones y revertirla.
+    if conexion is not None:
+        escribir(conexion)
+        return
+    try:
+        with conectar() as conexion_propia:
+            escribir(conexion_propia)
     except Exception:
         logger.exception("No se pudo registrar la actividad (%s)", accion)

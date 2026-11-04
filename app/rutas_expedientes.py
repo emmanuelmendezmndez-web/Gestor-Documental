@@ -86,18 +86,12 @@ def crear_expediente(
                 "UPDATE expedientes SET folio = ? WHERE id = ?",
                 (folio, expediente_id),
             )
+            registrar(request, "expediente_crear", entidad="expediente", entidad_id=expediente_id,
+                      entidad_nombre=folio, detalle=titulo, conexion=conexion)
     except Exception:
         logger.exception("No se pudo crear el expediente")
         return RedirectResponse(url="/expedientes?aviso=error_expediente", status_code=303)
 
-    registrar(
-        request,
-        "expediente_crear",
-        entidad="expediente",
-        entidad_id=expediente_id,
-        entidad_nombre=folio,
-        detalle=titulo,
-    )
     return RedirectResponse(
         url=f"/expedientes/{expediente_id}?aviso=expediente_creado",
         status_code=303,
@@ -146,6 +140,8 @@ def eliminar_expediente(request: Request, expediente_id: int):
             # La FK ON DELETE CASCADE elimina solo las asociaciones del expediente;
             # los documentos originales permanecen en la biblioteca.
             conexion.execute("DELETE FROM expedientes WHERE id = ?", (expediente_id,))
+            registrar(request, "expediente_eliminar", entidad="expediente", entidad_id=expediente_id,
+                      entidad_nombre=expediente["folio"], detalle=expediente["titulo"], conexion=conexion)
     except HTTPException:
         raise
     except Exception:
@@ -155,14 +151,6 @@ def eliminar_expediente(request: Request, expediente_id: int):
             status_code=303,
         )
 
-    registrar(
-        request,
-        "expediente_eliminar",
-        entidad="expediente",
-        entidad_id=expediente_id,
-        entidad_nombre=expediente["folio"],
-        detalle=expediente["titulo"],
-    )
     return RedirectResponse(url="/expedientes?aviso=expediente_eliminado", status_code=303)
 
 
@@ -297,16 +285,10 @@ def vincular_documentos_masivo(
         )
         if cambio.rowcount != len(ids):
             raise HTTPException(status_code=409, detail="La selección cambió. Actualiza la página.")
-
-    for documento in documentos:
-        registrar(
-            request,
-            "expediente_vincular",
-            entidad="documento",
-            entidad_id=documento["id"],
-            entidad_nombre=documento["titulo"],
-            detalle=f"expediente {expediente['folio']} (selección múltiple)",
-        )
+        for documento in documentos:
+            registrar(request, "expediente_vincular", entidad="documento", entidad_id=documento["id"],
+                      entidad_nombre=documento["titulo"],
+                      detalle=f"expediente {expediente['folio']} (selección múltiple)", conexion=conexion)
     return RedirectResponse(
         url=f"/expedientes/{expediente_id}?aviso=documentos_vinculados",
         status_code=303,
@@ -349,8 +331,6 @@ def vincular_documento(
         )
         if resultado.rowcount != 1:
             raise HTTPException(status_code=409, detail="El documento ya está vinculado. Actualiza la página.")
-
-    if resultado.rowcount:
         registrar(
             request,
             "expediente_vincular",
@@ -358,6 +338,7 @@ def vincular_documento(
             entidad_id=documento_id,
             entidad_nombre=documento["titulo"],
             detalle=f"expediente {expediente['folio']}",
+            conexion=conexion,
         )
     return RedirectResponse(
         url=f"/expedientes/{expediente_id}?aviso=documento_vinculado",

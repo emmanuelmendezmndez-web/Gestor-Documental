@@ -136,6 +136,13 @@ def subir(
                 ),
             )
             nuevo_id = resultado.lastrowid
+            partes = [nombre_original, datos["categoria"], formatear_tamano(tamano)]
+            if datos["numero_oficio"]:
+                partes.append(f"oficio {datos['numero_oficio']}")
+            if datos["departamento"]:
+                partes.append(datos["departamento"])
+            registrar(request, "subir", entidad="documento", entidad_id=nuevo_id,
+                      entidad_nombre=datos["titulo"], detalle=" · ".join(partes), conexion=conexion)
     except ArchivoInvalido as error:
         descartar_generado("documento", destino.name)
         return fallo_subida(request, error.codigo, datos["titulo"], nombre_original)
@@ -145,20 +152,6 @@ def subir(
         logger.exception("No se pudo guardar el documento")
         return fallo_subida(request, "error", datos["titulo"], nombre_original)
 
-    partes = [nombre_original, datos["categoria"], formatear_tamano(tamano)]
-    if datos["numero_oficio"]:
-        partes.append(f"oficio {datos['numero_oficio']}")
-    if datos["departamento"]:
-        partes.append(datos["departamento"])
-
-    registrar(
-        request,
-        "subir",
-        entidad="documento",
-        entidad_id=nuevo_id,
-        entidad_nombre=datos["titulo"],
-        detalle=" · ".join(partes),
-    )
     return avisar("subido")
 
 
@@ -410,6 +403,9 @@ def editar_documento(
                     # El usuario puede editar metadatos del documento accesible,
                     # pero no reclasificarlo para otro departamento ni hacerlo público.
                     datos["departamento"] = anterior["departamento"]
+                cambios = describir_cambios(anterior, datos)
+                if not cambios:
+                    return avisar_edicion(documento_id, "editado")
                 resultado = conexion.execute(
                     """
                     UPDATE documentos
@@ -432,6 +428,8 @@ def editar_documento(
                 )
                 if resultado.rowcount != 1:
                     return avisar_edicion(documento_id, "conflicto_edicion")
+                registrar(request, "editar", entidad="documento", entidad_id=documento_id,
+                          entidad_nombre=datos["titulo"], detalle="; ".join(cambios), conexion=conexion)
     except (HTTPException, NoAutenticado):
         raise
     except Exception:
@@ -451,17 +449,6 @@ def editar_documento(
         raise HTTPException(
             status_code=404,
             detail="Documento no encontrado.",
-        )
-
-    cambios = describir_cambios(anterior, datos)
-    if cambios:
-        registrar(
-            request,
-            "editar",
-            entidad="documento",
-            entidad_id=documento_id,
-            entidad_nombre=datos["titulo"],
-            detalle="; ".join(cambios),
         )
 
     return avisar_edicion(documento_id, "editado")
@@ -543,6 +530,9 @@ def eliminar_documento(request: Request, documento_id: int):
                 )
                 if cambio.rowcount != 1:
                     raise HTTPException(status_code=409, detail="El documento cambió. Actualiza la página.")
+                registrar(request, "papelera_enviar", entidad="documento", entidad_id=documento_id,
+                          entidad_nombre=documento["titulo"],
+                          detalle=f"enviado a papelera · archivo: {documento['nombre_archivo']}", conexion=conexion)
     except (HTTPException, NoAutenticado):
         raise
     except Exception:
@@ -562,15 +552,6 @@ def eliminar_documento(request: Request, documento_id: int):
             status_code=404,
             detail="Documento no encontrado.",
         )
-
-    registrar(
-        request,
-        "papelera_enviar",
-        entidad="documento",
-        entidad_id=documento_id,
-        entidad_nombre=documento["titulo"],
-        detalle=f"enviado a papelera · archivo: {documento['nombre_archivo']}",
-    )
 
     return RedirectResponse(url="/?aviso=eliminado", status_code=303)
 
@@ -605,21 +586,17 @@ def enviar_documentos_papelera(
             )
             if cambio.rowcount != len(ids):
                 raise HTTPException(status_code=409, detail="La selección cambió. Actualiza la página.")
+            for documento in documentos:
+                registrar(request, "papelera_enviar", entidad="documento", entidad_id=documento["id"],
+                          entidad_nombre=documento["titulo"],
+                          detalle=f"enviado a papelera en lote · archivo: {documento['nombre_archivo']}",
+                          conexion=conexion)
     except (HTTPException, NoAutenticado):
         raise
     except Exception:
         logger.exception("No se pudieron enviar documentos seleccionados a la papelera")
         return RedirectResponse(url="/?aviso=error_papelera", status_code=303)
 
-    for documento in documentos:
-        registrar(
-            request,
-            "papelera_enviar",
-            entidad="documento",
-            entidad_id=documento["id"],
-            entidad_nombre=documento["titulo"],
-            detalle=f"enviado a papelera en lote · archivo: {documento['nombre_archivo']}",
-        )
     return RedirectResponse(url="/?aviso=documentos_papelera", status_code=303)
 
 
