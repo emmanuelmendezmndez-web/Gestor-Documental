@@ -6,7 +6,7 @@
     <p class="nota">
         Archivo: <strong>{{ documento["nombre_archivo"] }}</strong>
         · Subido el {{ documento["fecha_subida"] }}.
-        Aquí solo se cambian los datos: el archivo en sí no se modifica.
+        Unicamente puedes editar los metadatos: el archivo en sí no se modifica.
     </p>
 
     <form action="/documentos/{{ documento['id'] }}/editar" method="post" data-clippy-tip="Puedes corregir los metadatos; al guardar, SIGED conserva las versiones anteriores del documento."><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -71,7 +71,7 @@
                 name="fecha_documento"
                 value="{{ documento['fecha_documento'] or '' }}"
             >
-            <p class="nota">La fecha que lleva el documento. Si la dejas vacía, se usa la fecha de registro.</p>
+            <p class="nota">Si este campo se deja vacio, se usará la fecha de registro previo.</p>
         </div>
 
         <div class="campo">

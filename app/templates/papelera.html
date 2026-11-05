@@ -3,8 +3,8 @@
 {% block contenido %}
 <section class="panel">
     <h2>Papelera</h2>
-    <p class="nota">Los documentos aquí no aparecen en la biblioteca. Puedes restaurarlos{% if puede("eliminar") %} o eliminarlos definitivamente{% endif %}.</p>
-    <p class="nota nota-retencion">Los elementos permanecen aquí hasta que se restauren o se eliminen definitivamente; no hay purga automática.</p>
+    <p class="nota">Los elementos listados en esta sección no son visibles en la biblioteca general.{% if puede("eliminar") %} o eliminarlos definitivamente{% endif %}.</p>
+    <p class="nota nota-retencion">Selecciona un archivo para restaurarlo a su ubicación original o eliminalo definitivamente.</p>
 
     {% if documentos %}
     <div class="papelera-toolbar">

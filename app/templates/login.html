@@ -3,7 +3,7 @@
 {% block contenido %}
 <section class="panel panel-login">
     <h2>Iniciar sesión</h2>
-    <p>Ingresa con tu usuario y contraseña para acceder.</p>
+    <p>Ingresa tus credenciales para acceder a la plataforma.</p>
 
     <form action="/login" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div class="campo">
@@ -31,7 +31,7 @@
             >
         </div>
 
-        <button type="submit">Entrar</button>
+        <button type="submit">Acceder</button>
     </form>
 </section>
 {% endblock %}

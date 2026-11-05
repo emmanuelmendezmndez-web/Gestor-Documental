@@ -5,7 +5,7 @@
     <div>
         <p class="sobrelinea">{{ usuario["departamento"] or usuario["rol_nombre"] }}</p>
         <h1>Panel de control</h1>
-        <p class="nota">Visualización de indicadores, acervo documental y comunicados oficiales.</p>
+        <p class="nota">Bienvenido(a) al sistema de gestión y control documental.</p>
     </div>
     {% if puede("avisos") %}
     <a href="/avisos" class="boton-secundario">Gestionar avisos</a>
@@ -17,19 +17,19 @@
         <span class="kpi-icono documentos" aria-hidden="true">
             <svg viewBox="0 0 24 24"><path d="M5 3.5h9l5 5v12H5zM14 4v5h5M8.5 13h7M8.5 16.5h7"/></svg>
         </span>
-        <div><span class="kpi-label">Total de documentos</span><strong>{{ total_documentos }}</strong></div>
+        <div><span class="kpi-label">Total de archivos existentes</span><strong>{{ total_documentos }}</strong></div>
     </article>
     <article class="kpi-card">
         <span class="kpi-icono subidas" aria-hidden="true">
             <svg viewBox="0 0 24 24"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M4 15v5h16v-5"/></svg>
         </span>
-        <div><span class="kpi-label">Subidos en 30 días</span><strong>{{ documentos_30_dias }}</strong></div>
+        <div><span class="kpi-label">Subidos en los ultimos 30 días</span><strong>{{ documentos_30_dias }}</strong></div>
     </article>
     <article class="kpi-card">
         <span class="kpi-icono expedientes" aria-hidden="true">
             <svg viewBox="0 0 24 24"><path d="M3.5 6.5h6l2 2h9v10.75H3.5zM3.5 9h17"/></svg>
         </span>
-        <div><span class="kpi-label">Expedientes activos</span><strong>{{ total_expedientes }}</strong></div>
+        <div><span class="kpi-label">Expedientes existentes</span><strong>{{ total_expedientes }}</strong></div>
     </article>
     {% if puede("eliminar") %}
     <article class="kpi-card">
@@ -73,7 +73,7 @@
 
         <section class="panel documentos-recientes">
             <div class="titulo-panel">
-                <div><p class="sobrelinea">Novedades</p><h2>Últimos documentos</h2></div>
+                <div><p class="sobrelinea">Novedades</p><h2>Últimos documentos agregados</h2></div>
                 <a href="/" class="enlace-discreto">Ver biblioteca</a>
             </div>
             {% if ultimos_documentos %}

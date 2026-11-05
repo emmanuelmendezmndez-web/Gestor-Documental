@@ -13,7 +13,7 @@
         <span class="etiqueta inactivo">Desactivado</span>
         {% endif %}
     </p>
-    <p class="nota">El nombre de usuario no se puede cambiar.</p>
+    <p class="nota">El nombre de usuario es un identificador único y no puede ser modificado.</p>
 
     <form action="/usuarios/{{ editado['id'] }}/editar" method="post" data-clippy-tip="Puedes actualizar nombre, rol y área. Los cambios de acceso se aplican a la cuenta al guardar."><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div class="campo">
@@ -30,7 +30,7 @@
             </select>
             {% if es_propio %}
             <input type="hidden" name="rol" value="{{ editado['rol'] }}">
-            <p class="nota">No puedes cambiar tu propio rol.</p>
+            <p class="nota">No puedes cambiar tu propia área de adscripción.</p>
             {% endif %}
         </div>
 
@@ -42,7 +42,7 @@
                 <option value="{{ departamento }}" {% if editado["departamento"] == departamento %}selected{% endif %}>{{ departamento }}</option>
                 {% endfor %}
             </select>
-            <p class="nota">Los avisos dirigidos a un área se mostrarán a las cuentas asignadas a ese departamento.</p>
+            <p class="nota">Los avisos dirigidos a un área especifica serán visibles solo a las cuentas asignadas a dicho departamento.</p>
         </div>
 
         <div class="acciones-formulario">
@@ -94,7 +94,7 @@
     {% if es_propio %}
     <p class="nota">No puedes desactivar tu propia cuenta.</p>
     {% elif editado["activo"] %}
-    <p class="nota">Un usuario desactivado no puede iniciar sesión. Sus datos se conservan y puedes activarlo de nuevo cuando quieras.</p>
+    <p class="nota">Un usuario desactivado no puede iniciar sesión. Sus datos se conservan y puedes reactivarlo de nuevo cuando quieras.</p>
     <form
         action="/usuarios/{{ editado['id'] }}/estado"
         method="post"
@@ -121,7 +121,7 @@
     {% if es_propio %}
     <p class="nota">No puedes eliminar tu propia cuenta.</p>
     {% elif editado["activo"] %}
-    <p class="nota">Para poder eliminar una cuenta, primero hay que desactivarla. Así se evita borrar por error a alguien que sigue trabajando.</p>
+    <p class="nota">Para poder eliminar un usuario, primero desactívalo.</p>
     {% else %}
     <p class="nota">Elimina la cuenta de forma definitiva. Su historial en el registro de actividad se conserva.</p>
     <form
