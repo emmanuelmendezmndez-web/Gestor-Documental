@@ -79,9 +79,11 @@ def permiso_denegado(rutas):
 
 
 ident, archivo = documento("individual")
-assert "eliminado_definitivo" in eliminar_definitivamente(request, ident).headers["location"]
+if not ("eliminado_definitivo" in eliminar_definitivamente(request, ident).headers["location"]):
+    raise AssertionError()
 assert not archivo.exists() and tarea(archivo.name)["estado"] == "completada"
-assert procesar_tarea(tarea(archivo.name)["id"]) == "completada"
+if not (procesar_tarea(tarea(archivo.name)["id"]) == "completada"):
+    raise AssertionError()
 
 ident, archivo = documento("rollback")
 with patch.object(servicio_papelera, "encolar", side_effect=RuntimeError("fallo ficticio")):
@@ -92,32 +94,39 @@ with patch.object(servicio_papelera, "encolar", side_effect=RuntimeError("fallo 
         pass
 with conectar() as db:
     assert db.execute("SELECT 1 FROM documentos WHERE id=?", (ident,)).fetchone() and archivo.exists()
-assert "eliminado_definitivo" in eliminar_definitivamente(request, ident).headers["location"]
+if not ("eliminado_definitivo" in eliminar_definitivamente(request, ident).headers["location"]):
+    raise AssertionError()
 
 ident, archivo = documento("bloqueado")
 with permiso_denegado([archivo]):
-    assert "limpieza_pendiente" in eliminar_definitivamente(request, ident).headers["location"]
+    if not ("limpieza_pendiente" in eliminar_definitivamente(request, ident).headers["location"]):
+        raise AssertionError()
 pendiente = tarea(archivo.name)
 assert archivo.exists() and pendiente["estado"] == "pendiente" and pendiente["intentos"] == 1
-assert procesar_tarea(pendiente["id"]) == "completada" and not archivo.exists()
+if not (procesar_tarea(pendiente["id"]) == "completada" and not archivo.exists()):
+    raise AssertionError()
 
 a, pa = documento("lote_uno")
 b, pb = documento("lote_dos")
 with permiso_denegado([pb]):
-    assert "limpieza_pendiente" in eliminar_documentos_seleccionados(request, [a, b]).headers["location"]
+    if not ("limpieza_pendiente" in eliminar_documentos_seleccionados(request, [a, b]).headers["location"]):
+        raise AssertionError()
 assert not pa.exists() and pb.exists() and tarea(pb.name)["estado"] == "pendiente"
 with conectar() as db:
     assert db.execute("SELECT resultado FROM actividad WHERE accion='eliminar_definitivo' AND entidad_id=?", (b,)).fetchone()[0] == "fallo"
-assert procesar_tarea(tarea(pb.name)["id"]) == "completada"
+if not (procesar_tarea(tarea(pb.name)["id"]) == "completada"):
+    raise AssertionError()
 
 a, pa = documento("vaciar_uno")
 b, pb = documento("vaciar_dos")
 with permiso_denegado([pb]):
-    assert "limpieza_pendiente" in vaciar_papelera(request, "ClavePrueba123!").headers["location"]
+    if not ("limpieza_pendiente" in vaciar_papelera(request, "ClavePrueba123!").headers["location"]):
+        raise AssertionError()
 assert not pa.exists() and pb.exists() and tarea(pb.name)["estado"] == "pendiente"
 
 ident, archivo = documento("noexiste", existe=False)
-assert "eliminado_definitivo" in eliminar_definitivamente(request, ident).headers["location"]
+if not ("eliminado_definitivo" in eliminar_definitivamente(request, ident).headers["location"]):
+    raise AssertionError()
 assert tarea(archivo.name)["estado"] == "completada"
 
 # Un archivo activo no puede purgarse; tampoco uno con referencia creada tras encolar.
@@ -130,7 +139,8 @@ except HTTPException as exc:
 with conectar() as db:
     db.execute("BEGIN IMMEDIATE")
     t = encolar(db, "documento", archivo.name)
-assert procesar_tarea(t) == "cancelada" and archivo.exists()
+if not (procesar_tarea(t) == "cancelada" and archivo.exists()):
+    raise AssertionError()
 descartar_generado("documento", archivo.name)
 assert tarea(archivo.name)["estado"] == "cancelada" and archivo.exists()
 
@@ -138,13 +148,15 @@ assert tarea(archivo.name)["estado"] == "cancelada" and archivo.exists()
 with conectar() as db:
     db.execute("BEGIN IMMEDIATE")
     t = encolar(db, "documento", "../fuera.txt")
-assert procesar_tarea(t) == "suspendida"
+if not (procesar_tarea(t) == "suspendida"):
+    raise AssertionError()
 fuera = DATA_DIR / "fuera.txt"
 fuera.write_bytes(b"no borrar")
 with conectar() as db:
     db.execute("BEGIN IMMEDIATE")
     t = encolar(db, "documento", str(fuera))
-assert procesar_tarea(t) == "suspendida" and fuera.read_bytes() == b"no borrar"
+if not (procesar_tarea(t) == "suspendida" and fuera.read_bytes() == b"no borrar"):
+    raise AssertionError()
 
 foto = FOTOS_PERFIL_DIR / "compartida.png"
 foto.write_bytes(b"foto compartida")
@@ -153,7 +165,8 @@ with conectar() as db:
     otro = db.execute("INSERT INTO usuarios(usuario,nombre,password_hash,rol,departamento,foto_perfil) VALUES(?,?,?,?,?,?)",
         ("otro", "Otro", hashear_password("ClavePrueba123!"), "lector", "Tesorería", foto.name)).lastrowid
 request.state.usuario = {**usuario, "foto_perfil": foto.name}
-assert "perfil_actualizado" in actualizar_perfil(request, nombre="Admin Prueba", correo="", telefono="", foto=None, quitar_foto=True).headers["location"]
+if not ("perfil_actualizado" in actualizar_perfil(request, nombre="Admin Prueba", correo="", telefono="", foto=None, quitar_foto=True).headers["location"]):
+    raise AssertionError()
 assert foto.exists() and tarea(foto.name)["estado"] == "cancelada"
 with conectar() as db:
     assert db.execute("SELECT foto_perfil FROM usuarios WHERE id=?", (otro,)).fetchone()[0] == foto.name
@@ -164,7 +177,8 @@ with conectar() as db:
     eliminado = db.execute("INSERT INTO usuarios(usuario,nombre,password_hash,rol,departamento,foto_perfil,activo) VALUES(?,?,?,?,?,?,0)",
         ("borrable", "Borrable", hashear_password("ClavePrueba123!"), "lector", "Tesorería", foto_propia.name)).lastrowid
 request.state.usuario = usuario
-assert "usuario_eliminado" in eliminar_usuario(request, eliminado).headers["location"]
+if not ("usuario_eliminado" in eliminar_usuario(request, eliminado).headers["location"]):
+    raise AssertionError()
 assert not foto_propia.exists() and tarea(foto_propia.name)["estado"] == "completada"
 
 foto_bloqueada = FOTOS_PERFIL_DIR / "bloqueada.png"
@@ -173,9 +187,11 @@ with conectar() as db:
     eliminado = db.execute("INSERT INTO usuarios(usuario,nombre,password_hash,rol,departamento,foto_perfil,activo) VALUES(?,?,?,?,?,?,0)",
         ("borrable2", "Borrable Dos", hashear_password("ClavePrueba123!"), "lector", "Tesorería", foto_bloqueada.name)).lastrowid
 with permiso_denegado([foto_bloqueada]):
-    assert "usuario_limpieza_pendiente" in eliminar_usuario(request, eliminado).headers["location"]
+    if not ("usuario_limpieza_pendiente" in eliminar_usuario(request, eliminado).headers["location"]):
+        raise AssertionError()
 assert foto_bloqueada.exists() and tarea(foto_bloqueada.name)["estado"] == "pendiente"
-assert procesar_tarea(tarea(foto_bloqueada.name)["id"]) == "completada"
+if not (procesar_tarea(tarea(foto_bloqueada.name)["id"]) == "completada"):
+    raise AssertionError()
 
 foto_usuario = FOTOS_PERFIL_DIR / "perfil-bloqueado.png"
 foto_usuario.write_bytes(b"foto perfil")
@@ -183,9 +199,11 @@ with conectar() as db:
     db.execute("UPDATE usuarios SET foto_perfil=? WHERE id=?", (foto_usuario.name, admin))
 request.state.usuario = {**usuario, "foto_perfil": foto_usuario.name}
 with permiso_denegado([foto_usuario]):
-    assert "perfil_limpieza_pendiente" in actualizar_perfil(request, nombre="Admin Prueba", correo="", telefono="", foto=None, quitar_foto=True).headers["location"]
+    if not ("perfil_limpieza_pendiente" in actualizar_perfil(request, nombre="Admin Prueba", correo="", telefono="", foto=None, quitar_foto=True).headers["location"]):
+        raise AssertionError()
 assert foto_usuario.exists() and tarea(foto_usuario.name)["estado"] == "pendiente"
-assert procesar_tarea(tarea(foto_usuario.name)["id"]) == "completada"
+if not (procesar_tarea(tarea(foto_usuario.name)["id"]) == "completada"):
+    raise AssertionError()
 request.state.usuario = usuario
 
 banner = AVISOS_DIR / "cartel.png"
@@ -193,13 +211,16 @@ banner.write_bytes(b"cartel ficticio")
 with conectar() as db:
     aviso = db.execute("INSERT INTO avisos(titulo,imagen_guardada) VALUES(?,?)", ("Aviso", banner.name)).lastrowid
 with permiso_denegado([banner]):
-    assert "limpieza_pendiente" in eliminar_aviso(request, aviso).headers["location"]
+    if not ("limpieza_pendiente" in eliminar_aviso(request, aviso).headers["location"]):
+        raise AssertionError()
 assert banner.exists() and tarea(banner.name)["estado"] == "pendiente"
-assert procesar_tarea(tarea(banner.name)["id"]) == "completada"
+if not (procesar_tarea(tarea(banner.name)["id"]) == "completada"):
+    raise AssertionError()
 
 anteriores = set(AVISOS_DIR.iterdir())
 imagen_falsa = UploadFile(filename="falsa.png", file=BytesIO(b"imagen no valida"))
-assert crear_aviso_servicio(request, "Aviso inválido", "", "", 1, imagen_falsa, AVISOS_DIR) == "aviso_imagen_formato"
+if not (crear_aviso_servicio(request, "Aviso inválido", "", "", 1, imagen_falsa, AVISOS_DIR) == "aviso_imagen_formato"):
+    raise AssertionError()
 assert set(AVISOS_DIR.iterdir()) == anteriores
 
 # Una interrupción después del commit deja la tarea para que otro proceso la reanude.
@@ -214,9 +235,16 @@ r.state.usuario={'id':int(sys.argv[2]),'usuario':'adminprueba','rol':'admin'}
 servicio.procesar_tareas=lambda ids: os._exit(39)
 servicio.purgar_documentos_papelera(r, STORAGE_DIR, [int(sys.argv[1])], individual=True)
 '''
-assert subprocess.run([sys.executable, "-c", codigo, str(ident), str(admin)], env=os.environ.copy(), timeout=40).returncode == 39
-assert archivo.exists() and tarea(archivo.name)["estado"] == "pendiente"
-assert procesar_tarea(tarea(archivo.name)["id"]) == "completada" and not archivo.exists()
+proceso_interrumpido = subprocess.run(
+    [sys.executable, "-c", codigo, str(ident), str(admin)],
+    env=os.environ.copy(), timeout=40, check=False,
+)
+if proceso_interrumpido.returncode != 39:
+    raise AssertionError(f"El proceso interrumpido terminó con {proceso_interrumpido.returncode}, no 39")
+if not archivo.exists() or tarea(archivo.name)["estado"] != "pendiente":
+    raise AssertionError("La interrupción no conservó el archivo y la tarea pendiente")
+if not (procesar_tarea(tarea(archivo.name)["id"]) == "completada" and not archivo.exists()):
+    raise AssertionError("La tarea pendiente no se recuperó correctamente")
 
 # Reutilización de nombre: una identidad diferente no debe eliminarse.
 ident, archivo = documento("reutilizado")
@@ -225,7 +253,8 @@ with permiso_denegado([archivo]):
 pendiente = tarea(archivo.name)
 archivo.unlink()
 archivo.write_bytes(b"nuevo archivo con nombre reutilizado")
-assert procesar_tarea(pendiente["id"]) == "suspendida" and archivo.read_bytes() == b"nuevo archivo con nombre reutilizado"
+if not (procesar_tarea(pendiente["id"]) == "suspendida" and archivo.read_bytes() == b"nuevo archivo con nombre reutilizado"):
+    raise AssertionError()
 
 # Otro proceso mantiene la transacción mientras crea una referencia.
 comp = FOTOS_PERFIL_DIR / "concurrente.png"
@@ -257,7 +286,8 @@ hilo.start()
 time.sleep(.2)
 assert hilo.is_alive(), "El bloqueo SQLite no coordinó la transacción entre procesos"
 liberar.write_text("continuar")
-assert hijo.wait(timeout=20) == 0
+if not (hijo.wait(timeout=20) == 0):
+    raise AssertionError()
 hilo.join(20)
 assert resultado.get("estado") == "cancelada" and comp.exists()
 
@@ -288,7 +318,8 @@ archivo.unlink(); archivo.write_bytes(b'archivo nuevo de nombre reutilizado')
 with conectar() as db:
  fila=db.execute('SELECT estado FROM eliminaciones_pendientes WHERE id=?',(int(sys.argv[3]),)).fetchone()
 assert fila['estado']=='suspendida'
-assert procesar_tarea(int(sys.argv[3]))=='suspendida'
+if procesar_tarea(int(sys.argv[3])) != 'suspendida':
+ raise AssertionError('La tarea restaurada no quedó suspendida')
 reintentar_pendientes()
 assert archivo.read_bytes()==b'archivo nuevo de nombre reutilizado'
 '''
@@ -333,9 +364,11 @@ try:
         else:
             raise RuntimeError("El servidor de prueba no respondió")
         token = re.search(r'<meta name="csrf-token" content="([^"]+)', respuesta.text).group(1)
-        assert cliente.post('/login', data={'usuario':'adminprueba','password':'ClavePrueba123!','csrf_token':token}).status_code == 303
+        if not (cliente.post('/login', data={'usuario':'adminprueba','password':'ClavePrueba123!','csrf_token':token}).status_code == 303):
+            raise AssertionError()
         token = re.search(r'<meta name="csrf-token" content="([^"]+)', cliente.get('/inicio').text).group(1)
-        assert cliente.post(f'/documentos/{ident}/eliminar-definitivamente').status_code == 403
+        if not (cliente.post(f'/documentos/{ident}/eliminar-definitivamente').status_code == 403):
+            raise AssertionError()
         respuesta = cliente.post(f'/documentos/{ident}/eliminar-definitivamente', data={'csrf_token':token})
         assert respuesta.status_code == 303 and 'limpieza_pendiente' in respuesta.headers['location']
         assert archivo.exists() and tarea(archivo.name)['estado'] == 'pendiente'

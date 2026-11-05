@@ -112,8 +112,10 @@ try:
         destino = DATA_DIR / "concurrente.zip"
         hilo, parche = ejecutar_con_pausa(destino, original["nombre_guardado"])
         try:
-            assert post(f'/documentos/{original["id"]}/eliminar').status_code == 303
-            assert post(f'/documentos/{original["id"]}/restaurar').status_code == 303
+            if not (post(f'/documentos/{original["id"]}/eliminar').status_code == 303):
+                raise AssertionError()
+            if not (post(f'/documentos/{original["id"]}/restaurar').status_code == 303):
+                raise AssertionError()
             nuevo = subir("nuevo", b"contenido nuevo ficticio")
         finally:
             continuar.set()
@@ -154,8 +156,10 @@ with conectar() as db:
         destino_fallido = DATA_DIR / "eliminacion-concurrente.zip"
         hilo, parche = ejecutar_con_pausa(destino_fallido, nuevo["nombre_guardado"])
         try:
-            assert post(f'/documentos/{nuevo["id"]}/eliminar').status_code == 303
-            assert post(f'/documentos/{nuevo["id"]}/eliminar-definitivamente').status_code == 303
+            if not (post(f'/documentos/{nuevo["id"]}/eliminar').status_code == 303):
+                raise AssertionError()
+            if not (post(f'/documentos/{nuevo["id"]}/eliminar-definitivamente').status_code == 303):
+                raise AssertionError()
         finally:
             continuar.set()
             hilo.join(60)
@@ -239,7 +243,8 @@ respaldo.crear_respaldo(DATA_DIR / 'proceso-interrumpido.zip')
         proceso = subprocess.Popen([sys.executable, "-c", codigo], env=os.environ.copy(), stdout=subprocess.DEVNULL,
                                    stderr=subprocess.DEVNULL, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         marca = DATA_DIR / "prueba-pausada.flag"
-        assert proceso.wait(timeout=60) == 23
+        if not (proceso.wait(timeout=60) == 23):
+            raise AssertionError()
         assert marca.exists(), "El proceso de prueba no comenzó a copiar"
         assert not (DATA_DIR / "proceso-interrumpido.zip").exists()
         marca.unlink(missing_ok=True)

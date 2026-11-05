@@ -65,7 +65,8 @@ debe_fallar(cambiar_estado, req, editor, 0)
 debe_fallar(restablecer_password, req, editor, "NuevaClaveFicticia123!", "NuevaClaveFicticia123!")
 debe_fallar(crear_usuario_web, req, "nuevo", "Nuevo", "lector", "ClaveFicticia123!", "ClaveFicticia123!", "Tesorería")
 debe_fallar(crear_expediente, req, "Expediente ficticio", "")
-assert crear_aviso_servicio(req, "Aviso ficticio", "Texto", "", 1, None, STORAGE_DIR / "avisos") == "aviso_error"
+if not (crear_aviso_servicio(req, "Aviso ficticio", "Texto", "", 1, None, STORAGE_DIR / "avisos") == "aviso_error"):
+    raise AssertionError()
 debe_fallar(subir, req, "Nuevo documento", "Otros", "", "", "Tesorería", "", "",
             UploadFile(filename="ficticio.txt", file=BytesIO(b"documento de prueba")))
 with conectar() as db:
@@ -151,7 +152,8 @@ with conectar() as db:
     assert db.execute("SELECT COUNT(*) FROM actividad WHERE detalle='interrupcion ficticia'").fetchone()[0] == 1
 
 req.scope["session"] = {"usuario_id": admin, "version": 0}
-assert "eliminado_definitivo" in eliminar_definitivamente(req, ids[4]).headers["location"]
+if not ("eliminado_definitivo" in eliminar_definitivamente(req, ids[4]).headers["location"]):
+    raise AssertionError()
 with conectar() as db:
     registros = db.execute("SELECT resultado,detalle FROM actividad WHERE accion='eliminar_definitivo' AND entidad_id=? ORDER BY id", (ids[4],)).fetchall()
     assert len(registros) == 2
@@ -166,12 +168,14 @@ with conectar() as db:
     documento = db.execute("INSERT INTO documentos(titulo,nombre_archivo,nombre_guardado,categoria,tamano_bytes,eliminado_en) VALUES(?,?,?,?,?,?)",
                            ("Interrupción", nombre, nombre, "Otros", 8, "2026-01-01")).lastrowid
     db.execute("CREATE TRIGGER fallo_limpieza BEFORE INSERT ON actividad WHEN NEW.detalle LIKE 'limpieza física %' BEGIN SELECT RAISE(FAIL, 'fallo limpieza ficticio'); END")
-assert "limpieza_pendiente" in eliminar_definitivamente(req, documento).headers["location"]
+if not ("limpieza_pendiente" in eliminar_definitivamente(req, documento).headers["location"]):
+    raise AssertionError()
 assert not (STORAGE_DIR / nombre).exists()
 with conectar() as db:
     tarea = db.execute("SELECT id,estado FROM eliminaciones_pendientes WHERE nombre=?", (nombre,)).fetchone()
     assert tarea["estado"] == "pendiente"
     db.execute("DROP TRIGGER fallo_limpieza")
-assert procesar_tarea(tarea["id"]) == "completada"
+if not (procesar_tarea(tarea["id"]) == "completada"):
+    raise AssertionError()
 with conectar() as db:
     assert db.execute("SELECT COUNT(*) FROM actividad WHERE entidad_id=? AND detalle LIKE 'limpieza física completada%'", (documento,)).fetchone()[0] == 1

@@ -95,7 +95,8 @@ def intercalar(primera, segunda):
         a = threading.Thread(target=ejecutar,args=('a',primera),name='primera')
         b = threading.Thread(target=ejecutar,args=('b',segunda),name='segunda')
         a.start()
-        assert tomada.wait(20), resultados
+        if not (tomada.wait(20)):
+            raise AssertionError(resultados)
         b.start()
         b.join(.3)
         assert b.is_alive(), 'La segunda escritura no esperó el bloqueo SQLite'
