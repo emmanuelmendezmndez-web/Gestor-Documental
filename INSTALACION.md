@@ -76,8 +76,8 @@ Para ejecutar la suite, instale el grupo `pruebas` y use:
 
 Las pruebas crean bases y archivos ficticios temporales. No dirija herramientas
 de carga a una instalación con datos reales. `locustfile.py` está disponible
-mediante el grupo `carga`, pero su inicio de sesión debe actualizarse para enviar
-el token CSRF antes de emplearlo para medir carga.
+mediante el grupo `carga` y utiliza las variables `SIGED_LOCUST_USUARIO` y
+`SIGED_LOCUST_PASSWORD` con una cuenta ficticia de la instancia de pruebas.
 
 Los comandos de respaldo utilizan el directorio de datos configurado:
 
