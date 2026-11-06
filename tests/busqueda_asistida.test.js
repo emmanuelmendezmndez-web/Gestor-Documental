@@ -8,15 +8,16 @@ const path = require('node:path');
 function iniciar() {
     const controles = {};
     for (const id of ['busqueda-asistida', 'abrir-busqueda-asistida', 'cerrar-busqueda-asistida',
-        'frase-busqueda-asistida', 'filtros-sugeridos', 'form-busqueda-asistida']) {
+        'busqueda-global', 'consulta-asistida-texto', 'editar-consulta-asistida', 'filtros-sugeridos', 'form-busqueda-asistida']) {
         controles[id] = { value: '', hidden: true, listeners: {}, addEventListener(tipo, fn) { this.listeners[tipo] = fn; } };
     }
     const dialogo = controles['busqueda-asistida'];
     dialogo.querySelector = () => null;
     dialogo.querySelectorAll = () => [];
-    dialogo.showModal = () => {};
-    dialogo.close = () => {};
-    controles['frase-busqueda-asistida'].focus = () => {};
+    dialogo.showModal = () => { dialogo.open = true; };
+    dialogo.close = () => { dialogo.open = false; };
+    controles['busqueda-global'].focus = () => { controles['busqueda-global'].enfocado = true; };
+    controles['editar-consulta-asistida'].focus = () => {};
     let destino;
     const window = {
         sigedOpcionesBusqueda: { categorias: ['Contratos', 'Actas', 'Informes', 'Certificados', 'Bitacoras', 'Inventarios', 'Otros'],
@@ -60,12 +61,32 @@ test('el envío asistido utiliza los filtros propuestos y rechaza una frase vac�
     const form = prueba.controles['form-busqueda-asistida'];
     form.listeners.submit({ preventDefault() {} });
     assert.equal(prueba.destino(), undefined);
-    prueba.controles['frase-busqueda-asistida'].value = 'contratos marzo';
+    prueba.controles['busqueda-global'].value = 'contratos marzo';
+    prueba.controles['abrir-busqueda-asistida'].listeners.click();
     form.listeners.submit({ preventDefault() {} });
     const params = new URLSearchParams(prueba.destino().slice(2));
     assert.equal(params.get('categoria'), 'Contratos');
     assert.equal(params.get('desde'), '2026-03-01');
     assert.equal(params.get('hasta'), '2026-03-31');
+});
+
+test('el diálogo usa la consulta compartida y permite editarla o cancelarla', () => {
+    const prueba = iniciar();
+    const controles = prueba.controles;
+    controles['busqueda-global'].value = 'contratos marzo';
+    controles['abrir-busqueda-asistida'].listeners.click();
+    assert.equal(controles['busqueda-asistida'].open, true);
+    assert.equal(controles['consulta-asistida-texto'].textContent, 'contratos marzo');
+    controles['cerrar-busqueda-asistida'].listeners.click();
+    assert.equal(controles['busqueda-asistida'].open, false);
+    assert.equal(controles['busqueda-global'].value, 'contratos marzo');
+    assert.equal(prueba.destino(), undefined);
+    controles['busqueda-global'].value = '';
+    controles['abrir-busqueda-asistida'].listeners.click();
+    assert.equal(controles['consulta-asistida-texto'].textContent, 'Sin consulta escrita');
+    controles['editar-consulta-asistida'].listeners.click();
+    assert.equal(controles['busqueda-asistida'].open, false);
+    assert.equal(controles['busqueda-global'].enfocado, true);
 });
 
 test('el intérprete separado coincide con las reglas anteriores y funciona sin DOM', () => {

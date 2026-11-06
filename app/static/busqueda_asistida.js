@@ -2,10 +2,12 @@
     const dialogo = document.getElementById("busqueda-asistida");
     const abrir = document.getElementById("abrir-busqueda-asistida");
     const cerrar = document.getElementById("cerrar-busqueda-asistida");
-    const frase = document.getElementById("frase-busqueda-asistida");
+    const frase = document.getElementById("busqueda-global");
+    const consultaTexto = document.getElementById("consulta-asistida-texto");
+    const editarConsulta = document.getElementById("editar-consulta-asistida");
     const resumen = document.getElementById("filtros-sugeridos");
     const formulario = document.getElementById("form-busqueda-asistida");
-    if (!dialogo || !abrir || !frase || !resumen || !formulario) return;
+    if (!dialogo || !abrir || !frase || !consultaTexto || !editarConsulta || !resumen || !formulario) return;
 
     const categorias = window.sigedOpcionesBusqueda?.categorias || [];
     const areas = window.sigedOpcionesBusqueda?.areas || [];
@@ -16,6 +18,7 @@
         botonArea.textContent = areaRapida ? `📁 ${areaRapida}` : "📁 Otros";
     }
     let busquedaRapida = null;
+    let consulta = "";
     const fechaLocal = fecha => `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, "0")}-${String(fecha.getDate()).padStart(2, "0")}`;
     const ultimoMes = () => {
         const hoy = new Date();
@@ -76,7 +79,8 @@
     const expedienteVisitado = window.location.pathname.match(/^\/expedientes\/(\d+)$/);
     if (expedienteVisitado) guardarHabito({ tipo: "expediente", valor: expedienteVisitado[1] });
     function actualizar() {
-        const filtros = busquedaRapida ? filtrosRapidos[busquedaRapida]() : window.sigedInterpretarBusqueda(frase.value, categorias, areas);
+        const filtros = busquedaRapida ? filtrosRapidos[busquedaRapida]() : window.sigedInterpretarBusqueda(consulta, categorias, areas);
+        consultaTexto.textContent = consulta || "Sin consulta escrita";
         const etiquetas = { buscar: "Texto", categoria: "Categoría", departamento: "Área", oficio: "Oficio", desde: "Desde", hasta: "Hasta" };
         resumen.hidden = !Object.entries(filtros).length;
         resumen.textContent = Object.entries(filtros).length
@@ -84,13 +88,13 @@
             : "";
         return filtros;
     }
-    abrir.addEventListener("click", () => { busquedaRapida = null; frase.value = ""; dialogo.showModal(); frase.focus(); actualizar(); });
+    abrir.addEventListener("click", () => { busquedaRapida = null; consulta = frase.value; actualizar(); dialogo.showModal(); editarConsulta.focus(); });
     cerrar.addEventListener("click", () => dialogo.close());
-    frase.addEventListener("input", () => { busquedaRapida = null; actualizar(); });
+    editarConsulta.addEventListener("click", () => { dialogo.close(); frase.focus(); });
     dialogo.querySelectorAll("[data-busqueda-rapida]").forEach(boton => {
         boton.addEventListener("click", () => {
             busquedaRapida = boton.dataset.busquedaRapida;
-            frase.value = boton.textContent.trim().replace(/^[^\p{L}]+/u, "");
+            consulta = boton.textContent.trim().replace(/^[^\p{L}]+/u, "");
             actualizar();
         });
     });
@@ -100,7 +104,7 @@
         if (!Object.keys(filtros).length) {
             resumen.hidden = false;
             resumen.textContent = "Escribe qué documento buscas o elige una búsqueda rápida.";
-            frase.focus();
+            editarConsulta.focus();
             return;
         }
         guardarHabito({ tipo: "busqueda", filtros });
