@@ -7,7 +7,7 @@ node --test tests/busqueda_asistida.test.js
 .\.venv\Scripts\python.exe -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
-Las pruebas JavaScript cargan el archivo de producción en un contexto aislado de Node. Exponen `interpretar` únicamente en la copia en memoria y usan una fecha fija y un DOM simulado. Esta instrumentación depende de la estructura actual del archivo: si cambia, la prueba debe revisarse, no interpretarse automáticamente como un fallo funcional. El envío simulado comprueba los parámetros generados, pero no sustituye una prueba de navegador.
+Las pruebas JavaScript cargan el intérprete y la interfaz de producción en un contexto aislado de Node, con fecha fija y DOM simulado. También comparan el intérprete separado con una copia de las reglas anteriores en `fixtures/interprete_anterior.js`, y lo ejecutan sin DOM. El envío simulado comprueba los parámetros generados, pero no sustituye una prueba de navegador.
 
 La prueba HTTP usa el servidor temporal de `test_csrf`, datos ficticios y una base SQLite separada. Comprueba búsquedas, filtros, papelera, roles, áreas, acceso directo y separación de hábitos; no abre documentos físicos reales.
 

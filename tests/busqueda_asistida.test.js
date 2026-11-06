@@ -1,4 +1,4 @@
-// Ejecuta el archivo real en un DOM simulado. La exposición solo existe en memoria.
+// Ejecuta los archivos reales en un DOM simulado, en el mismo orden del navegador.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -31,12 +31,12 @@ function iniciar() {
         fetch: async () => ({ ok: true, json: async () => ({}) }),
         document: { getElementById: id => controles[id], querySelector: () => null, addEventListener() {} },
     };
-    const archivo = path.join(__dirname, '..', 'app', 'static', 'busqueda_asistida.js');
-    const fuente = fs.readFileSync(archivo, 'utf8');
-    const marca = '    function actualizar() {';
-    assert.equal(fuente.split(marca).length, 2, 'Cambió el punto de instrumentación de la prueba');
-    vm.runInNewContext(fuente.replace(marca, '    window.interpretarPrueba = interpretar;\n' + marca), contexto);
-    return { interpretar: texto => JSON.parse(JSON.stringify(window.interpretarPrueba(texto))), controles, destino: () => destino };
+    for (const nombre of ['interprete_busqueda.js', 'busqueda_asistida.js']) {
+        const archivo = path.join(__dirname, '..', 'app', 'static', nombre);
+        vm.runInNewContext(fs.readFileSync(archivo, 'utf8'), contexto);
+    }
+    return { interpretar: texto => JSON.parse(JSON.stringify(window.sigedInterpretarBusqueda(
+        texto, window.sigedOpcionesBusqueda.categorias, window.sigedOpcionesBusqueda.areas))), controles, destino: () => destino };
 }
 
 test('reglas actuales de interpretación, incluidas ambigüedades', () => {
@@ -66,4 +66,29 @@ test('el envío asistido utiliza los filtros propuestos y rechaza una frase vac�
     assert.equal(params.get('categoria'), 'Contratos');
     assert.equal(params.get('desde'), '2026-03-01');
     assert.equal(params.get('hasta'), '2026-03-31');
+});
+
+test('el intérprete separado coincide con las reglas anteriores y funciona sin DOM', () => {
+    const categorias = ['Contratos', 'Actas', 'Informes', 'Certificados', 'Bitacoras', 'Inventarios', 'Otros'];
+    const areas = ['Tesorería', 'Obras Públicas', 'Recursos Humanos'];
+    class Fecha extends Date {
+        constructor(...args) { super(...(args.length ? args : ['2026-10-28T12:00:00'])); }
+    }
+    const anterior = { module: { exports: {} }, Date: Fecha };
+    vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'fixtures', 'interprete_anterior.js'), 'utf8'), anterior);
+    const viejo = anterior.module.exports(categorias, areas);
+    const actual = { window: {}, Date: Fecha };
+    vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'app', 'static', 'interprete_busqueda.js'), 'utf8'), actual);
+    const consultas = ['', '   ', 'documento', '%%%_@', 'OFICIO OF-123/2026', 'of. no. 22/2024',
+        'contratos de Obras Públicas marzo 2025', 'contrato de alumbrado del año pasado',
+        'bitácoras y ACTAS', 'certificados Tesorería', 'inventarios recursos humanos',
+        'informe febrero 2024', 'informe febrero 2023', 'diciembre este año', 'marzo',
+        'de enero a marzo', '2024 2025', 'oficios sin número', 'archivo documentos',
+        'café-público / foo_bar', 'x'.repeat(250), 'TESORERIA', 'Oficio 123/2026 marzo',
+        'enero y obras públicas', 'contratos inventarios', 'oficio número A-1'];
+    for (const consulta of consultas) {
+        const esperado = JSON.parse(JSON.stringify(viejo(consulta)));
+        const obtenido = JSON.parse(JSON.stringify(actual.window.sigedInterpretarBusqueda(consulta, categorias, areas)));
+        assert.deepEqual(obtenido, esperado, consulta);
+    }
 });
