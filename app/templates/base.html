@@ -6,7 +6,7 @@
     <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{% block titulo %}SIGED | Panel de Control{% endblock %}</title>
     <link rel="icon" type="image/png" href="{{ url_for('static', path='img/siged-isotipo.png') }}?v=1">
-    <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}?v=23&busqueda=1">
+    <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}?v=23&busqueda=3">
     {% if usuario %}
     <link rel="stylesheet" href="{{ url_for('static', path='clippy/clippy.css') }}?v=6">
     {% endif %}
@@ -143,9 +143,9 @@
             <script src="{{ url_for('static', path='dialogos.js') }}?v=1"></script>
             <script src="{{ url_for('static', path='navegacion.js') }}?v=1"></script>
             <dialog id="busqueda-asistida" class="busqueda-asistida-dialogo" aria-labelledby="busqueda-asistida-titulo">
-                <form method="dialog" id="form-busqueda-asistida">
+                <form method="dialog" id="form-busqueda-asistida" novalidate>
                     <h2 id="busqueda-asistida-titulo">Buscar con Clippy</h2>
-                    <p>Describe qué documento buscas. Clippy propondrá filtros que puedes revisar antes de aplicarlos.</p>
+                    <p>Revisa los filtros para buscar documentos en Biblioteca. La búsqueda global también encuentra expedientes.</p>
                     <div class="consulta-asistida">
                         <span>Consulta:</span>
                         <p id="consulta-asistida-texto"></p>
@@ -156,6 +156,21 @@
                         <button type="button" data-busqueda-rapida="obras">📁 Obras públicas</button>
                         <button type="button" data-busqueda-rapida="mes">📅 Último mes</button>
                     </div>
+                    <p class="ayuda-filtros">Los valores propuestos proceden de reglas y pueden ser suposiciones; revisa las fechas. Se usa la fecha del documento o, si falta, la de subida. Los cambios manuales se indican en cada campo.</p>
+                    <div id="filtros-reconocidos" class="filtros-asistidos" aria-label="Filtros reconocidos"></div>
+                    <p id="sin-filtros-reconocidos" class="ayuda-filtros" hidden>No se reconocieron filtros. Puedes agregarlos a continuación.</p>
+                    <details id="agregar-filtros" class="agregar-filtros">
+                        <summary>Agregar filtros <span id="filtros-adicionales-activos"></span></summary>
+                        <div id="filtros-adicionales" class="filtros-asistidos">
+                            <div data-filtro="buscar"><label for="asistido-buscar">Texto de búsqueda</label><input id="asistido-buscar" name="buscar" type="search" maxlength="200"><small data-origen="buscar"></small></div>
+                            <div data-filtro="categoria"><label for="asistido-categoria">Categoría</label><select id="asistido-categoria" name="categoria"><option value="">Todas las categorías</option>{% for cat in asistente_categorias %}<option value="{{ cat }}">{{ cat }}</option>{% endfor %}</select><small data-origen="categoria"></small></div>
+                            <div data-filtro="departamento"><label for="asistido-departamento">Departamento</label><select id="asistido-departamento" name="departamento"><option value="">Todos los departamentos</option>{% for dep in asistente_areas %}<option value="{{ dep }}">{{ dep }}</option>{% endfor %}</select><small data-origen="departamento"></small></div>
+                            <div data-filtro="oficio"><label for="asistido-oficio">Número de oficio</label><input id="asistido-oficio" name="oficio" type="text" maxlength="60"><small data-origen="oficio"></small></div>
+                            <div data-filtro="autor"><label for="asistido-autor">Autor</label><input id="asistido-autor" name="autor" type="text" maxlength="100"><small data-origen="autor"></small></div>
+                            <div data-filtro="desde"><label for="asistido-desde">Fecha inicial</label><input id="asistido-desde" name="desde" type="date"><small data-origen="desde"></small></div>
+                            <div data-filtro="hasta"><label for="asistido-hasta">Fecha final</label><input id="asistido-hasta" name="hasta" type="date"><small data-origen="hasta"></small></div>
+                        </div>
+                    </details>
                     <p id="filtros-sugeridos" role="status" hidden></p>
                     <div class="busqueda-asistida-acciones">
                         <button type="button" class="boton-secundario" id="cerrar-busqueda-asistida">Cancelar</button>
@@ -168,7 +183,7 @@
                 data-clippy='{{ dict(basePath=url_for("static", path="clippy/agents") ~ "/", cantidadExpediente=(documentos|length if expediente is defined and documentos is defined else none), bibliotecaSinResultados=(pagina == "biblioteca" and hay_filtros|default(false) and total|default(0) == 0), busquedaSinResultados=(pagina == "buscar" and not buscar_vacio|default(true) and not documentos_encontrados|default([]) and not expedientes_encontrados|default([])), discoLleno=(almacenamiento is defined and almacenamiento["disponible"] and almacenamiento["porcentaje"] >= 90), saludoEntrada=saludo_clippy_entrada|default(false), nombre=(usuario["nombre"].split()|first|default("Usuario", true)), usuarioId=usuario["id"], puedeSubir=puede("subir"), puedeRestaurar=puede("restaurar"), puedeUsuarios=puede("usuarios"), puedeActividad=puede("actividad"))|tojson }}'></div>
             <script src="{{ url_for('static', path='siged_configuracion.js') }}?v=1"></script>
             <script src="{{ url_for('static', path='interprete_busqueda.js') }}?v=1"></script>
-            <script src="{{ url_for('static', path='busqueda_asistida.js') }}?v=8"></script>
+            <script src="{{ url_for('static', path='busqueda_asistida.js') }}?v=10"></script>
             <script src="{{ url_for('static', path='clippy/jquery.min.js') }}"></script>
             <script src="{{ url_for('static', path='clippy/clippy.min.js') }}"></script>
             <script src="{{ url_for('static', path='clippy_asistente.js') }}?v=1"></script>

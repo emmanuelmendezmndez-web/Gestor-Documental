@@ -8,7 +8,9 @@ const path = require('node:path');
 function iniciar() {
     const controles = {};
     for (const id of ['busqueda-asistida', 'abrir-busqueda-asistida', 'cerrar-busqueda-asistida',
-        'busqueda-global', 'consulta-asistida-texto', 'editar-consulta-asistida', 'filtros-sugeridos', 'form-busqueda-asistida']) {
+        'busqueda-global', 'consulta-asistida-texto', 'editar-consulta-asistida', 'filtros-sugeridos', 'form-busqueda-asistida',
+        'filtros-reconocidos', 'filtros-adicionales', 'agregar-filtros', 'sin-filtros-reconocidos', 'filtros-adicionales-activos',
+        ...['buscar', 'categoria', 'departamento', 'oficio', 'autor', 'desde', 'hasta'].map(clave => `asistido-${clave}`)]) {
         controles[id] = { value: '', hidden: true, listeners: {}, addEventListener(tipo, fn) { this.listeners[tipo] = fn; } };
     }
     const dialogo = controles['busqueda-asistida'];
@@ -18,6 +20,21 @@ function iniciar() {
     dialogo.close = () => { dialogo.open = false; };
     controles['busqueda-global'].focus = () => { controles['busqueda-global'].enfocado = true; };
     controles['editar-consulta-asistida'].focus = () => {};
+    controles['asistido-desde'].focus = () => {};
+    controles['form-busqueda-asistida'].reportValidity = () => true;
+    controles['form-busqueda-asistida'].checkValidity = () => true;
+    for (const id of ['filtros-reconocidos', 'filtros-adicionales']) {
+        controles[id].children = [];
+        Object.defineProperty(controles[id], 'childElementCount', {get() { return this.children.length; }});
+        controles[id].appendChild = function (grupo) {
+            if (grupo.parentElement) grupo.parentElement.children = grupo.parentElement.children.filter(item => item !== grupo);
+            this.children.push(grupo); grupo.parentElement = this;
+        };
+    }
+    for (const clave of ['buscar', 'categoria', 'departamento', 'oficio', 'autor', 'desde', 'hasta']) {
+        const grupo = {}; controles[`asistido-${clave}`].closest = () => grupo;
+        controles['filtros-adicionales'].appendChild(grupo);
+    }
     let destino;
     const window = {
         sigedOpcionesBusqueda: { categorias: ['Contratos', 'Actas', 'Informes', 'Certificados', 'Bitacoras', 'Inventarios', 'Otros'],
@@ -87,6 +104,75 @@ test('el diálogo usa la consulta compartida y permite editarla o cancelarla', (
     controles['editar-consulta-asistida'].listeners.click();
     assert.equal(controles['busqueda-asistida'].open, false);
     assert.equal(controles['busqueda-global'].enfocado, true);
+});
+
+test('se aplican los valores editados y se omiten los filtros eliminados', () => {
+    const prueba = iniciar(); const c = prueba.controles;
+    c['busqueda-global'].value = 'contratos de Tesorería marzo 2025';
+    c['abrir-busqueda-asistida'].listeners.click();
+    assert.equal(c['asistido-categoria'].value, 'Contratos');
+    assert.equal(c['asistido-departamento'].value, 'Tesorería');
+    for (const [campo, valor] of Object.entries({categoria:'Informes', departamento:'Recursos Humanos', desde:'2025-02-01', hasta:'2025-03-02', oficio:'OF-4', autor:'Autor ficticio', buscar:''})) {
+        c[`asistido-${campo}`].value = valor;
+        c[`asistido-${campo}`].listeners.input();
+    }
+    c['form-busqueda-asistida'].listeners.submit({preventDefault() {}});
+    const params = new URLSearchParams(prueba.destino().slice(2));
+    assert.deepEqual(Object.fromEntries(params), {categoria:'Informes', departamento:'Recursos Humanos', oficio:'OF-4', autor:'Autor ficticio', desde:'2025-02-01', hasta:'2025-03-02'});
+});
+
+test('se puede buscar con cada filtro añadido manualmente y sin consulta inicial', () => {
+    for (const [clave, valor] of Object.entries({buscar:'alumbrado', categoria:'Actas', departamento:'Tesorería', oficio:'OF-23', autor:'Autor', desde:'2025-01-01', hasta:'2025-12-31'})) {
+        const prueba = iniciar(); const c = prueba.controles;
+        c['abrir-busqueda-asistida'].listeners.click();
+        c[`asistido-${clave}`].value = valor;
+        c[`asistido-${clave}`].listeners.input();
+        c['form-busqueda-asistida'].listeners.submit({preventDefault() {}});
+        assert.deepEqual(Object.fromEntries(new URLSearchParams(prueba.destino().slice(2))), {[clave]:valor});
+    }
+});
+
+test('se rechazan rangos invertidos y se conservan filtros manuales al editar la consulta', () => {
+    const prueba = iniciar(); const c = prueba.controles;
+    c['busqueda-global'].value = 'contratos'; c['abrir-busqueda-asistida'].listeners.click();
+    c['asistido-autor'].value = 'Autor'; c['asistido-autor'].listeners.input();
+    c['editar-consulta-asistida'].listeners.click();
+    c['busqueda-global'].value = 'informes'; c['abrir-busqueda-asistida'].listeners.click();
+    assert.equal(c['asistido-categoria'].value, 'Informes');
+    assert.equal(c['asistido-autor'].value, 'Autor');
+    c['asistido-desde'].value = '2026-05-01'; c['asistido-hasta'].value = '2026-04-01';
+    c['form-busqueda-asistida'].listeners.submit({preventDefault() {}});
+    assert.equal(prueba.destino(), undefined);
+    assert.match(c['filtros-sugeridos'].textContent, /fecha inicial/);
+    c['asistido-desde'].value = '10000-01-01'; c['asistido-hasta'].value = '';
+    c['form-busqueda-asistida'].listeners.submit({preventDefault() {}});
+    assert.equal(prueba.destino(), undefined);
+    assert.match(c['filtros-sugeridos'].textContent, /cuatro cifras/);
+});
+
+test('los reconocidos se muestran primero y los adicionales conservan sus valores al plegarse', () => {
+    const prueba = iniciar(); const c = prueba.controles;
+    c['busqueda-global'].value = 'contratos de Tesorería';
+    c['abrir-busqueda-asistida'].listeners.click();
+    assert.equal(c['filtros-reconocidos'].childElementCount, 2);
+    assert.equal(c['filtros-adicionales'].childElementCount, 5);
+    c['agregar-filtros'].open = true;
+    c['asistido-autor'].value = 'Autor ficticio'; c['asistido-autor'].listeners.input();
+    assert.equal(c['filtros-adicionales-activos'].textContent, '(1 activo)');
+    c['agregar-filtros'].open = false; c['agregar-filtros'].open = true;
+    assert.equal(c['asistido-autor'].value, 'Autor ficticio');
+    c['agregar-filtros'].open = false;
+    c['form-busqueda-asistida'].listeners.submit({preventDefault() {}});
+    assert.equal(new URLSearchParams(prueba.destino().slice(2)).get('autor'), 'Autor ficticio');
+});
+
+test('se abre la sección adicional si un campo requiere corregirse', () => {
+    const prueba = iniciar(); const c = prueba.controles;
+    c['abrir-busqueda-asistida'].listeners.click();
+    c['form-busqueda-asistida'].checkValidity = () => false;
+    c['form-busqueda-asistida'].listeners.submit({preventDefault() {}});
+    assert.equal(c['agregar-filtros'].open, true);
+    assert.equal(prueba.destino(), undefined);
 });
 
 test('el intérprete separado coincide con las reglas anteriores y funciona sin DOM', () => {
