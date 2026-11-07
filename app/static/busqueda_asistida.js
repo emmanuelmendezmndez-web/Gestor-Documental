@@ -30,6 +30,14 @@
     let consulta = "";
     let ultimaFrase = null;
     let interpretacion = null;
+    let dudasPendientes = [];
+    const aclaracion = document.createElement("div");
+    aclaracion.className = "consulta-asistida";
+    aclaracion.setAttribute("role", "group");
+    aclaracion.setAttribute("aria-label", "Aclaración de búsqueda");
+    aclaracion.hidden = true;
+    aclaracion.style.display = "none";
+    resumen.after(aclaracion);
     const editados = new Set();
     const fechaLocal = fecha => `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, "0")}-${String(fecha.getDate()).padStart(2, "0")}`;
     const ultimoMes = () => {
@@ -101,6 +109,7 @@
     }
     function actualizar(conservarEditados = false) {
         interpretacion = busquedaRapida ? null : window.sigedInterpretarBusqueda.detallar(consulta, categorias, areas);
+        dudasPendientes = [...(interpretacion?.dudas || [])];
         const filtros = busquedaRapida ? filtrosRapidos[busquedaRapida]() : interpretacion.filtros;
         consultaTexto.textContent = consulta || "Sin consulta escrita";
         for (const clave of claves) {
@@ -113,7 +122,7 @@
         mostrarAvisos();
     }
     function mostrarAvisos(mensaje = "") {
-        const avisos = [...(mensaje ? [mensaje] : []), ...(interpretacion?.avisos || [])];
+        const avisos = [...(mensaje ? [mensaje] : []), ...(dudasPendientes.length ? ["Clippy encontró criterios que necesitan aclaración."] : [])];
         resumen.textContent = avisos.join(" ");
         if (interpretacion?.expediente) {
             const enlace = document.createElement("a");
@@ -122,6 +131,91 @@
             resumen.append(" ", enlace);
         }
         resumen.hidden = !avisos.length && !interpretacion?.expediente;
+        mostrarAclaracion();
+    }
+    function mostrarAclaracion(mensaje = "") {
+        aclaracion.replaceChildren();
+        const duda = dudasPendientes[0];
+        aclaracion.hidden = !duda;
+        aclaracion.style.display = duda ? "" : "none";
+        if (!duda) return;
+        const pregunta = document.createElement("p");
+        const opciones = [];
+        const agregarOpcion = (etiqueta, filtros, accion = "aplicar") => opciones.push({etiqueta, filtros, accion});
+        const fechaLocalSegura = (anio, parte, final = false) => {
+            const d = final && parte.dia === null ? new Date(anio, parte.mes + 1, 0) : new Date(anio, parte.mes, parte.dia);
+            return d.getFullYear() === anio && d.getMonth() === parte.mes ? fechaLocal(d) : null;
+        };
+        if (duda.tipo === "mes_sin_anio" || duda.tipo === "rango_sin_anio") {
+            pregunta.textContent = duda.tipo === "mes_sin_anio" ? `¿De qué año es ${duda.nombre}?` : "¿De qué año es el intervalo?";
+            const anio = new Date().getFullYear();
+            for (const valor of [anio, anio - 1]) {
+                const inicio = duda.inicio || {mes:duda.mes, dia:1};
+                const fin = duda.fin || {mes:duda.mes, dia:null};
+                const desde = fechaLocalSegura(valor, inicio), hasta = fechaLocalSegura(valor, fin, true);
+                if (desde && hasta && desde <= hasta) agregarOpcion(String(valor), {desde, hasta});
+            }
+            agregarOpcion("Otro año o intervalo", {}, "fechas");
+        } else if (duda.tipo === "fecha_numerica" || duda.tipo === "fechas_multiples") {
+            pregunta.textContent = duda.tipo === "fecha_numerica" ? "¿Qué fecha quisiste indicar?" : "Biblioteca solo admite un intervalo. ¿Cuál deseas aplicar?";
+            for (const opcion of duda.opciones) {
+                const filtros = typeof opcion === "string" ? {desde:opcion, hasta:opcion} : opcion;
+                agregarOpcion(filtros.desde === filtros.hasta ? filtros.desde : `${filtros.desde} a ${filtros.hasta}`, filtros);
+            }
+            agregarOpcion("Editar fechas", {}, "fechas");
+        } else if (duda.tipo === "categoria" || duda.tipo === "area") {
+            const clave = duda.tipo === "categoria" ? "categoria" : "departamento";
+            pregunta.textContent = duda.tipo === "categoria" ? "Biblioteca solo admite una categoría. ¿Cuál deseas usar?" : "¿Qué departamento deseas usar?";
+            for (const valor of duda.opciones) agregarOpcion(valor, {[clave]:valor});
+        } else if (duda.tipo === "obras") {
+            pregunta.textContent = "¿“Obras” es un tema o el departamento de Obras Públicas?";
+            agregarOpcion("Tema documental", {}, "tema");
+            agregarOpcion("Departamento Obras Públicas", {departamento:duda.area}, "area_obras");
+        } else {
+            pregunta.textContent = "El intervalo es incompleto o inválido. Puedes indicar las fechas manualmente.";
+            agregarOpcion("Editar fechas", {}, "fechas");
+        }
+        if (mensaje) pregunta.textContent += ` ${mensaje}`;
+        aclaracion.append(pregunta);
+        for (const opcion of opciones) {
+            const boton = document.createElement("button");
+            boton.type = "button"; boton.className = "boton-secundario"; boton.textContent = opcion.etiqueta;
+            boton.addEventListener("click", () => {
+                const clavesOpcion = Object.keys(opcion.filtros);
+                if (clavesOpcion.some(clave => editados.has(clave))) {
+                    mostrarAclaracion("Se conservaron tus filtros editados; ajústalos manualmente si lo deseas.");
+                    aclaracion.querySelector?.("button")?.focus();
+                    return;
+                }
+                if (opcion.accion === "fechas") {
+                    agregar.open = true; grupos.desde.parentElement === adicionales && agregar.scrollIntoView?.({block:"nearest"});
+                    campos.desde.focus();
+                }
+                for (const clave of clavesOpcion) {
+                    campos[clave].value = opcion.filtros[clave]; editados.add(clave);
+                    reconocidos.appendChild(grupos[clave]); mostrarOrigen(clave);
+                }
+                if (opcion.accion === "area_obras" && !editados.has("buscar")) {
+                    campos.buscar.value = campos.buscar.value.replace(/\bobras\b/i, " ").replace(/\s+/g, " ").trim();
+                    mostrarOrigen("buscar");
+                }
+                sinReconocidos.hidden = reconocidos.childElementCount > 0;
+                contarAdicionales(); dudasPendientes.shift(); mostrarAvisos();
+                if (opcion.accion !== "fechas") (aclaracion.querySelector?.("button") || editarConsulta).focus();
+            });
+            aclaracion.append(boton);
+        }
+        const omitir = document.createElement("button");
+        omitir.type = "button"; omitir.className = "boton-secundario"; omitir.textContent = "Dejar sin aplicar";
+        omitir.addEventListener("click", () => {
+            if (duda.tipo === "obras" && !editados.has("buscar")) {
+                campos.buscar.value = campos.buscar.value.replace(/\bobras\b/i, " ").replace(/\s+/g, " ").trim();
+                mostrarOrigen("buscar");
+            }
+            dudasPendientes.shift(); mostrarAvisos();
+            (aclaracion.querySelector?.("button") || editarConsulta).focus();
+        });
+        aclaracion.append(omitir);
     }
     for (const clave of claves) {
         campos[clave].addEventListener("input", () => { editados.add(clave); mostrarOrigen(clave); contarAdicionales(); });
@@ -133,7 +227,7 @@
             consulta = frase.value;
             actualizar(ultimaFrase !== null);
             ultimaFrase = frase.value;
-        }
+        } else if (!busquedaRapida) actualizar(true);
         dialogo.showModal();
         editarConsulta.focus();
     });
@@ -149,6 +243,11 @@
     });
     formulario.addEventListener("submit", evento => {
         evento.preventDefault();
+        if (dudasPendientes.length) {
+            mostrarAvisos("Resuelve la aclaración o elige dejarla sin aplicar antes de buscar.");
+            aclaracion.querySelector?.("button")?.focus();
+            return;
+        }
         if (!formulario.checkValidity()) { agregar.open = true; formulario.reportValidity(); return; }
         const filtros = Object.fromEntries(claves.map(clave => [clave, campos[clave].value.trim()]).filter(([, valor]) => valor));
         for (const clave of ["desde", "hasta"]) {

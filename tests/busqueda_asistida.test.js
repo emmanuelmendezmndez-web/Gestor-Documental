@@ -11,7 +11,7 @@ function iniciar() {
         'busqueda-global', 'consulta-asistida-texto', 'editar-consulta-asistida', 'filtros-sugeridos', 'form-busqueda-asistida',
         'filtros-reconocidos', 'filtros-adicionales', 'agregar-filtros', 'sin-filtros-reconocidos', 'filtros-adicionales-activos',
         ...['buscar', 'categoria', 'departamento', 'oficio', 'autor', 'desde', 'hasta'].map(clave => `asistido-${clave}`)]) {
-        controles[id] = { value: '', hidden: true, listeners: {}, addEventListener(tipo, fn) { this.listeners[tipo] = fn; }, append(...items) { this.agregados = items; } };
+        controles[id] = { value: '', hidden: true, listeners: {}, addEventListener(tipo, fn) { this.listeners[tipo] = fn; }, append(...items) { this.agregados = items; }, after(item) { this.siguiente = item; } };
     }
     const dialogo = controles['busqueda-asistida'];
     dialogo.querySelector = () => null;
@@ -47,7 +47,10 @@ function iniciar() {
     const contexto = { window, Date: Fecha, URLSearchParams, URL, console,
         sessionStorage: { getItem: () => '1', setItem() {} },
         fetch: async () => ({ ok: true, json: async () => ({}) }),
-        document: { getElementById: id => controles[id], querySelector: () => null, addEventListener() {}, createElement: () => ({}) },
+        document: { getElementById: id => controles[id], querySelector: () => null, addEventListener() {}, createElement: () => ({
+            children: [], listeners: {}, style: {}, setAttribute() {}, append(...items) { this.children.push(...items); },
+            replaceChildren() { this.children = []; }, addEventListener(tipo, fn) { this.listeners[tipo] = fn; },
+        }) },
     };
     for (const nombre of ['interprete_busqueda.js', 'busqueda_asistida.js']) {
         const archivo = path.join(__dirname, '..', 'app', 'static', nombre);
@@ -191,7 +194,121 @@ test('la interfaz muestra dudas temporales sin aplicar fechas', () => {
     assert.equal(c['asistido-categoria'].value, 'Informes');
     assert.equal(c['asistido-desde'].value, '');
     assert.equal(c['asistido-hasta'].value, '');
-    assert.match(c['filtros-sugeridos'].textContent, /año/);
+    assert.match(c['filtros-sugeridos'].siguiente.children[0].textContent, /año/);
+});
+
+test('elegir un año solo modifica fechas y conserva el filtro manual', () => {
+    const prueba = iniciar(), c = prueba.controles;
+    c['busqueda-global'].value = 'informes de marzo'; c['abrir-busqueda-asistida'].listeners.click();
+    c['asistido-categoria'].value = 'Actas'; c['asistido-categoria'].listeners.input();
+    const guia = c['filtros-sugeridos'].siguiente;
+    guia.children.find(x => x.textContent === '2026').listeners.click();
+    assert.equal(c['asistido-desde'].value, '2026-03-01');
+    assert.equal(c['asistido-hasta'].value, '2026-03-31');
+    assert.equal(c['asistido-categoria'].value, 'Actas');
+    assert.equal(prueba.destino(), undefined);
+});
+
+test('una aclaración no sobrescribe fechas editadas; puede omitirse y reiniciarse', () => {
+    const prueba = iniciar(), c = prueba.controles;
+    c['busqueda-global'].value = 'informes de marzo'; c['abrir-busqueda-asistida'].listeners.click();
+    c['asistido-desde'].value = '2020-01-01'; c['asistido-desde'].listeners.input();
+    let guia = c['filtros-sugeridos'].siguiente;
+    guia.children.find(x => x.textContent === '2026').listeners.click();
+    assert.equal(c['asistido-desde'].value, '2020-01-01');
+    assert.match(guia.children[0].textContent, /conservaron/);
+    guia.children.find(x => x.textContent === 'Dejar sin aplicar').listeners.click();
+    assert.equal(guia.hidden, true);
+    c['cerrar-busqueda-asistida'].listeners.click(); c['abrir-busqueda-asistida'].listeners.click();
+    guia = c['filtros-sugeridos'].siguiente;
+    assert.equal(guia.hidden, false);
+    assert.equal(c['asistido-desde'].value, '2020-01-01');
+});
+
+test('obras permite elegir tema o departamento sin modificar filtros manuales', () => {
+    const prueba = iniciar(), c = prueba.controles;
+    c['busqueda-global'].value = 'contratos de obras'; c['abrir-busqueda-asistida'].listeners.click();
+    assert.equal(c['asistido-buscar'].value, 'obras');
+    c['form-busqueda-asistida'].listeners.submit({preventDefault() {}});
+    assert.equal(prueba.destino(), undefined);
+    assert.match(c['filtros-sugeridos'].textContent, /aclaración/);
+    c['filtros-sugeridos'].siguiente.children.find(x => x.textContent === 'Departamento Obras Públicas').listeners.click();
+    assert.equal(c['asistido-departamento'].value, 'Obras Públicas');
+    assert.equal(c['asistido-buscar'].value, '');
+    assert.equal(c['asistido-categoria'].value, 'Contratos');
+    assert.equal(prueba.destino(), undefined);
+});
+
+test('se aclaran fecha y categoría sucesivamente sin ejecutar la búsqueda', () => {
+    const prueba = iniciar(), c = prueba.controles;
+    c['busqueda-global'].value = 'contratos y actas 03/04/2026'; c['abrir-busqueda-asistida'].listeners.click();
+    const guia = c['filtros-sugeridos'].siguiente;
+    guia.children.find(x => x.textContent === 'Actas').listeners.click();
+    assert.equal(c['asistido-categoria'].value, 'Actas');
+    guia.children.find(x => x.textContent === '2026-04-03').listeners.click();
+    assert.equal(c['asistido-desde'].value, '2026-04-03');
+    assert.equal(c['asistido-hasta'].value, '2026-04-03');
+    assert.equal(prueba.destino(), undefined);
+});
+
+test('dejar sin aplicar la duda de obras elimina el tema propuesto no editado', () => {
+    const prueba = iniciar(), c = prueba.controles;
+    c['busqueda-global'].value = 'contratos de obras'; c['abrir-busqueda-asistida'].listeners.click();
+    c['filtros-sugeridos'].siguiente.children.find(x => x.textContent === 'Dejar sin aplicar').listeners.click();
+    assert.equal(c['asistido-buscar'].value, '');
+    assert.equal(c['asistido-departamento'].value, '');
+});
+
+test('cada decisión sobre obras genera exactamente la URL confirmada', () => {
+    const casos = [
+        ['Tema documental', {buscar:'obras', categoria:'Contratos'}],
+        ['Departamento Obras Públicas', {categoria:'Contratos', departamento:'Obras Públicas'}],
+        ['Dejar sin aplicar', {categoria:'Contratos'}],
+    ];
+    for (const [decision, esperado] of casos) {
+        const prueba = iniciar(), c = prueba.controles;
+        c['busqueda-global'].value = 'contratos de obras'; c['abrir-busqueda-asistida'].listeners.click();
+        c['filtros-sugeridos'].siguiente.children.find(boton => boton.textContent === decision).listeners.click();
+        c['form-busqueda-asistida'].listeners.submit({preventDefault() {}});
+        assert.ok(prueba.destino().startsWith('/?'));
+        assert.deepEqual(Object.fromEntries(new URLSearchParams(prueba.destino().slice(2))), esperado, decision);
+    }
+});
+
+test('las decisiones sobre obras respetan texto, área y categoría editados manualmente', () => {
+    for (const decision of ['Tema documental', 'Departamento Obras Públicas', 'Dejar sin aplicar']) {
+        const prueba = iniciar(), c = prueba.controles;
+        c['busqueda-global'].value = 'contratos de obras'; c['abrir-busqueda-asistida'].listeners.click();
+        c['asistido-buscar'].value = 'obras de alumbrado'; c['asistido-buscar'].listeners.input();
+        c['asistido-categoria'].value = 'Actas'; c['asistido-categoria'].listeners.input();
+        c['filtros-sugeridos'].siguiente.children.find(boton => boton.textContent === decision).listeners.click();
+        assert.equal(c['asistido-buscar'].value, 'obras de alumbrado', decision);
+        assert.equal(c['asistido-categoria'].value, 'Actas', decision);
+        c['form-busqueda-asistida'].listeners.submit({preventDefault() {}});
+        const params = Object.fromEntries(new URLSearchParams(prueba.destino().slice(2)));
+        assert.deepEqual(params, decision === 'Departamento Obras Públicas'
+            ? {buscar:'obras de alumbrado', categoria:'Actas', departamento:'Obras Públicas'}
+            : {buscar:'obras de alumbrado', categoria:'Actas'}, decision);
+    }
+    const prueba = iniciar(), c = prueba.controles;
+    c['busqueda-global'].value = 'contratos de obras'; c['abrir-busqueda-asistida'].listeners.click();
+    c['asistido-departamento'].value = 'Tesorería'; c['asistido-departamento'].listeners.input();
+    const guia = c['filtros-sugeridos'].siguiente;
+    guia.children.find(boton => boton.textContent === 'Departamento Obras Públicas').listeners.click();
+    assert.equal(c['asistido-departamento'].value, 'Tesorería');
+    assert.match(guia.children[0].textContent, /conservaron/);
+    assert.equal(prueba.destino(), undefined);
+});
+
+test('dos años se presentan como alternativas y no como una búsqueda ejecutada', () => {
+    const prueba = iniciar(), c = prueba.controles;
+    c['busqueda-global'].value = 'contratos de 2025 y 2026'; c['abrir-busqueda-asistida'].listeners.click();
+    const guia = c['filtros-sugeridos'].siguiente;
+    assert.match(guia.children[0].textContent, /solo admite un intervalo/);
+    guia.children.find(x => x.textContent === '2025-01-01 a 2025-12-31').listeners.click();
+    assert.equal(c['asistido-desde'].value, '2025-01-01');
+    assert.equal(c['asistido-hasta'].value, '2025-12-31');
+    assert.equal(prueba.destino(), undefined);
 });
 
 test('los casos sin cambios deliberados siguen coincidiendo con las reglas anteriores', () => {

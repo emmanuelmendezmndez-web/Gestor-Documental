@@ -62,3 +62,18 @@ test('ambigüedad y contradicción producen aviso sin filtro temporal', () => {
     assert.deepEqual(evaluar('').filtros, {});
     assert.deepEqual(evaluar('%%%').filtros, {buscar:'%%%'});
 });
+
+test('las dudas guiadas describen opciones sin decidir por el usuario', () => {
+    const evaluar = motor();
+    assert.equal(evaluar('informes de marzo').dudas[0].tipo, 'mes_sin_anio');
+    assert.deepEqual(evaluar('03/04/2026').dudas[0].opciones, ['2026-04-03', '2026-03-04']);
+    assert.equal(evaluar('desde enero hasta').dudas[0].tipo, 'rango_incompleto');
+    assert.equal(evaluar('contratos de 2025 y 2026').dudas[0].tipo, 'fechas_multiples');
+    assert.deepEqual(evaluar('contratos y actas').dudas[0].opciones, ['Contratos', 'Actas']);
+    const obras = evaluar('contratos de obras');
+    assert.equal(obras.dudas[0].tipo, 'obras');
+    assert.equal(obras.filtros.departamento, undefined);
+    assert.equal(obras.filtros.buscar, 'obras');
+    assert.deepEqual(evaluar('informes de Tesorería enero de 2026').dudas, []);
+    assert.deepEqual(evaluar('').dudas, []);
+});

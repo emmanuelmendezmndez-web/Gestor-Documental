@@ -20,6 +20,7 @@ window.sigedInterpretarBusqueda = (() => {
         let restante = texto;
         const avisos = [];
         const rangos = [];
+        const dudas = [];
         function registrar(coincidencia, desde, hasta, problema) {
             restante = consumir(restante, coincidencia);
             if (problema || !desde || !hasta || desde > hasta) avisos.push(problema || "El intervalo de fechas no es válido; revísalo.");
@@ -31,11 +32,13 @@ window.sigedInterpretarBusqueda = (() => {
         const dias = new RegExp(`\\bentre\\s+(?:el\\s+)?(\\d{1,2})\\s+de\\s+(${mesPatron})\\s+(?:y|al)\\s+(?:el\\s+)?(\\d{1,2})\\s+de\\s+(${mesPatron})(?:\\s+(?:de\\s+)?${anyo})?\\b`);
         while ((m = dias.exec(restante))) {
             const y = m[5] ? Number(m[5]) : null;
+            if (!y) dudas.push({tipo:"rango_sin_anio", inicio:{dia:Number(m[1]),mes:meses.indexOf(m[2])}, fin:{dia:Number(m[3]),mes:meses.indexOf(m[4])}});
             registrar(m, y && fecha(y, meses.indexOf(m[2]), Number(m[1])), y && fecha(y, meses.indexOf(m[4]), Number(m[3])), y ? null : "El intervalo no indica año; añádelo para filtrar por fechas.");
         }
         const rangoMeses = new RegExp(`\\b(?:de|desde)\\s+(${mesPatron})\\s+(?:a|hasta)\\s+(${mesPatron})(?:\\s+(?:de\\s+)?${anyo})?\\b`);
         while ((m = rangoMeses.exec(restante))) {
             const y = m[3] ? Number(m[3]) : null, a = meses.indexOf(m[1]), b = meses.indexOf(m[2]);
+            if (!y) dudas.push({tipo:"rango_sin_anio", inicio:{dia:1,mes:a}, fin:{dia:null,mes:b}});
             registrar(m, y && fecha(y, a, 1), y && ultimoDia(y, b), y ? null : "El intervalo de meses no indica año; añádelo para filtrar por fechas.");
         }
         // ISO y día/mes/año; si ambos componentes son menores o iguales a 12 se pide aclaración.
@@ -43,7 +46,13 @@ window.sigedInterpretarBusqueda = (() => {
         while ((m = numerica.exec(restante))) {
             let d, problema;
             if (m[1]) d = fecha(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-            else if (Number(m[4]) <= 12 && Number(m[5]) <= 12) problema = "La fecha numérica es ambigua; usa AAAA-MM-DD.";
+            else if (Number(m[4]) <= 12 && Number(m[5]) <= 12) {
+                problema = "La fecha numérica es ambigua; elige su interpretación.";
+                const primera = fecha(Number(m[6]), Number(m[5]) - 1, Number(m[4]));
+                const segunda = fecha(Number(m[6]), Number(m[4]) - 1, Number(m[5]));
+                const opciones = [...new Set([primera, segunda].filter(Boolean).map(formatos))];
+                if (opciones.length > 1) dudas.push({tipo:"fecha_numerica", opciones});
+            }
             else d = fecha(Number(m[6]), Number(m[5]) - 1, Number(m[4]));
             registrar(m, d, d, problema); numerica.lastIndex = 0;
         }
@@ -79,17 +88,23 @@ window.sigedInterpretarBusqueda = (() => {
             const y = Number(m[2]), mes = meses.indexOf(m[1]); registrar(m, fecha(y, mes, 1), ultimoDia(y, mes));
         }
         const mesSinAnio = new RegExp(`\\b(${mesPatron})\\b`);
-        while ((m = mesSinAnio.exec(restante))) registrar(m, null, null, `No se indicó el año de ${m[1]}; añádelo para filtrar por fechas.`);
+        while ((m = mesSinAnio.exec(restante))) {
+            dudas.push({tipo:"mes_sin_anio", mes:meses.indexOf(m[1]), nombre:m[1]});
+            registrar(m, null, null, `No se indicó el año de ${m[1]}; añádelo para filtrar por fechas.`);
+        }
         const anioSolo = /\b(?:19|20)\d{2}\b/;
         while ((m = anioSolo.exec(restante))) { const y = Number(m[0]); registrar(m, fecha(y, 0, 1), fecha(y, 11, 31)); }
-        if (rangos.length > 1) avisos.push("Hay varias referencias de fecha; aclara cuál intervalo deseas aplicar.");
-        return { restante, fechas: rangos.length === 1 && !avisos.length ? rangos[0] : {}, avisos };
+        if (rangos.length > 1) {
+            avisos.push("Hay varias referencias de fecha; aclara cuál intervalo deseas aplicar.");
+            dudas.push({tipo:"fechas_multiples", opciones:rangos});
+        }
+        return { restante, fechas: rangos.length === 1 && !avisos.length ? rangos[0] : {}, avisos, dudas };
     }
 
     function detallar(entrada, categorias, areas) {
         const texto = normalizar(entrada.trim());
         let restante = texto;
-        const filtros = {}, avisos = [];
+        const filtros = {}, avisos = [], dudas = [];
         const expediente = texto.match(/\bexp[-/]\d{4}[-/]\d+\b/i);
         if (expediente) restante = consumir(restante, expediente);
         const oficio = restante.match(/\b(?:oficio|of\.|of(?=\s))\s*(?:numero|num\.?|no\.?)?\s*[:#-]?\s*((?=[a-z0-9\/-]*\d)[a-z0-9]+(?:[-\/][a-z0-9]+)*)/) ||
@@ -105,24 +120,38 @@ window.sigedInterpretarBusqueda = (() => {
             restante = restante.replace(encontrados[0].regla || encontrados[0].texto, " ");
         } else if (encontrados.length > 1) {
             avisos.push("Se mencionan varias áreas; elige el departamento manualmente.");
+            dudas.push({tipo:"area", opciones:encontrados.map(area => area.nombre)});
             for (const area of encontrados) restante = restante.replace(area.regla || area.texto, " ");
-            restante = restante.replace(/\by\b/g, " ");
+            restante = restante.replace(/\b(?:y|o)\b/g, " ");
         }
         const detectadas = categoriasReglas.filter(([regla, nombre]) => categorias.includes(nombre) && new RegExp(regla.source).test(restante));
         if (detectadas.length === 1) { filtros.categoria = detectadas[0][1]; restante = restante.replace(detectadas[0][0], " "); }
         else if (detectadas.length > 1) {
             avisos.push("Se mencionan varias categorías; selecciona una manualmente.");
+            dudas.push({tipo:"categoria", opciones:detectadas.map(([, nombre]) => nombre)});
             for (const [regla] of detectadas) restante = restante.replace(regla, " ");
-            restante = restante.replace(/\by\b/g, " ");
+            restante = restante.replace(/\b(?:y|o)\b/g, " ");
         }
+        const rangoIncompleto = new RegExp(`\\b(?:de|desde)\\s+(${mesPatron})\\s+(?:a|hasta)\\s*$`).test(restante);
         const fechas = extraerFechas(restante, new Date()); restante = fechas.restante;
-        Object.assign(filtros, fechas.fechas); avisos.push(...fechas.avisos);
-        if (fechas.avisos.length) restante = restante.replace(/\b(?:y|a|al)\b/g, " ");
+        if (rangoIncompleto) {
+            fechas.dudas = fechas.dudas.filter(duda => duda.tipo !== "mes_sin_anio");
+            fechas.dudas.unshift({tipo:"rango_incompleto"});
+            fechas.avisos.unshift("El intervalo está incompleto; indica ambas fechas manualmente.");
+            fechas.fechas = {};
+        }
+        if (fechas.avisos.length && !fechas.dudas.length) fechas.dudas.push({tipo:"fecha_manual"});
+        Object.assign(filtros, fechas.fechas); avisos.push(...fechas.avisos); dudas.push(...fechas.dudas);
+        if (!filtros.departamento && encontrados.length === 0 && areas.includes("Obras Públicas") && /\bobras\b/.test(restante)) {
+            dudas.push({tipo:"obras", area:"Obras Públicas"});
+            avisos.push("“Obras” podría ser el tema o el departamento; elige si deseas filtrar por área.");
+        }
+        if (fechas.avisos.length) restante = restante.replace(/\b(?:y|o|a|al)\b/g, " ");
         restante = restante.replace(/\b(?:quiero|encontrar|buscar|busca|busco|muestrame|dame|necesito|los|las|el|la|un|una|unos|unas|de|del|en|por|para|sobre|que|se|registrado|registrada|registrados|registradas|este|ano|pasado|documento|documentos|archivo|archivos|oficio|oficios|expediente|expedientes)\b/g, " ");
         const terminos = restante.replace(/[^\p{L}\p{N}\s-]/gu, " ").replace(/\s+/g, " ").trim();
         if (terminos) filtros.buscar = terminos.slice(0, 200);
         if (!Object.keys(filtros).length && texto && !avisos.length && !expediente) filtros.buscar = texto.slice(0, 200);
-        return { filtros, avisos, expediente: expediente ? expediente[0] : null };
+        return { filtros, avisos, expediente: expediente ? expediente[0] : null, dudas };
     }
     function interpretar(entrada, categorias, areas) { return detallar(entrada, categorias, areas).filtros; }
     interpretar.detallar = detallar;
