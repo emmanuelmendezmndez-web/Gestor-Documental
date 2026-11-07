@@ -12,6 +12,9 @@
     const agregar = document.getElementById("agregar-filtros");
     const sinReconocidos = document.getElementById("sin-filtros-reconocidos");
     const adicionalesActivos = document.getElementById("filtros-adicionales-activos");
+    const instruccionContextual = document.getElementById("instruccion-contextual");
+    const proponerContexto = document.getElementById("proponer-contexto");
+    const panelContextual = document.getElementById("propuesta-contextual");
     const claves = ["buscar", "categoria", "departamento", "oficio", "autor", "desde", "hasta"];
     const campos = Object.fromEntries(claves.map(clave => [clave, document.getElementById(`asistido-${clave}`)]));
     if (!dialogo || !abrir || !frase || !consultaTexto || !editarConsulta || !resumen || !formulario || !reconocidos || !adicionales || !agregar || !sinReconocidos || !adicionalesActivos || claves.some(clave => !campos[clave]) || typeof window.crearMemoriaTemporal !== "function") return;
@@ -31,6 +34,7 @@
     let interpretacion = null;
     let cambioPendiente = null;
     let editandoConsulta = false;
+    let propuestaContextual = null;
     const memoria = window.crearMemoriaTemporal();
     const editados = { has: clave => Boolean(memoria.consultar()?.manuales.includes(clave)) };
     const dudasPendientes = () => (interpretacion?.dudas || [])
@@ -112,10 +116,11 @@
         adicionalesActivos.textContent = cantidad ? `(${cantidad} ${cantidad === 1 ? "activo" : "activos"})` : "";
     }
     function actualizar() {
-        interpretacion = busquedaRapida ? null : window.sigedInterpretarBusqueda.detallar(consulta, categorias, areas);
-        const filtros = busquedaRapida ? filtrosRapidos[busquedaRapida]() : interpretacion.filtros;
-        if (memoria.consultar()) memoria.reiniciar();
-        memoria.iniciar(frase.value, interpretacion?.expediente ? "expedientes" : "documentos", filtros);
+        const nuevaInterpretacion = busquedaRapida ? null : window.sigedInterpretarBusqueda.detallar(consulta, categorias, areas);
+        const filtros = busquedaRapida ? filtrosRapidos[busquedaRapida]() : nuevaInterpretacion.filtros;
+        memoria.reemplazar(frase.value, nuevaInterpretacion?.expediente ? "expedientes" : "documentos", filtros);
+        descartarPropuesta();
+        interpretacion = nuevaInterpretacion;
         (interpretacion?.dudas || []).forEach((duda, indice) => memoria.pendiente(`duda_${indice}`));
         consultaTexto.textContent = consulta || "Sin consulta escrita";
         for (const clave of claves) {
@@ -230,6 +235,7 @@
     }
     function sincronizarEdicion(clave) {
         if (!memoria.consultar()) return;
+        descartarPropuesta();
         memoria.marcarManual(clave);
         const cambios = Object.fromEntries(memoria.consultar().manuales.map(nombre => [nombre, campos[nombre].value.trim()]));
         // Mientras se escribe una fecha inválida, el DOM mantiene el borrador y
@@ -244,6 +250,8 @@
         campos[clave].addEventListener("change", () => sincronizarEdicion(clave));
     }
     function borrarInteraccion() {
+        descartarPropuesta();
+        if (instruccionContextual) instruccionContextual.value = "";
         memoria.cancelar();
         editandoConsulta = false;
         busquedaRapida = null; consulta = ""; interpretacion = null; cambioPendiente = null;
@@ -251,6 +259,69 @@
         consultaTexto.textContent = ""; resumen.textContent = ""; resumen.hidden = true;
         aclaracion.replaceChildren(); aclaracion.hidden = true; aclaracion.style.display = "none";
         adicionalesActivos.textContent = "";
+    }
+    function descartarPropuesta() {
+        propuestaContextual = null;
+        if (panelContextual) { panelContextual.replaceChildren(); panelContextual.hidden = true; }
+    }
+    function reflejarMemoria() {
+        const filtros = memoria.consultar().filtros;
+        for (const clave of claves) {
+            campos[clave].value = filtros[clave] || "";
+            (filtros[clave] ? reconocidos : adicionales).appendChild(grupos[clave]);
+            mostrarOrigen(clave);
+        }
+        sinReconocidos.hidden = reconocidos.childElementCount > 0;
+        contarAdicionales(); mostrarAvisos();
+    }
+    if (instruccionContextual && proponerContexto && panelContextual && typeof window.sigedInterpretarContexto === "function") {
+        instruccionContextual.addEventListener("input", descartarPropuesta);
+        instruccionContextual.addEventListener("keydown", evento => { if (evento.key === "Enter") { evento.preventDefault(); proponerContexto.click(); } });
+        proponerContexto.addEventListener("click", () => {
+            descartarPropuesta();
+            const estado = memoria.consultar();
+            panelContextual.hidden = false;
+            if (!estado || claves.some(clave => campos[clave].value.trim() !== (estado.filtros[clave] || ""))) {
+                panelContextual.textContent = "Corrige o termina de editar los filtros antes de continuar."; return;
+            }
+            const propuesta = window.sigedInterpretarContexto(instruccionContextual.value, {estado, categorias, areas});
+            if (propuesta.tipo === "aclaracion") {
+                const mensajes = {anio_ambiguo:"Indica el año para la fecha.", filtro_no_identificado:"Indica qué filtro deseas quitar.", filtro_inexistente:"Ese filtro no está aplicado.", instruccion_vacia:"Escribe una instrucción.", instruccion_compuesta:"Indica una sola instrucción a la vez.", interpretacion_ambigua:"La instrucción es ambigua; precisa el criterio.", criterio_ambiguo:"Precisa un solo criterio para cambiar."};
+                panelContextual.textContent = mensajes[propuesta.motivo] || "Aclara la instrucción antes de continuar."; return;
+            }
+            const etiquetas = {buscar:"Texto", categoria:"Categoría", departamento:"Departamento", oficio:"Oficio", autor:"Autor", desde:"Desde", hasta:"Hasta"};
+            const descripcion = propuesta.tipo === "cambios" ?
+                (Object.entries(propuesta.cambios).map(([clave, valor]) => `${etiquetas[clave]}: ${valor || "quitar"}`).join("; ") || "Conservar la categoría actual") :
+                propuesta.tipo === "limpiar_filtros" ? "Quitar todos los filtros y aclaraciones, manteniendo la consulta abierta." :
+                propuesta.tipo === "reiniciar" ? "Empezar una interacción vacía y descartar la consulta actual." :
+                `Comenzar una consulta nueva: ${propuesta.consulta}`;
+            propuestaContextual = {propuesta, estado:JSON.stringify(estado)};
+            const detalle = document.createElement("p"); detalle.textContent = `Propuesta: ${descripcion}`;
+            const aplicar = document.createElement("button"); aplicar.type = "button"; aplicar.className = "boton-secundario"; aplicar.textContent = "Aplicar propuesta";
+            const cancelar = document.createElement("button"); cancelar.type = "button"; cancelar.className = "boton-secundario"; cancelar.textContent = "Cancelar propuesta";
+            cancelar.addEventListener("click", descartarPropuesta);
+            aplicar.addEventListener("click", () => {
+                if (!propuestaContextual || JSON.stringify(memoria.consultar()) !== propuestaContextual.estado || claves.some(clave => campos[clave].value.trim() !== (estado.filtros[clave] || ""))) {
+                    descartarPropuesta(); panelContextual.hidden = false; panelContextual.textContent = "La consulta cambió; revisa nuevamente la instrucción."; return;
+                }
+                try {
+                    if (propuesta.tipo === "cambios") memoria.aplicarContexto(propuesta.cambios, propuesta.explicitos);
+                    else if (propuesta.tipo === "limpiar_filtros") { memoria.limpiarFiltros(); interpretacion = null; }
+                    else {
+                        const nueva = propuesta.tipo === "consulta_nueva" ? propuesta.consulta : "";
+                        const anterior = {frase:frase.value, consulta, busquedaRapida};
+                        frase.value = nueva; consulta = nueva; busquedaRapida = null;
+                        try { actualizar(); } catch (error) {
+                            frase.value = anterior.frase; consulta = anterior.consulta; busquedaRapida = anterior.busquedaRapida; throw error;
+                        }
+                    }
+                } catch (error) {
+                    panelContextual.replaceChildren(); panelContextual.textContent = "No fue posible aplicar la propuesta; revisa los filtros."; propuestaContextual = null; return;
+                }
+                descartarPropuesta(); instruccionContextual.value = ""; reflejarMemoria();
+            });
+            panelContextual.replaceChildren(); panelContextual.append(detalle, aplicar, cancelar);
+        });
     }
     function mostrarCambio() {
         resumen.hidden = false;
@@ -305,6 +376,7 @@
     });
     formulario.addEventListener("submit", evento => {
         evento.preventDefault();
+        if (propuestaContextual) { panelContextual.hidden = false; return; }
         if (cambioPendiente) { mostrarCambio(); return; }
         if (dudasPendientes().length) {
             mostrarAvisos("Resuelve la aclaración o elige dejarla sin aplicar antes de buscar.");

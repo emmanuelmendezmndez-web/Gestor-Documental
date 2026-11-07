@@ -5,6 +5,20 @@ const vm = require('node:vm');
 const path = require('node:path');
 const crear = require('../app/static/memoria_temporal.js');
 
+test('aplicación contextual es atómica y respeta prioridades', () => {
+    const m = crear(); m.iniciar('consulta', 'documentos', {categoria:'Contratos', desde:'2025-03-01', hasta:'2025-03-31'});
+    m.actualizar({categoria:'Actas'}); m.pendiente('duda_1');
+    const previo = m.consultar();
+    assert.throws(() => m.aplicarContexto({categoria:'Informes', desde:'2025-04-01'}, []));
+    assert.deepEqual(m.consultar(), previo);
+    assert.throws(() => m.aplicarContexto({categoria:'Informes', desde:'2025-04-01'}, ['categoria']));
+    assert.deepEqual(m.consultar(), previo);
+    m.aplicarContexto({categoria:'Informes', desde:'2025-04-01', hasta:'2025-04-30'}, ['categoria','desde','hasta']);
+    assert.equal(m.consultar().filtros.categoria, 'Informes');
+    const valido = m.consultar(); assert.throws(() => m.reemplazar('x'.repeat(201))); assert.deepEqual(m.consultar(), valido);
+    m.limpiarFiltros(); assert.deepEqual(m.consultar(), {consulta:'consulta', intencion:'documentos', filtros:{}, manuales:[], pendientes:[], resueltas:[]});
+});
+
 test('mantiene consulta, intención y actualizaciones parciales sin perder los demás filtros', () => {
     const memoria = crear();
     memoria.iniciar('contratos de alumbrado', 'documentos', {categoria: 'Contratos', buscar: 'alumbrado'});

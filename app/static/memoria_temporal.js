@@ -29,12 +29,15 @@
         const confirmar = borrador => { validarFiltros(borrador.filtros); estado = borrador; ultimoValido = copiar(borrador); };
         const validarId = id => { if (typeof id !== 'string' || !IDENTIFICADOR.test(id)) throw new TypeError('Identificador inválido'); };
 
-        function iniciar(consulta, intencion = 'documentos', filtros = {}) {
-            if (estado) throw new Error('Ya hay una interacción activa');
+        function reemplazar(consulta, intencion = 'documentos', filtros = {}) {
             if (typeof consulta !== 'string' || consulta.length > 200) throw new TypeError('Consulta inválida');
             if (!['documentos', 'expedientes'].includes(intencion)) throw new TypeError('Intención inválida');
             validarFiltros(filtros);
             confirmar({consulta, intencion, filtros: copiar(filtros), manuales: [], pendientes: [], resueltas: []});
+        }
+        function iniciar(consulta, intencion = 'documentos', filtros = {}) {
+            if (estado) throw new Error('Ya hay una interacción activa');
+            reemplazar(consulta, intencion, filtros);
         }
 
         function consultar() { return estado ? copiar(estado) : null; }
@@ -56,6 +59,25 @@
         function quitar(clave, origen = 'manual') {
             if (!CAMPOS.includes(clave)) throw new TypeError('Filtro inválido');
             actualizar({[clave]: ''}, origen);
+        }
+
+        function aplicarContexto(cambios, explicitos = []) {
+            exigirActiva(); validarFiltros(cambios);
+            if (!Array.isArray(explicitos) || explicitos.some(clave => !Object.hasOwn(cambios, clave))) throw new TypeError('Campos explícitos inválidos');
+            const nuevo = copiar(estado);
+            for (const [clave, valor] of Object.entries(cambios)) {
+                if (nuevo.manuales.includes(clave) && !explicitos.includes(clave)) throw new Error('Filtro manual protegido');
+                if (valor === '') delete nuevo.filtros[clave]; else nuevo.filtros[clave] = valor;
+                if (explicitos.includes(clave) && !nuevo.manuales.includes(clave)) nuevo.manuales.push(clave);
+            }
+            confirmar(nuevo);
+        }
+
+        function limpiarFiltros() {
+            exigirActiva();
+            const nuevo = copiar(estado);
+            nuevo.filtros = {}; nuevo.manuales = []; nuevo.pendientes = []; nuevo.resueltas = [];
+            confirmar(nuevo);
         }
 
         // Registrar la prioridad aun si el valor escrito es temporalmente inválido.
@@ -88,7 +110,7 @@
         }
 
         function descartar() { estado = null; ultimoValido = null; }
-        return Object.freeze({iniciar, consultar, obtenerUltimoValido, actualizar, quitar, marcarManual, pendiente, resolver,
+        return Object.freeze({iniciar, reemplazar, consultar, obtenerUltimoValido, actualizar, quitar, aplicarContexto, limpiarFiltros, marcarManual, pendiente, resolver,
             reiniciar: descartar, cancelar: descartar, finalizar: descartar});
     }
 

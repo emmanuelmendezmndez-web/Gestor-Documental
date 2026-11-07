@@ -172,6 +172,12 @@
                         </div>
                     </details>
                     <p id="filtros-sugeridos" role="status" hidden></p>
+                    <div class="consulta-asistida">
+                        <label for="instruccion-contextual">Ajustar esta consulta</label>
+                        <input id="instruccion-contextual" type="text" maxlength="200" placeholder="Ej. Mejor de abril">
+                        <button type="button" id="proponer-contexto" class="boton-secundario">Revisar instrucción</button>
+                        <div id="propuesta-contextual" role="status" aria-live="polite" hidden></div>
+                    </div>
                     <div class="busqueda-asistida-acciones">
                         <button type="button" class="boton-secundario" id="cerrar-busqueda-asistida">Cancelar</button>
                         <button type="submit">Buscar documentos</button>
@@ -183,8 +189,9 @@
                 data-clippy='{{ dict(basePath=url_for("static", path="clippy/agents") ~ "/", cantidadExpediente=(documentos|length if expediente is defined and documentos is defined else none), bibliotecaSinResultados=(pagina == "biblioteca" and hay_filtros|default(false) and total|default(0) == 0), busquedaSinResultados=(pagina == "buscar" and not buscar_vacio|default(true) and not documentos_encontrados|default([]) and not expedientes_encontrados|default([])), discoLleno=(almacenamiento is defined and almacenamiento["disponible"] and almacenamiento["porcentaje"] >= 90), saludoEntrada=saludo_clippy_entrada|default(false), nombre=(usuario["nombre"].split()|first|default("Usuario", true)), usuarioId=usuario["id"], puedeSubir=puede("subir"), puedeRestaurar=puede("restaurar"), puedeUsuarios=puede("usuarios"), puedeActividad=puede("actividad"))|tojson }}'></div>
             <script src="{{ url_for('static', path='siged_configuracion.js') }}?v=1"></script>
             <script src="{{ url_for('static', path='interprete_busqueda.js') }}?v=1"></script>
-            <script src="{{ url_for('static', path='memoria_temporal.js') }}?v=1"></script>
-            <script src="{{ url_for('static', path='busqueda_asistida.js') }}?v=11"></script>
+            <script src="{{ url_for('static', path='memoria_temporal.js') }}?v=2"></script>
+            <script src="{{ url_for('static', path='interprete_contextual.js') }}?v=2"></script>
+            <script src="{{ url_for('static', path='busqueda_asistida.js') }}?v=12"></script>
             <script src="{{ url_for('static', path='clippy/jquery.min.js') }}"></script>
             <script src="{{ url_for('static', path='clippy/clippy.min.js') }}"></script>
             <script src="{{ url_for('static', path='clippy_asistente.js') }}?v=1"></script>

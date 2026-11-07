@@ -9,9 +9,9 @@ function iniciar() {
     const controles = {};
     for (const id of ['busqueda-asistida', 'abrir-busqueda-asistida', 'cerrar-busqueda-asistida',
         'busqueda-global', 'consulta-asistida-texto', 'editar-consulta-asistida', 'filtros-sugeridos', 'form-busqueda-asistida',
-        'filtros-reconocidos', 'filtros-adicionales', 'agregar-filtros', 'sin-filtros-reconocidos', 'filtros-adicionales-activos',
+        'filtros-reconocidos', 'filtros-adicionales', 'agregar-filtros', 'sin-filtros-reconocidos', 'filtros-adicionales-activos', 'instruccion-contextual', 'proponer-contexto', 'propuesta-contextual',
         ...['buscar', 'categoria', 'departamento', 'oficio', 'autor', 'desde', 'hasta'].map(clave => `asistido-${clave}`)]) {
-        controles[id] = { value: '', hidden: true, listeners: {}, addEventListener(tipo, fn) { this.listeners[tipo] = fn; }, append(...items) { this.agregados = items; }, after(item) { this.siguiente = item; } };
+        controles[id] = { value: '', hidden: true, listeners: {}, addEventListener(tipo, fn) { this.listeners[tipo] = fn; }, append(...items) { this.agregados = items; }, replaceChildren() { this.agregados = []; this.textContent = ''; }, after(item) { this.siguiente = item; } };
     }
     const dialogo = controles['busqueda-asistida'];
     const rapidos = ['contratos', 'obras', 'mes'].map(clave => ({dataset:{busquedaRapida:clave}, textContent:clave,
@@ -55,15 +55,65 @@ function iniciar() {
             replaceChildren() { this.children = []; }, addEventListener(tipo, fn) { this.listeners[tipo] = fn; },
         }) },
     };
-    for (const nombre of ['memoria_temporal.js', 'interprete_busqueda.js', 'busqueda_asistida.js']) {
+    for (const nombre of ['memoria_temporal.js', 'interprete_busqueda.js', 'interprete_contextual.js', 'busqueda_asistida.js']) {
         const archivo = path.join(__dirname, '..', 'app', 'static', nombre);
         vm.runInNewContext(fs.readFileSync(archivo, 'utf8'), contexto);
         if (nombre === 'memoria_temporal.js') window.crearMemoriaTemporal = () => { window.memoriaPrueba = contexto.crearMemoriaTemporal(); return window.memoriaPrueba; };
+        if (nombre === 'interprete_contextual.js') window.sigedInterpretarContexto = (texto, ctx) => contexto.sigedInterpretarContexto(texto, ctx, window.sigedInterpretarBusqueda.detallar);
     }
     return { interpretar: texto => JSON.parse(JSON.stringify(window.sigedInterpretarBusqueda(
         texto, window.sigedOpcionesBusqueda.categorias, window.sigedOpcionesBusqueda.areas))), controles, destino: () => destino,
         memoria: window.memoriaPrueba, eventosVentana: window.listeners, rapidos };
 }
+
+test('propuestas contextuales requieren confirmación y permiten cancelar sin buscar', () => {
+    const p = iniciar(), c = p.controles;
+    c['busqueda-global'].value = 'Contratos de Tesorería de marzo de 2025'; c['abrir-busqueda-asistida'].listeners.click();
+    c['asistido-categoria'].value = 'Actas'; c['asistido-categoria'].listeners.input();
+    const antes = JSON.stringify(p.memoria.consultar());
+    c['instruccion-contextual'].value = 'Mejor de abril'; c['proponer-contexto'].listeners.click();
+    assert.equal(JSON.stringify(p.memoria.consultar()), antes);
+    c['propuesta-contextual'].agregados[2].listeners.click();
+    assert.equal(JSON.stringify(p.memoria.consultar()), antes);
+    c['proponer-contexto'].listeners.click(); c['propuesta-contextual'].agregados[1].listeners.click();
+    assert.equal(c['asistido-desde'].value, '2025-04-01'); assert.equal(c['asistido-hasta'].value, '2025-04-30');
+    assert.equal(c['asistido-categoria'].value, 'Actas'); assert.equal(c['asistido-departamento'].value, 'Tesorería');
+    assert.equal(p.destino(), undefined);
+});
+
+test('quitar departamento manual requiere confirmación y conserva los demás criterios', () => {
+    const p = iniciar(), c = p.controles;
+    c['busqueda-global'].value = 'Contratos de Tesorería de marzo de 2025'; c['abrir-busqueda-asistida'].listeners.click();
+    c['asistido-buscar'].value = 'alumbrado'; c['asistido-buscar'].listeners.input();
+    c['asistido-departamento'].value = 'Tesorería'; c['asistido-departamento'].listeners.input();
+    const antes = JSON.stringify(p.memoria.consultar());
+    c['instruccion-contextual'].value = 'quitar tesoreria'; c['proponer-contexto'].listeners.click();
+    assert.match(c['propuesta-contextual'].agregados[0].textContent, /Departamento: quitar/);
+    assert.equal(JSON.stringify(p.memoria.consultar()), antes);
+    c['propuesta-contextual'].agregados[2].listeners.click(); assert.equal(JSON.stringify(p.memoria.consultar()), antes);
+    c['proponer-contexto'].listeners.click(); c['propuesta-contextual'].agregados[1].listeners.click();
+    assert.equal(c['asistido-departamento'].value, '');
+    assert.equal(c['asistido-categoria'].value, 'Contratos'); assert.equal(c['asistido-buscar'].value, 'alumbrado');
+    assert.equal(c['asistido-desde'].value, '2025-03-01'); assert.equal(c['asistido-hasta'].value, '2025-03-31');
+    const despues = JSON.stringify(p.memoria.consultar());
+    c['instruccion-contextual'].value = 'quitar tesorería'; c['proponer-contexto'].listeners.click();
+    assert.match(c['propuesta-contextual'].textContent, /no está aplicado/);
+    assert.equal(JSON.stringify(p.memoria.consultar()), despues); assert.equal(p.destino(), undefined);
+});
+
+test('limpiar, reiniciar y consulta nueva tienen ciclos distintos', () => {
+    const p = iniciar(), c = p.controles;
+    c['busqueda-global'].value = 'informes de marzo'; c['abrir-busqueda-asistida'].listeners.click();
+    c['asistido-autor'].value = 'Ejemplo'; c['asistido-autor'].listeners.input();
+    const aplicar = texto => { c['instruccion-contextual'].value = texto; c['proponer-contexto'].listeners.click(); c['propuesta-contextual'].agregados[1].listeners.click(); };
+    aplicar('Olvida los filtros');
+    assert.equal(p.memoria.consultar().consulta, 'informes de marzo');
+    assert.equal(JSON.stringify(p.memoria.consultar().filtros), '{}');
+    assert.equal(p.memoria.consultar().manuales.length, 0); assert.equal(p.memoria.consultar().pendientes.length, 0);
+    aplicar('contratos de Tesorería'); assert.equal(c['asistido-categoria'].value, 'Contratos');
+    aplicar('Empieza de nuevo'); assert.equal(p.memoria.consultar().consulta, ''); assert.equal(c['asistido-categoria'].value, '');
+    assert.equal(p.destino(), undefined);
+});
 
 test('reglas actuales de interpretación, incluidas ambigüedades', () => {
     const { interpretar } = iniciar();
