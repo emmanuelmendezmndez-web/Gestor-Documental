@@ -14,7 +14,7 @@
     const adicionalesActivos = document.getElementById("filtros-adicionales-activos");
     const claves = ["buscar", "categoria", "departamento", "oficio", "autor", "desde", "hasta"];
     const campos = Object.fromEntries(claves.map(clave => [clave, document.getElementById(`asistido-${clave}`)]));
-    if (!dialogo || !abrir || !frase || !consultaTexto || !editarConsulta || !resumen || !formulario || !reconocidos || !adicionales || !agregar || !sinReconocidos || !adicionalesActivos || claves.some(clave => !campos[clave])) return;
+    if (!dialogo || !abrir || !frase || !consultaTexto || !editarConsulta || !resumen || !formulario || !reconocidos || !adicionales || !agregar || !sinReconocidos || !adicionalesActivos || claves.some(clave => !campos[clave]) || typeof window.crearMemoriaTemporal !== "function") return;
     const grupos = Object.fromEntries(claves.map(clave => [clave, campos[clave].closest("[data-filtro]")]));
     if (claves.some(clave => !grupos[clave])) return;
 
@@ -28,9 +28,14 @@
     }
     let busquedaRapida = null;
     let consulta = "";
-    let ultimaFrase = null;
     let interpretacion = null;
-    let dudasPendientes = [];
+    let cambioPendiente = null;
+    let editandoConsulta = false;
+    const memoria = window.crearMemoriaTemporal();
+    const editados = { has: clave => Boolean(memoria.consultar()?.manuales.includes(clave)) };
+    const dudasPendientes = () => (interpretacion?.dudas || [])
+        .map((duda, indice) => ({ duda, id: `duda_${indice}` }))
+        .filter(item => memoria.consultar()?.pendientes.includes(item.id));
     const aclaracion = document.createElement("div");
     aclaracion.className = "consulta-asistida";
     aclaracion.setAttribute("role", "group");
@@ -38,7 +43,6 @@
     aclaracion.hidden = true;
     aclaracion.style.display = "none";
     resumen.after(aclaracion);
-    const editados = new Set();
     const fechaLocal = fecha => `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, "0")}-${String(fecha.getDate()).padStart(2, "0")}`;
     const ultimoMes = () => {
         const hoy = new Date();
@@ -107,13 +111,15 @@
         const cantidad = claves.filter(clave => grupos[clave].parentElement === adicionales && campos[clave].value.trim()).length;
         adicionalesActivos.textContent = cantidad ? `(${cantidad} ${cantidad === 1 ? "activo" : "activos"})` : "";
     }
-    function actualizar(conservarEditados = false) {
+    function actualizar() {
         interpretacion = busquedaRapida ? null : window.sigedInterpretarBusqueda.detallar(consulta, categorias, areas);
-        dudasPendientes = [...(interpretacion?.dudas || [])];
         const filtros = busquedaRapida ? filtrosRapidos[busquedaRapida]() : interpretacion.filtros;
+        if (memoria.consultar()) memoria.reiniciar();
+        memoria.iniciar(frase.value, interpretacion?.expediente ? "expedientes" : "documentos", filtros);
+        (interpretacion?.dudas || []).forEach((duda, indice) => memoria.pendiente(`duda_${indice}`));
         consultaTexto.textContent = consulta || "Sin consulta escrita";
         for (const clave of claves) {
-            if (!conservarEditados || !editados.has(clave)) campos[clave].value = filtros[clave] || "";
+            campos[clave].value = memoria.consultar().filtros[clave] || "";
             (filtros[clave] ? reconocidos : adicionales).appendChild(grupos[clave]);
             mostrarOrigen(clave);
         }
@@ -122,7 +128,7 @@
         mostrarAvisos();
     }
     function mostrarAvisos(mensaje = "") {
-        const avisos = [...(mensaje ? [mensaje] : []), ...(dudasPendientes.length ? ["Clippy encontró criterios que necesitan aclaración."] : [])];
+        const avisos = [...(mensaje ? [mensaje] : []), ...(dudasPendientes().length ? ["Clippy encontró criterios que necesitan aclaración."] : [])];
         resumen.textContent = avisos.join(" ");
         if (interpretacion?.expediente) {
             const enlace = document.createElement("a");
@@ -135,7 +141,8 @@
     }
     function mostrarAclaracion(mensaje = "") {
         aclaracion.replaceChildren();
-        const duda = dudasPendientes[0];
+        const pendiente = dudasPendientes()[0];
+        const duda = pendiente?.duda;
         aclaracion.hidden = !duda;
         aclaracion.style.display = duda ? "" : "none";
         if (!duda) return;
@@ -177,7 +184,7 @@
         }
         if (mensaje) pregunta.textContent += ` ${mensaje}`;
         aclaracion.append(pregunta);
-        for (const opcion of opciones) {
+        for (const [indice, opcion] of opciones.entries()) {
             const boton = document.createElement("button");
             boton.type = "button"; boton.className = "boton-secundario"; boton.textContent = opcion.etiqueta;
             boton.addEventListener("click", () => {
@@ -191,16 +198,19 @@
                     agregar.open = true; grupos.desde.parentElement === adicionales && agregar.scrollIntoView?.({block:"nearest"});
                     campos.desde.focus();
                 }
-                for (const clave of clavesOpcion) {
-                    campos[clave].value = opcion.filtros[clave]; editados.add(clave);
+                const cambios = {...opcion.filtros};
+                if (opcion.accion === "area_obras" && !editados.has("buscar")) {
+                    cambios.buscar = (memoria.consultar().filtros.buscar || "").replace(/\bobras\b/i, " ").replace(/\s+/g, " ").trim();
+                }
+                memoria.resolver(pendiente.id, `opcion_${indice}`, cambios);
+                for (const clave of clavesOpcion) memoria.marcarManual(clave);
+                const guardados = memoria.consultar().filtros;
+                for (const clave of Object.keys(cambios)) {
+                    campos[clave].value = guardados[clave] || "";
                     reconocidos.appendChild(grupos[clave]); mostrarOrigen(clave);
                 }
-                if (opcion.accion === "area_obras" && !editados.has("buscar")) {
-                    campos.buscar.value = campos.buscar.value.replace(/\bobras\b/i, " ").replace(/\s+/g, " ").trim();
-                    mostrarOrigen("buscar");
-                }
                 sinReconocidos.hidden = reconocidos.childElementCount > 0;
-                contarAdicionales(); dudasPendientes.shift(); mostrarAvisos();
+                contarAdicionales(); mostrarAvisos();
                 if (opcion.accion !== "fechas") (aclaracion.querySelector?.("button") || editarConsulta).focus();
             });
             aclaracion.append(boton);
@@ -208,42 +218,95 @@
         const omitir = document.createElement("button");
         omitir.type = "button"; omitir.className = "boton-secundario"; omitir.textContent = "Dejar sin aplicar";
         omitir.addEventListener("click", () => {
-            if (duda.tipo === "obras" && !editados.has("buscar")) {
-                campos.buscar.value = campos.buscar.value.replace(/\bobras\b/i, " ").replace(/\s+/g, " ").trim();
-                mostrarOrigen("buscar");
-            }
-            dudasPendientes.shift(); mostrarAvisos();
+            const cambios = duda.tipo === "obras" && !editados.has("buscar") ? {
+                buscar: (memoria.consultar().filtros.buscar || "").replace(/\bobras\b/i, " ").replace(/\s+/g, " ").trim()
+            } : {};
+            memoria.resolver(pendiente.id, "omitir", cambios);
+            if (Object.hasOwn(cambios, "buscar")) { campos.buscar.value = memoria.consultar().filtros.buscar || ""; mostrarOrigen("buscar"); }
+            mostrarAvisos();
             (aclaracion.querySelector?.("button") || editarConsulta).focus();
         });
         aclaracion.append(omitir);
     }
+    function sincronizarEdicion(clave) {
+        if (!memoria.consultar()) return;
+        memoria.marcarManual(clave);
+        const cambios = Object.fromEntries(memoria.consultar().manuales.map(nombre => [nombre, campos[nombre].value.trim()]));
+        // Mientras se escribe una fecha inválida, el DOM mantiene el borrador y
+        // la memoria conserva el último conjunto válido de filtros.
+        try { memoria.actualizar(cambios); } catch (error) {
+            if (!(error instanceof RangeError || error instanceof TypeError)) throw error;
+        }
+        mostrarOrigen(clave); contarAdicionales();
+    }
     for (const clave of claves) {
-        campos[clave].addEventListener("input", () => { editados.add(clave); mostrarOrigen(clave); contarAdicionales(); });
-        campos[clave].addEventListener("change", () => { editados.add(clave); mostrarOrigen(clave); contarAdicionales(); });
+        campos[clave].addEventListener("input", () => sincronizarEdicion(clave));
+        campos[clave].addEventListener("change", () => sincronizarEdicion(clave));
+    }
+    function borrarInteraccion() {
+        memoria.cancelar();
+        editandoConsulta = false;
+        busquedaRapida = null; consulta = ""; interpretacion = null; cambioPendiente = null;
+        for (const clave of claves) campos[clave].value = "";
+        consultaTexto.textContent = ""; resumen.textContent = ""; resumen.hidden = true;
+        aclaracion.replaceChildren(); aclaracion.hidden = true; aclaracion.style.display = "none";
+        adicionalesActivos.textContent = "";
+    }
+    function mostrarCambio() {
+        resumen.hidden = false;
+        resumen.textContent = "Cambiar la consulta iniciará una búsqueda nueva y descartará los filtros editados de esta interacción.";
+        aclaracion.replaceChildren(); aclaracion.hidden = false; aclaracion.style.display = "";
+        const pregunta = document.createElement("p");
+        pregunta.textContent = "¿Deseas continuar o volver a la consulta anterior con sus filtros?";
+        aclaracion.append(pregunta);
+        const continuar = document.createElement("button");
+        continuar.type = "button"; continuar.className = "boton-secundario"; continuar.textContent = "Iniciar búsqueda nueva";
+        continuar.addEventListener("click", () => {
+            const siguiente = cambioPendiente; cambioPendiente = null;
+            busquedaRapida = siguiente.rapida; consulta = siguiente.consulta;
+            actualizar(); editarConsulta.focus();
+        });
+        const volver = document.createElement("button");
+        volver.type = "button"; volver.className = "boton-secundario"; volver.textContent = "Volver a consulta anterior";
+        volver.addEventListener("click", () => {
+            frase.value = memoria.consultar().consulta; cambioPendiente = null;
+            mostrarAvisos(); editarConsulta.focus();
+        });
+        aclaracion.append(continuar, volver); continuar.focus();
     }
     abrir.addEventListener("click", () => {
-        if (ultimaFrase !== frase.value) {
-            busquedaRapida = null;
-            consulta = frase.value;
-            actualizar(ultimaFrase !== null);
-            ultimaFrase = frase.value;
-        } else if (!busquedaRapida) actualizar(true);
+        // El evento close del navegador puede llegar después de una reapertura.
+        // Solo la transición explícita de edición conserva la interacción.
+        if (memoria.consultar() && !dialogo.open && !editandoConsulta) borrarInteraccion();
+        editandoConsulta = false;
+        const estado = memoria.consultar();
+        if (!estado) { busquedaRapida = null; consulta = frase.value; actualizar(); }
+        else if (estado.consulta !== frase.value) {
+            if (estado.manuales.length) cambioPendiente = {rapida: null, consulta: frase.value};
+            else { busquedaRapida = null; consulta = frase.value; actualizar(); }
+        }
         dialogo.showModal();
-        editarConsulta.focus();
+        if (cambioPendiente) mostrarCambio(); else editarConsulta.focus();
     });
-    cerrar.addEventListener("click", () => dialogo.close());
-    editarConsulta.addEventListener("click", () => { dialogo.close(); frase.focus(); });
+    cerrar.addEventListener("click", () => { borrarInteraccion(); dialogo.close(); });
+    editarConsulta.addEventListener("click", () => { editandoConsulta = true; dialogo.close(); frase.focus(); });
+    dialogo.addEventListener("cancel", borrarInteraccion);
+    dialogo.addEventListener("close", () => {
+        if (dialogo.open || editandoConsulta) return;
+        borrarInteraccion();
+    });
+    window.addEventListener("pagehide", borrarInteraccion);
     dialogo.querySelectorAll("[data-busqueda-rapida]").forEach(boton => {
         boton.addEventListener("click", () => {
-            busquedaRapida = boton.dataset.busquedaRapida;
-            consulta = boton.textContent.trim().replace(/^[^\p{L}]+/u, "");
-            editados.clear();
-            actualizar();
+            const siguiente = {rapida: boton.dataset.busquedaRapida, consulta: boton.textContent.trim().replace(/^[^\p{L}]+/u, "")};
+            if (memoria.consultar()?.manuales.length) { cambioPendiente = siguiente; mostrarCambio(); return; }
+            busquedaRapida = siguiente.rapida; consulta = siguiente.consulta; actualizar();
         });
     });
     formulario.addEventListener("submit", evento => {
         evento.preventDefault();
-        if (dudasPendientes.length) {
+        if (cambioPendiente) { mostrarCambio(); return; }
+        if (dudasPendientes().length) {
             mostrarAvisos("Resuelve la aclaración o elige dejarla sin aplicar antes de buscar.");
             aclaracion.querySelector?.("button")?.focus();
             return;
@@ -271,7 +334,13 @@
             editarConsulta.focus();
             return;
         }
-        guardarHabito({ tipo: "busqueda", filtros });
-        window.location.assign("/?" + new URLSearchParams(filtros).toString());
+        const cambiosManuales = Object.fromEntries(memoria.consultar().manuales.map(clave => [clave, campos[clave].value.trim()]));
+        memoria.actualizar(cambiosManuales);
+        const confirmados = memoria.consultar().filtros;
+        const destino = "/?" + new URLSearchParams(confirmados).toString();
+        guardarHabito({ tipo: "busqueda", filtros: confirmados });
+        memoria.finalizar();
+        borrarInteraccion();
+        window.location.assign(destino);
     });
 })();

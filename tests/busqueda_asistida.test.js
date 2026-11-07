@@ -14,10 +14,12 @@ function iniciar() {
         controles[id] = { value: '', hidden: true, listeners: {}, addEventListener(tipo, fn) { this.listeners[tipo] = fn; }, append(...items) { this.agregados = items; }, after(item) { this.siguiente = item; } };
     }
     const dialogo = controles['busqueda-asistida'];
+    const rapidos = ['contratos', 'obras', 'mes'].map(clave => ({dataset:{busquedaRapida:clave}, textContent:clave,
+        listeners:{}, addEventListener(tipo, fn) { this.listeners[tipo] = fn; }}));
     dialogo.querySelector = () => null;
-    dialogo.querySelectorAll = () => [];
+    dialogo.querySelectorAll = () => rapidos;
     dialogo.showModal = () => { dialogo.open = true; };
-    dialogo.close = () => { dialogo.open = false; };
+    dialogo.close = () => { dialogo.open = false; dialogo.listeners.close?.(); };
     controles['busqueda-global'].focus = () => { controles['busqueda-global'].enfocado = true; };
     controles['editar-consulta-asistida'].focus = () => {};
     controles['asistido-desde'].focus = () => {};
@@ -40,6 +42,7 @@ function iniciar() {
         sigedOpcionesBusqueda: { categorias: ['Contratos', 'Actas', 'Informes', 'Certificados', 'Bitacoras', 'Inventarios', 'Otros'],
             areas: ['Tesorería', 'Obras Públicas', 'Recursos Humanos'], areaUsuario: 'Tesorería', rol: 'lector', usuarioId: 10 },
         location: { pathname: '/inicio', assign: valor => { destino = valor; } },
+        listeners: {}, addEventListener(tipo, fn) { this.listeners[tipo] = fn; },
     };
     class Fecha extends Date {
         constructor(...args) { super(...(args.length ? args : ['2026-10-28T12:00:00'])); }
@@ -48,16 +51,18 @@ function iniciar() {
         sessionStorage: { getItem: () => '1', setItem() {} },
         fetch: async () => ({ ok: true, json: async () => ({}) }),
         document: { getElementById: id => controles[id], querySelector: () => null, addEventListener() {}, createElement: () => ({
-            children: [], listeners: {}, style: {}, setAttribute() {}, append(...items) { this.children.push(...items); },
+            children: [], listeners: {}, style: {}, setAttribute() {}, focus() {}, append(...items) { this.children.push(...items); },
             replaceChildren() { this.children = []; }, addEventListener(tipo, fn) { this.listeners[tipo] = fn; },
         }) },
     };
-    for (const nombre of ['interprete_busqueda.js', 'busqueda_asistida.js']) {
+    for (const nombre of ['memoria_temporal.js', 'interprete_busqueda.js', 'busqueda_asistida.js']) {
         const archivo = path.join(__dirname, '..', 'app', 'static', nombre);
         vm.runInNewContext(fs.readFileSync(archivo, 'utf8'), contexto);
+        if (nombre === 'memoria_temporal.js') window.crearMemoriaTemporal = () => { window.memoriaPrueba = contexto.crearMemoriaTemporal(); return window.memoriaPrueba; };
     }
     return { interpretar: texto => JSON.parse(JSON.stringify(window.sigedInterpretarBusqueda(
-        texto, window.sigedOpcionesBusqueda.categorias, window.sigedOpcionesBusqueda.areas))), controles, destino: () => destino };
+        texto, window.sigedOpcionesBusqueda.categorias, window.sigedOpcionesBusqueda.areas))), controles, destino: () => destino,
+        memoria: window.memoriaPrueba, eventosVentana: window.listeners, rapidos };
 }
 
 test('reglas actuales de interpretación, incluidas ambigüedades', () => {
@@ -109,6 +114,123 @@ test('el diálogo usa la consulta compartida y permite editarla o cancelarla', (
     assert.equal(controles['busqueda-global'].enfocado, true);
 });
 
+test('editar la misma consulta mantiene contexto y las aclaraciones resueltas', () => {
+    const prueba = iniciar(), c = prueba.controles;
+    c['busqueda-global'].value = 'informes de marzo'; c['abrir-busqueda-asistida'].listeners.click();
+    c['filtros-sugeridos'].siguiente.children.find(x => x.textContent === '2026').listeners.click();
+    const anterior = prueba.memoria.consultar();
+    c['editar-consulta-asistida'].listeners.click(); c['abrir-busqueda-asistida'].listeners.click();
+    assert.deepEqual(prueba.memoria.consultar(), anterior);
+    assert.equal(c['asistido-desde'].value, '2026-03-01');
+    assert.equal(c['filtros-sugeridos'].siguiente.hidden, true);
+});
+
+test('cambiar consulta permite volver sin perder ediciones o aceptar una interacción limpia', () => {
+    const prueba = iniciar(), c = prueba.controles;
+    c['busqueda-global'].value = 'contratos de obras'; c['abrir-busqueda-asistida'].listeners.click();
+    c['asistido-autor'].value = 'Autor previo'; c['asistido-autor'].listeners.input();
+    c['editar-consulta-asistida'].listeners.click();
+    c['busqueda-global'].value = 'informes'; c['abrir-busqueda-asistida'].listeners.click();
+    let guia = c['filtros-sugeridos'].siguiente;
+    assert.match(c['filtros-sugeridos'].textContent, /descartará/);
+    guia.children.find(x => x.textContent === 'Volver a consulta anterior').listeners.click();
+    assert.equal(c['busqueda-global'].value, 'contratos de obras');
+    assert.equal(c['asistido-autor'].value, 'Autor previo');
+    assert.equal(prueba.memoria.consultar().consulta, 'contratos de obras');
+    c['editar-consulta-asistida'].listeners.click(); c['busqueda-global'].value = 'informes';
+    c['abrir-busqueda-asistida'].listeners.click(); guia = c['filtros-sugeridos'].siguiente;
+    guia.children.find(x => x.textContent === 'Iniciar búsqueda nueva').listeners.click();
+    assert.equal(prueba.memoria.consultar().consulta, 'informes');
+    assert.equal(c['asistido-autor'].value, '');
+    assert.deepEqual(JSON.parse(JSON.stringify(prueba.memoria.consultar().filtros)), {categoria:'Informes'});
+    assert.deepEqual(JSON.parse(JSON.stringify(prueba.memoria.consultar().pendientes)), []);
+});
+
+test('cancelar, cierre externo, pagehide y finalizar descartan la interacción', () => {
+    for (const modo of ['cancelar', 'escape', 'pagehide', 'finalizar']) {
+        const prueba = iniciar(), c = prueba.controles;
+        c['busqueda-global'].value = 'contratos'; c['abrir-busqueda-asistida'].listeners.click();
+        c['asistido-autor'].value = 'Autor temporal'; c['asistido-autor'].listeners.input();
+        if (modo === 'cancelar') c['cerrar-busqueda-asistida'].listeners.click();
+        if (modo === 'escape') c['busqueda-asistida'].close();
+        if (modo === 'pagehide') prueba.eventosVentana.pagehide();
+        if (modo === 'finalizar') c['form-busqueda-asistida'].listeners.submit({preventDefault() {}});
+        assert.equal(prueba.memoria.consultar(), null, modo);
+        assert.equal(prueba.memoria.obtenerUltimoValido(), null, modo);
+        assert.equal(c['asistido-autor'].value, '', modo);
+        if (modo === 'finalizar') assert.equal(new URLSearchParams(prueba.destino().slice(2)).get('autor'), 'Autor temporal');
+    }
+});
+
+test('el cierre diferido no reutiliza una interacción cancelada ni borra una nueva', () => {
+    const prueba = iniciar(), c = prueba.controles, dialogo = c['busqueda-asistida'];
+    dialogo.close = () => { dialogo.open = false; }; // Simula close entregado después por el navegador.
+    c['busqueda-global'].value = 'contratos'; c['abrir-busqueda-asistida'].listeners.click();
+    c['asistido-autor'].value = 'Autor anterior'; c['asistido-autor'].listeners.input();
+    c['cerrar-busqueda-asistida'].listeners.click();
+    assert.equal(prueba.memoria.consultar(), null);
+    c['busqueda-global'].value = 'informes'; c['abrir-busqueda-asistida'].listeners.click();
+    assert.equal(c['asistido-autor'].value, '');
+    dialogo.listeners.close();
+    assert.equal(prueba.memoria.consultar().consulta, 'informes');
+});
+
+test('editar conserva la interacción aunque el evento close llegue tras reabrir', () => {
+    const prueba = iniciar(), c = prueba.controles, dialogo = c['busqueda-asistida'];
+    dialogo.close = () => { dialogo.open = false; };
+    c['busqueda-global'].value = 'contratos'; c['abrir-busqueda-asistida'].listeners.click();
+    c['asistido-autor'].value = 'Autor conservado'; c['asistido-autor'].listeners.input();
+    c['editar-consulta-asistida'].listeners.click(); c['abrir-busqueda-asistida'].listeners.click();
+    dialogo.listeners.close();
+    assert.equal(prueba.memoria.consultar().filtros.autor, 'Autor conservado');
+    dialogo.close(); // Cierre externo, antes de que se notifique close.
+    c['busqueda-global'].value = 'informes'; c['abrir-busqueda-asistida'].listeners.click();
+    assert.equal(prueba.memoria.consultar().consulta, 'informes');
+    assert.equal(c['asistido-autor'].value, '');
+});
+
+test('fechas temporalmente inválidas no destruyen el último estado válido ni prioridad manual', () => {
+    const prueba = iniciar(), c = prueba.controles;
+    c['busqueda-global'].value = 'contratos'; c['abrir-busqueda-asistida'].listeners.click();
+    c['asistido-hasta'].value = '2026-01-01'; c['asistido-hasta'].listeners.input();
+    c['asistido-desde'].value = '2026-02-01'; c['asistido-desde'].listeners.input();
+    assert.equal(prueba.memoria.obtenerUltimoValido().filtros.desde, undefined);
+    assert.equal(prueba.memoria.consultar().manuales.includes('desde'), true);
+    c['asistido-hasta'].value = '2026-03-01'; c['asistido-hasta'].listeners.input();
+    assert.equal(prueba.memoria.consultar().filtros.desde, '2026-02-01');
+    assert.equal(prueba.memoria.consultar().filtros.hasta, '2026-03-01');
+});
+
+test('una búsqueda rápida también pide confirmación antes de descartar filtros manuales', () => {
+    const prueba = iniciar(), c = prueba.controles;
+    c['busqueda-global'].value = 'informes'; c['abrir-busqueda-asistida'].listeners.click();
+    c['asistido-autor'].value = 'Autor'; c['asistido-autor'].listeners.input();
+    prueba.rapidos[0].listeners.click();
+    let guia = c['filtros-sugeridos'].siguiente;
+    assert.match(c['filtros-sugeridos'].textContent, /descartará/);
+    guia.children.find(x => x.textContent === 'Volver a consulta anterior').listeners.click();
+    assert.equal(c['asistido-autor'].value, 'Autor');
+    assert.equal(c['asistido-categoria'].value, 'Informes');
+    prueba.rapidos[0].listeners.click(); guia = c['filtros-sugeridos'].siguiente;
+    guia.children.find(x => x.textContent === 'Iniciar búsqueda nueva').listeners.click();
+    assert.equal(c['asistido-autor'].value, '');
+    assert.equal(c['asistido-categoria'].value, 'Contratos');
+    assert.equal(prueba.destino(), undefined);
+});
+
+test('la intención de expediente se registra sin navegar y no se comparte entre instancias', () => {
+    const uno = iniciar(), dos = iniciar();
+    uno.controles['busqueda-global'].value = 'expediente EXP-2025-000123';
+    uno.controles['abrir-busqueda-asistida'].listeners.click();
+    dos.controles['busqueda-global'].value = 'informes'; dos.controles['abrir-busqueda-asistida'].listeners.click();
+    assert.equal(uno.memoria.consultar().intencion, 'expedientes');
+    assert.equal(dos.memoria.consultar().intencion, 'documentos');
+    uno.controles['cerrar-busqueda-asistida'].listeners.click();
+    assert.equal(uno.memoria.consultar(), null);
+    assert.equal(dos.memoria.consultar().consulta, 'informes');
+    assert.equal(uno.destino(), undefined);
+});
+
 test('se aplican los valores editados y se omiten los filtros eliminados', () => {
     const prueba = iniciar(); const c = prueba.controles;
     c['busqueda-global'].value = 'contratos de Tesorería marzo 2025';
@@ -135,14 +257,15 @@ test('se puede buscar con cada filtro añadido manualmente y sin consulta inicia
     }
 });
 
-test('se rechazan rangos invertidos y se conservan filtros manuales al editar la consulta', () => {
+test('se rechazan rangos invertidos después de confirmar una consulta nueva', () => {
     const prueba = iniciar(); const c = prueba.controles;
     c['busqueda-global'].value = 'contratos'; c['abrir-busqueda-asistida'].listeners.click();
     c['asistido-autor'].value = 'Autor'; c['asistido-autor'].listeners.input();
     c['editar-consulta-asistida'].listeners.click();
     c['busqueda-global'].value = 'informes'; c['abrir-busqueda-asistida'].listeners.click();
+    c['filtros-sugeridos'].siguiente.children.find(x => x.textContent === 'Iniciar búsqueda nueva').listeners.click();
     assert.equal(c['asistido-categoria'].value, 'Informes');
-    assert.equal(c['asistido-autor'].value, 'Autor');
+    assert.equal(c['asistido-autor'].value, '');
     c['asistido-desde'].value = '2026-05-01'; c['asistido-hasta'].value = '2026-04-01';
     c['form-busqueda-asistida'].listeners.submit({preventDefault() {}});
     assert.equal(prueba.destino(), undefined);
@@ -219,9 +342,9 @@ test('una aclaración no sobrescribe fechas editadas; puede omitirse y reiniciar
     assert.match(guia.children[0].textContent, /conservaron/);
     guia.children.find(x => x.textContent === 'Dejar sin aplicar').listeners.click();
     assert.equal(guia.hidden, true);
-    c['cerrar-busqueda-asistida'].listeners.click(); c['abrir-busqueda-asistida'].listeners.click();
+    c['editar-consulta-asistida'].listeners.click(); c['abrir-busqueda-asistida'].listeners.click();
     guia = c['filtros-sugeridos'].siguiente;
-    assert.equal(guia.hidden, false);
+    assert.equal(guia.hidden, true);
     assert.equal(c['asistido-desde'].value, '2020-01-01');
 });
 
