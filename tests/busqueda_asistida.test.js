@@ -11,7 +11,7 @@ function iniciar() {
         'busqueda-global', 'consulta-asistida-texto', 'editar-consulta-asistida', 'filtros-sugeridos', 'form-busqueda-asistida',
         'filtros-reconocidos', 'filtros-adicionales', 'agregar-filtros', 'sin-filtros-reconocidos', 'filtros-adicionales-activos',
         ...['buscar', 'categoria', 'departamento', 'oficio', 'autor', 'desde', 'hasta'].map(clave => `asistido-${clave}`)]) {
-        controles[id] = { value: '', hidden: true, listeners: {}, addEventListener(tipo, fn) { this.listeners[tipo] = fn; } };
+        controles[id] = { value: '', hidden: true, listeners: {}, addEventListener(tipo, fn) { this.listeners[tipo] = fn; }, append(...items) { this.agregados = items; } };
     }
     const dialogo = controles['busqueda-asistida'];
     dialogo.querySelector = () => null;
@@ -47,7 +47,7 @@ function iniciar() {
     const contexto = { window, Date: Fecha, URLSearchParams, URL, console,
         sessionStorage: { getItem: () => '1', setItem() {} },
         fetch: async () => ({ ok: true, json: async () => ({}) }),
-        document: { getElementById: id => controles[id], querySelector: () => null, addEventListener() {} },
+        document: { getElementById: id => controles[id], querySelector: () => null, addEventListener() {}, createElement: () => ({}) },
     };
     for (const nombre of ['interprete_busqueda.js', 'busqueda_asistida.js']) {
         const archivo = path.join(__dirname, '..', 'app', 'static', nombre);
@@ -63,12 +63,12 @@ test('reglas actuales de interpretación, incluidas ambigüedades', () => {
         ['', {}], ['documento', { buscar: 'documento' }],
         ['Contratos de Obras Públicas de marzo de 2025', { departamento: 'Obras Públicas', categoria: 'Contratos', desde: '2025-03-01', hasta: '2025-03-31' }],
         ['ACTAS de Tesorería', { departamento: 'Tesorería', categoria: 'Actas' }],
-        ['oficio OF-123/2026', { oficio: 'of-123/2026', desde: '2026-01-01', hasta: '2026-12-31' }],
+        ['oficio OF-123/2026', { oficio: 'of-123/2026' }],
         ['informe alumbrado año pasado', { categoria: 'Informes', desde: '2025-01-01', hasta: '2025-12-31', buscar: 'alumbrado' }],
-        ['contratos marzo', { categoria: 'Contratos', desde: '2026-03-01', hasta: '2026-03-31' }],
+        ['contratos marzo', { categoria: 'Contratos' }],
         ['bitácoras reparación', { categoria: 'Bitacoras', buscar: 'reparacion' }],
         ['contrato $% luz_azul', { categoria: 'Contratos', buscar: 'luz azul' }],
-        ['de enero a marzo', { desde: '2026-01-01', hasta: '2026-01-31', buscar: 'a marzo' }],
+        ['de enero a marzo', {}],
     ];
     for (const [entrada, esperado] of casos) assert.deepEqual(interpretar(entrada), esperado, entrada);
 });
@@ -78,7 +78,7 @@ test('el envío asistido utiliza los filtros propuestos y rechaza una frase vac�
     const form = prueba.controles['form-busqueda-asistida'];
     form.listeners.submit({ preventDefault() {} });
     assert.equal(prueba.destino(), undefined);
-    prueba.controles['busqueda-global'].value = 'contratos marzo';
+    prueba.controles['busqueda-global'].value = 'contratos marzo de 2026';
     prueba.controles['abrir-busqueda-asistida'].listeners.click();
     form.listeners.submit({ preventDefault() {} });
     const params = new URLSearchParams(prueba.destino().slice(2));
@@ -175,7 +175,26 @@ test('se abre la sección adicional si un campo requiere corregirse', () => {
     assert.equal(prueba.destino(), undefined);
 });
 
-test('el intérprete separado coincide con las reglas anteriores y funciona sin DOM', () => {
+test('el folio ofrece búsqueda global sin navegar ni alterar el filtro documental', () => {
+    const prueba = iniciar(); const c = prueba.controles;
+    c['busqueda-global'].value = 'expediente EXP-2025-000123';
+    c['abrir-busqueda-asistida'].listeners.click();
+    assert.equal(prueba.destino(), undefined);
+    assert.equal(c['filtros-reconocidos'].childElementCount, 0);
+    assert.equal(c['filtros-sugeridos'].agregados[1].href, '/buscar?q=exp-2025-000123');
+});
+
+test('la interfaz muestra dudas temporales sin aplicar fechas', () => {
+    const prueba = iniciar(); const c = prueba.controles;
+    c['busqueda-global'].value = 'informes de marzo';
+    c['abrir-busqueda-asistida'].listeners.click();
+    assert.equal(c['asistido-categoria'].value, 'Informes');
+    assert.equal(c['asistido-desde'].value, '');
+    assert.equal(c['asistido-hasta'].value, '');
+    assert.match(c['filtros-sugeridos'].textContent, /año/);
+});
+
+test('los casos sin cambios deliberados siguen coincidiendo con las reglas anteriores', () => {
     const categorias = ['Contratos', 'Actas', 'Informes', 'Certificados', 'Bitacoras', 'Inventarios', 'Otros'];
     const areas = ['Tesorería', 'Obras Públicas', 'Recursos Humanos'];
     class Fecha extends Date {
@@ -186,16 +205,25 @@ test('el intérprete separado coincide con las reglas anteriores y funciona sin 
     const viejo = anterior.module.exports(categorias, areas);
     const actual = { window: {}, Date: Fecha };
     vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'app', 'static', 'interprete_busqueda.js'), 'utf8'), actual);
-    const consultas = ['', '   ', 'documento', '%%%_@', 'OFICIO OF-123/2026', 'of. no. 22/2024',
+    const consultas = ['', '   ', 'documento', '%%%_@',
         'contratos de Obras Públicas marzo 2025', 'contrato de alumbrado del año pasado',
-        'bitácoras y ACTAS', 'certificados Tesorería', 'inventarios recursos humanos',
-        'informe febrero 2024', 'informe febrero 2023', 'diciembre este año', 'marzo',
-        'de enero a marzo', '2024 2025', 'oficios sin número', 'archivo documentos',
-        'café-público / foo_bar', 'x'.repeat(250), 'TESORERIA', 'Oficio 123/2026 marzo',
-        'enero y obras públicas', 'contratos inventarios', 'oficio número A-1'];
+        'certificados Tesorería', 'inventarios recursos humanos',
+        'informe febrero 2024', 'informe febrero 2023', 'oficios sin número', 'archivo documentos',
+        'café-público / foo_bar', 'x'.repeat(250), 'TESORERIA', 'oficio número A-1'];
     for (const consulta of consultas) {
         const esperado = JSON.parse(JSON.stringify(viejo(consulta)));
         const obtenido = JSON.parse(JSON.stringify(actual.window.sigedInterpretarBusqueda(consulta, categorias, areas)));
         assert.deepEqual(obtenido, esperado, consulta);
     }
+});
+
+test('cambio deliberado: dos categorías no seleccionan una al azar', () => {
+    const categorias = ['Actas', 'Bitacoras']; const areas = [];
+    const contexto = {window: {}};
+    vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'app', 'static', 'interprete_busqueda.js'), 'utf8'), contexto);
+    const resultado = contexto.window.sigedInterpretarBusqueda.detallar('bitácoras y ACTAS', categorias, areas);
+    assert.equal(resultado.filtros.categoria, undefined);
+    assert.match(resultado.avisos.join(' '), /varias categorías/);
+    const anterior = require('./fixtures/interprete_anterior.js')(categorias, areas)('bitácoras y ACTAS');
+    assert.equal(anterior.categoria, 'Actas');
 });

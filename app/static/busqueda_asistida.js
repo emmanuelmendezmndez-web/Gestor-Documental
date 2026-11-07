@@ -29,6 +29,7 @@
     let busquedaRapida = null;
     let consulta = "";
     let ultimaFrase = null;
+    let interpretacion = null;
     const editados = new Set();
     const fechaLocal = fecha => `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, "0")}-${String(fecha.getDate()).padStart(2, "0")}`;
     const ultimoMes = () => {
@@ -99,7 +100,8 @@
         adicionalesActivos.textContent = cantidad ? `(${cantidad} ${cantidad === 1 ? "activo" : "activos"})` : "";
     }
     function actualizar(conservarEditados = false) {
-        const filtros = busquedaRapida ? filtrosRapidos[busquedaRapida]() : window.sigedInterpretarBusqueda(consulta, categorias, areas);
+        interpretacion = busquedaRapida ? null : window.sigedInterpretarBusqueda.detallar(consulta, categorias, areas);
+        const filtros = busquedaRapida ? filtrosRapidos[busquedaRapida]() : interpretacion.filtros;
         consultaTexto.textContent = consulta || "Sin consulta escrita";
         for (const clave of claves) {
             if (!conservarEditados || !editados.has(clave)) campos[clave].value = filtros[clave] || "";
@@ -108,7 +110,18 @@
         }
         sinReconocidos.hidden = reconocidos.childElementCount > 0;
         contarAdicionales();
-        resumen.hidden = true;
+        mostrarAvisos();
+    }
+    function mostrarAvisos(mensaje = "") {
+        const avisos = [...(mensaje ? [mensaje] : []), ...(interpretacion?.avisos || [])];
+        resumen.textContent = avisos.join(" ");
+        if (interpretacion?.expediente) {
+            const enlace = document.createElement("a");
+            enlace.href = "/buscar?" + new URLSearchParams({q: interpretacion.expediente}).toString();
+            enlace.textContent = `Buscar expediente ${interpretacion.expediente} en búsqueda global`;
+            resumen.append(" ", enlace);
+        }
+        resumen.hidden = !avisos.length && !interpretacion?.expediente;
     }
     for (const clave of claves) {
         campos[clave].addEventListener("input", () => { editados.add(clave); mostrarOrigen(clave); contarAdicionales(); });
@@ -155,8 +168,7 @@
             return;
         }
         if (!Object.keys(filtros).length) {
-            resumen.hidden = false;
-            resumen.textContent = "Escribe qué documento buscas o elige una búsqueda rápida.";
+            mostrarAvisos("Escribe qué documento buscas o elige una búsqueda rápida.");
             editarConsulta.focus();
             return;
         }

@@ -1,55 +1,130 @@
-// Intérprete determinista compartido; recibe los catálogos de SIGED como datos.
+// Reglas locales: proponen filtros, nunca consultan documentos ni autorizan accesos.
 window.sigedInterpretarBusqueda = (() => {
     const normalizar = texto => texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
     const meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
-    const aliasCategorias = {
-        contrato: "Contratos", contratos: "Contratos", oficio: null, oficios: null,
-        acta: "Actas", actas: "Actas", certificado: "Certificados", certificados: "Certificados",
-        informe: "Informes", informes: "Informes", bitacora: "Bitacoras", bitacoras: "Bitacoras",
-        inventario: "Inventarios", inventarios: "Inventarios"
+    const mesPatron = meses.join("|");
+    const categoriasReglas = [
+        [/\bcontratos?\b/g, "Contratos"], [/\bactas?\b/g, "Actas"],
+        [/\bcertificados?\b/g, "Certificados"], [/\binformes?\b/g, "Informes"],
+        [/\bbitacoras?\b/g, "Bitacoras"], [/\binventarios?\b/g, "Inventarios"]
+    ];
+    const formatos = fecha => `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, "0")}-${String(fecha.getDate()).padStart(2, "0")}`;
+    const fecha = (anio, mes, dia) => {
+        const d = new Date(anio, mes, dia);
+        return d.getFullYear() === anio && d.getMonth() === mes && d.getDate() === dia ? d : null;
     };
+    const ultimoDia = (anio, mes) => new Date(anio, mes + 1, 0);
+    const consumir = (texto, coincidencia) => texto.slice(0, coincidencia.index) + " " + texto.slice(coincidencia.index + coincidencia[0].length);
 
-    return function interpretar(entrada, categorias, areas) {
-        const texto = normalizar(entrada.trim());
-        const filtros = {};
+    function extraerFechas(texto, hoy) {
         let restante = texto;
-        const area = [...areas].sort((a, b) => b.length - a.length)
-            .find(nombre => texto.includes(normalizar(nombre)));
-        if (area) {
-            filtros.departamento = area;
-            restante = restante.replace(normalizar(area), " ");
+        const avisos = [];
+        const rangos = [];
+        function registrar(coincidencia, desde, hasta, problema) {
+            restante = consumir(restante, coincidencia);
+            if (problema || !desde || !hasta || desde > hasta) avisos.push(problema || "El intervalo de fechas no es válido; revísalo.");
+            else rangos.push({ desde: formatos(desde), hasta: formatos(hasta) });
         }
-        const categoria = Object.entries(aliasCategorias).find(([palabra, valor]) =>
-            valor && categorias.includes(valor) && new RegExp(`\\b${palabra}\\b`).test(texto));
-        if (categoria) {
-            filtros.categoria = categoria[1];
-            restante = restante.replace(new RegExp(`\\b${categoria[0]}\\b`, "g"), " ");
+        const anyo = "((?:19|20)\\d{2})";
+        let m;
+        // Rangos con días y año final: un año omitido requiere aclaración.
+        const dias = new RegExp(`\\bentre\\s+(?:el\\s+)?(\\d{1,2})\\s+de\\s+(${mesPatron})\\s+(?:y|al)\\s+(?:el\\s+)?(\\d{1,2})\\s+de\\s+(${mesPatron})(?:\\s+(?:de\\s+)?${anyo})?\\b`);
+        while ((m = dias.exec(restante))) {
+            const y = m[5] ? Number(m[5]) : null;
+            registrar(m, y && fecha(y, meses.indexOf(m[2]), Number(m[1])), y && fecha(y, meses.indexOf(m[4]), Number(m[3])), y ? null : "El intervalo no indica año; añádelo para filtrar por fechas.");
         }
-        const oficio = texto.match(/(?:oficio|of\.)\s*(?:numero|num\.?|no\.?)?\s*[:#-]?\s*([a-z]{0,8}[-\/]?\d+[\w\/-]*)/);
-        if (oficio) {
-            filtros.oficio = oficio[1];
-            restante = restante.replace(oficio[0], " ");
+        const rangoMeses = new RegExp(`\\b(?:de|desde)\\s+(${mesPatron})\\s+(?:a|hasta)\\s+(${mesPatron})(?:\\s+(?:de\\s+)?${anyo})?\\b`);
+        while ((m = rangoMeses.exec(restante))) {
+            const y = m[3] ? Number(m[3]) : null, a = meses.indexOf(m[1]), b = meses.indexOf(m[2]);
+            registrar(m, y && fecha(y, a, 1), y && ultimoDia(y, b), y ? null : "El intervalo de meses no indica año; añádelo para filtrar por fechas.");
         }
-        const hoy = new Date();
-        const anioExplicito = texto.match(/\b(?:20|19)\d{2}\b/);
-        const mes = meses.findIndex(nombre => new RegExp(`\\b${nombre}\\b`).test(texto));
-        const anio = anioExplicito ? Number(anioExplicito[0]) :
-            /ano pasado/.test(texto) ? hoy.getFullYear() - 1 :
-            /este ano/.test(texto) || mes >= 0 ? hoy.getFullYear() : null;
-        if (anio && mes >= 0) {
-            filtros.desde = `${anio}-${String(mes + 1).padStart(2, "0")}-01`;
-            filtros.hasta = `${anio}-${String(mes + 1).padStart(2, "0")}-${String(new Date(anio, mes + 1, 0).getDate()).padStart(2, "0")}`;
-        } else if (anio) {
-            filtros.desde = `${anio}-01-01`;
-            filtros.hasta = `${anio}-12-31`;
+        // ISO y día/mes/año; si ambos componentes son menores o iguales a 12 se pide aclaración.
+        const numerica = /\b((?:19|20)\d{2})-(\d{1,2})-(\d{1,2})\b|\b(\d{1,2})[\/.](\d{1,2})[\/.]((?:19|20)\d{2})\b/g;
+        while ((m = numerica.exec(restante))) {
+            let d, problema;
+            if (m[1]) d = fecha(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+            else if (Number(m[4]) <= 12 && Number(m[5]) <= 12) problema = "La fecha numérica es ambigua; usa AAAA-MM-DD.";
+            else d = fecha(Number(m[6]), Number(m[5]) - 1, Number(m[4]));
+            registrar(m, d, d, problema); numerica.lastIndex = 0;
         }
-        if (anioExplicito) restante = restante.replace(anioExplicito[0], " ");
-        if (mes >= 0) restante = restante.replace(meses[mes], " ");
-        restante = restante.replace(/\b(?:quiero|encontrar|buscar|busca|busco|muestrame|dame|necesito|los|las|el|la|un|una|unos|unas|de|del|en|por|para|sobre|que|se|registrado|registrada|registrados|registradas|este|ano|pasado|documento|documentos|archivo|archivos|oficio|oficios)\b/g, " ");
+        const diaMes = new RegExp(`\\b(\\d{1,2})\\s+de\\s+(${mesPatron})\\s+(?:de\\s+)?${anyo}\\b`);
+        while ((m = diaMes.exec(restante))) {
+            const d = fecha(Number(m[3]), meses.indexOf(m[2]), Number(m[1])); registrar(m, d, d);
+        }
+        const mesRelativo = new RegExp(`\\b(${mesPatron})\\s+(?:(?:de|del)\\s+)?(este ano|ano pasado)\\b`);
+        while ((m = mesRelativo.exec(restante))) {
+            const y = hoy.getFullYear() - (m[2] === "ano pasado" ? 1 : 0), mes = meses.indexOf(m[1]);
+            registrar(m, fecha(y, mes, 1), ultimoDia(y, mes));
+        }
+        const relativos = /\b(hoy|ayer|esta semana|semana pasada|este mes|mes pasado|este ano|ano pasado)\b/;
+        while ((m = relativos.exec(restante))) {
+            const y = hoy.getFullYear(), mes = hoy.getMonth(), dia = hoy.getDate();
+            let inicio, fin;
+            switch (m[1]) {
+                case "hoy": inicio = fin = new Date(y, mes, dia); break;
+                case "ayer": inicio = fin = new Date(y, mes, dia - 1); break;
+                case "esta semana": case "semana pasada": {
+                    const lunes = dia - ((hoy.getDay() + 6) % 7) - (m[1] === "semana pasada" ? 7 : 0);
+                    inicio = new Date(y, mes, lunes); fin = new Date(y, mes, lunes + 6); break;
+                }
+                case "este mes": inicio = new Date(y, mes, 1); fin = ultimoDia(y, mes); break;
+                case "mes pasado": inicio = new Date(y, mes - 1, 1); fin = new Date(y, mes, 0); break;
+                case "este ano": inicio = new Date(y, 0, 1); fin = new Date(y, 11, 31); break;
+                default: inicio = new Date(y - 1, 0, 1); fin = new Date(y - 1, 11, 31);
+            }
+            registrar(m, inicio, fin);
+        }
+        const mesAnio = new RegExp(`\\b(${mesPatron})\\s+(?:de\\s+)?${anyo}\\b`);
+        while ((m = mesAnio.exec(restante))) {
+            const y = Number(m[2]), mes = meses.indexOf(m[1]); registrar(m, fecha(y, mes, 1), ultimoDia(y, mes));
+        }
+        const mesSinAnio = new RegExp(`\\b(${mesPatron})\\b`);
+        while ((m = mesSinAnio.exec(restante))) registrar(m, null, null, `No se indicó el año de ${m[1]}; añádelo para filtrar por fechas.`);
+        const anioSolo = /\b(?:19|20)\d{2}\b/;
+        while ((m = anioSolo.exec(restante))) { const y = Number(m[0]); registrar(m, fecha(y, 0, 1), fecha(y, 11, 31)); }
+        if (rangos.length > 1) avisos.push("Hay varias referencias de fecha; aclara cuál intervalo deseas aplicar.");
+        return { restante, fechas: rangos.length === 1 && !avisos.length ? rangos[0] : {}, avisos };
+    }
+
+    function detallar(entrada, categorias, areas) {
+        const texto = normalizar(entrada.trim());
+        let restante = texto;
+        const filtros = {}, avisos = [];
+        const expediente = texto.match(/\bexp[-/]\d{4}[-/]\d+\b/i);
+        if (expediente) restante = consumir(restante, expediente);
+        const oficio = restante.match(/\b(?:oficio|of\.|of(?=\s))\s*(?:numero|num\.?|no\.?)?\s*[:#-]?\s*((?=[a-z0-9\/-]*\d)[a-z0-9]+(?:[-\/][a-z0-9]+)*)/) ||
+            restante.match(/\b(of-\d+(?:[-\/]\w+)*)\b/);
+        if (oficio) { filtros.oficio = oficio[1]; restante = consumir(restante, oficio); }
+        const nombres = areas.map(nombre => ({ nombre, texto: normalizar(nombre) }));
+        // Solo alias institucionales inequívocos y presentes en el catálogo.
+        const aliasArea = [[/\b(?:rr\.?\s*hh\.?|recursos humanos)\b/, "Recursos Humanos"], [/\b(?:obras publicas)\b/, "Obras Públicas"]];
+        const encontrados = nombres.filter(area => new RegExp(`(?:^|[^\\p{L}\\p{N}])${area.texto.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=$|[^\\p{L}\\p{N}])`, "u").test(restante));
+        for (const [regla, nombre] of aliasArea) if (areas.includes(nombre) && regla.test(restante) && !encontrados.some(a => a.nombre === nombre)) encontrados.push({nombre, texto: normalizar(nombre), regla});
+        if (encontrados.length === 1) {
+            filtros.departamento = encontrados[0].nombre;
+            restante = restante.replace(encontrados[0].regla || encontrados[0].texto, " ");
+        } else if (encontrados.length > 1) {
+            avisos.push("Se mencionan varias áreas; elige el departamento manualmente.");
+            for (const area of encontrados) restante = restante.replace(area.regla || area.texto, " ");
+            restante = restante.replace(/\by\b/g, " ");
+        }
+        const detectadas = categoriasReglas.filter(([regla, nombre]) => categorias.includes(nombre) && new RegExp(regla.source).test(restante));
+        if (detectadas.length === 1) { filtros.categoria = detectadas[0][1]; restante = restante.replace(detectadas[0][0], " "); }
+        else if (detectadas.length > 1) {
+            avisos.push("Se mencionan varias categorías; selecciona una manualmente.");
+            for (const [regla] of detectadas) restante = restante.replace(regla, " ");
+            restante = restante.replace(/\by\b/g, " ");
+        }
+        const fechas = extraerFechas(restante, new Date()); restante = fechas.restante;
+        Object.assign(filtros, fechas.fechas); avisos.push(...fechas.avisos);
+        if (fechas.avisos.length) restante = restante.replace(/\b(?:y|a|al)\b/g, " ");
+        restante = restante.replace(/\b(?:quiero|encontrar|buscar|busca|busco|muestrame|dame|necesito|los|las|el|la|un|una|unos|unas|de|del|en|por|para|sobre|que|se|registrado|registrada|registrados|registradas|este|ano|pasado|documento|documentos|archivo|archivos|oficio|oficios|expediente|expedientes)\b/g, " ");
         const terminos = restante.replace(/[^\p{L}\p{N}\s-]/gu, " ").replace(/\s+/g, " ").trim();
         if (terminos) filtros.buscar = terminos.slice(0, 200);
-        // Una frase genérica como "documento" también debe ejecutar la búsqueda.
-        if (!Object.keys(filtros).length && texto) filtros.buscar = texto.slice(0, 200);
-        return filtros;
-    };
+        if (!Object.keys(filtros).length && texto && !avisos.length && !expediente) filtros.buscar = texto.slice(0, 200);
+        return { filtros, avisos, expediente: expediente ? expediente[0] : null };
+    }
+    function interpretar(entrada, categorias, areas) { return detallar(entrada, categorias, areas).filtros; }
+    interpretar.detallar = detallar;
+    return interpretar;
 })();
