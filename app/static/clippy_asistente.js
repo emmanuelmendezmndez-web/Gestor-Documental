@@ -10,10 +10,29 @@
             const elegirAnimacionInactiva = agente._getIdleAnimation.bind(agente);
             agente._getIdleAnimation = () => agente.hasAnimation("Idle1_1")
                 ? "Idle1_1" : elegirAnimacionInactiva();
+            const movimientoReducido = window.matchMedia("(prefers-reduced-motion: reduce)");
+            const iniciarAnimacionReposo = agente._onQueueEmpty.bind(agente);
+            agente._onQueueEmpty = () => {
+                if (!movimientoReducido.matches) iniciarAnimacionReposo();
+            };
+            agente._queue._onEmptyCallback = () => agente._onQueueEmpty();
             let temporizadorInactivo;
             let temporizadorSaludo;
             let accionSaludo;
             const globo = agente._balloon;
+            const programarReposo = (espera = 1200) => {
+                window.clearTimeout(temporizadorInactivo);
+                temporizadorInactivo = window.setTimeout(() => {
+                    const figura = document.querySelector(".clippy");
+                    const bocadillo = document.querySelector(".clippy-balloon");
+                    const mensajeVisible = bocadillo && getComputedStyle(bocadillo).display !== "none";
+                    if (mensajeVisible || figura?.matches(":hover, :focus-visible")) {
+                        programarReposo(1000);
+                        return;
+                    }
+                    figura?.classList.add("clippy-inactivo");
+                }, espera);
+            };
             const ocultarOriginal = globo.hide.bind(globo);
             globo.hide = (inmediato) => {
                 // Un mensaje anterior puede terminar justo después de empezar
@@ -29,6 +48,7 @@
                 globo._hidden = true;
                 globo._balloon.hide();
                 if (accionSaludo) accionSaludo.hidden = true;
+                programarReposo();
             };
             const programarCierreSaludo = (espera) => {
                 window.clearTimeout(temporizadorSaludo);
@@ -41,44 +61,71 @@
                 const figura = document.querySelector(".clippy");
                 figura?.classList.remove("clippy-inactivo");
                 window.clearTimeout(temporizadorInactivo);
+                ajustarBocadillo();
                 // Cancelar solo el cierre anterior: pausar el globo detendría
                 // la escritura y dejaría bloqueada la cola de mensajes.
                 window.clearTimeout(globo._hiding);
                 globo._hiding = null;
                 globo.CLOSE_BALLOON_DELAY = mantener ? 35000 : 2000;
                 hablarOriginal(mensaje, false);
-                temporizadorInactivo = window.setTimeout(() => {
-                    figura?.classList.add("clippy-inactivo");
-                }, Math.max(6000, String(mensaje).split(/\s+/).length * 220 + 3000));
+                programarReposo(Math.max(6000, String(mensaje).split(/\s+/).length * 220 + 3000));
+            };
+            const ajustarBocadillo = () => {
+                const figura = document.querySelector(".clippy");
+                const bocadillo = document.querySelector(".clippy-balloon");
+                if (!figura || !bocadillo) return;
+                const arriba = parseFloat(figura.style.top) || 0;
+                const espacioMinimo = Math.min(160, Math.max(80, window.innerHeight - 32));
+                const abajo = Math.min(Math.max(16, window.innerHeight - arriba + 16), window.innerHeight - espacioMinimo);
+                bocadillo.style.setProperty("--clippy-bocadillo-abajo", `${abajo}px`);
             };
             const ubicar = () => {
-                const x = Math.max(8, window.innerWidth - 140);
                 const alto = window.innerHeight;
-                const opciones = [0.38, 0.5, 0.65, 0.78]
-                    .map(fraccion => Math.max(245, Math.min(alto - 115, Math.round(alto * fraccion))));
+                const figuraActual = document.querySelector(".clippy");
+                const bocadilloActual = document.querySelector(".clippy-balloon");
+                if (figuraActual?.matches(":hover, :focus-visible") ||
+                    (bocadilloActual && getComputedStyle(bocadilloActual).display !== "none")) return;
+                const inactivo = figuraActual?.classList.contains("clippy-inactivo");
+                const escala = inactivo ? (window.innerWidth <= 700 ? 0.32 : 0.38) : 1;
+                const anchoFigura = 124 * escala;
+                const altoFigura = 93 * escala;
+                // Reservar también el espacio que ocupará al volver a tamaño completo.
+                const minimoX = 8 + (124 - anchoFigura);
+                const minimoY = Math.min(170, Math.max(8, alto - 109)) + (93 - altoFigura);
+                const xs = [1, 0.8, 0.6, 0.4, 0.2, 0].map(fraccion =>
+                    minimoX + Math.max(0, window.innerWidth - anchoFigura - 8 - minimoX) * fraccion);
+                const ys = [0.5, 0.35, 0.65, 0.2, 0.8, 0.05, 0.95].map(fraccion =>
+                    minimoY + Math.max(0, alto - altoFigura - 8 - minimoY) * fraccion);
                 const controles = Array.from(document.querySelectorAll(
-                    ".app-content button, .app-content a, .app-content input, .kpi-card, .almacenamiento-panel"
-                )).filter(elemento => elemento.getClientRects().length);
+                    ".app-content button, .app-content a, .app-content input, .kpi-card, .almacenamiento-panel, .archivo-fila, .barra-seleccion, .sidebar a, .sidebar button"
+                )).filter(elemento => elemento.getClientRects().length).map(elemento => elemento.getBoundingClientRect());
                 const area = (a, b) => Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) *
                     Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
-                const puntuar = y => {
-                    const figura = { left: x - 10, right: x + 134, top: y - 10, bottom: y + 103 };
-                    const consejo = { left: x - 245, right: x + 124, top: y - 215, bottom: y };
-                    return controles.reduce((total, elemento) => {
-                        const rectangulo = elemento.getBoundingClientRect();
-                        const peso = elemento.matches(".kpi-card, .almacenamiento-panel") ? 2 : 5;
-                        return total + area(figura, rectangulo) * peso + area(consejo, rectangulo) * peso * 0.4;
-                    }, 0);
-                };
-                const y = opciones.reduce((mejor, actual) => puntuar(actual) < puntuar(mejor) ? actual : mejor);
-                document.querySelector(".clippy-balloon")?.style.setProperty(
-                    "--clippy-bocadillo-abajo", `${Math.max(16, alto - y + 16)}px`
-                );
+                let mejor = { puntaje: Infinity, izquierda: xs[0], arriba: ys[0] };
+                for (const izquierda of xs) for (const arriba of ys) {
+                    const figura = { left: izquierda - 4, right: izquierda + anchoFigura + 4,
+                        top: arriba - 4, bottom: arriba + altoFigura + 4 };
+                    const arribaExpandido = arriba - (93 - altoFigura);
+                    const figuraExpandida = {left: izquierda - (124 - anchoFigura) - 4, right: izquierda + anchoFigura + 4,
+                        top: arribaExpandido - 4, bottom: arriba + altoFigura + 4};
+                    const espacioMinimo = Math.min(160, Math.max(80, alto - 32));
+                    const abajo = Math.min(Math.max(16, alto - arribaExpandido + 16), alto - espacioMinimo);
+                    const alturaConsejo = Math.max(0, Math.min(240, alto - abajo - 12));
+                    const consejo = {left: Math.max(12, window.innerWidth - 272), right: window.innerWidth - 12,
+                        top: alto - abajo - alturaConsejo, bottom: alto - abajo};
+                    const puntaje = controles.reduce((total, rectangulo) => total + area(figura, rectangulo) +
+                        area(figuraExpandida, rectangulo) + area(consejo, rectangulo) * 0.4, 0);
+                    if (puntaje < mejor.puntaje) mejor = { puntaje, izquierda, arriba };
+                }
+                const x = mejor.izquierda - (124 - anchoFigura);
+                const y = mejor.arriba - (93 - altoFigura);
                 agente.moveTo(x, y, 0);
+                window.requestAnimationFrame(ajustarBocadillo);
             };
             ubicar();
             agente.show(true);
             document.querySelector(".clippy")?.classList.add("clippy-inactivo");
+            ubicar();
             const bocadillo = document.querySelector(".clippy-balloon");
             if (bocadillo) {
                 const cerrarConsejo = document.createElement("button");
@@ -92,7 +139,7 @@
                     window.clearTimeout(temporizadorSaludo);
                     agente.stop();
                     bocadillo.style.display = "none";
-                    document.querySelector(".clippy")?.classList.add("clippy-inactivo");
+                    programarReposo();
                 });
                 bocadillo.append(cerrarConsejo);
                 accionSaludo = document.createElement("a");
@@ -363,6 +410,16 @@
                 personaje.setAttribute("role", "button");
                 personaje.setAttribute("aria-label", "Clippy. Pulsa para pedir ayuda.");
                 personaje.setAttribute("tabindex", "0");
+                personaje.addEventListener("mouseenter", () => {
+                    window.clearTimeout(temporizadorInactivo);
+                    personaje.classList.remove("clippy-inactivo");
+                });
+                personaje.addEventListener("mouseleave", () => programarReposo());
+                personaje.addEventListener("focus", () => {
+                    window.clearTimeout(temporizadorInactivo);
+                    personaje.classList.remove("clippy-inactivo");
+                });
+                personaje.addEventListener("blur", () => programarReposo());
                 const hablar = () => {
                     agente.stop();
                     const guia = guias[ruta];
