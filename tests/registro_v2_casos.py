@@ -14,6 +14,8 @@ from aislamiento import exigir_directorio_temporal
 PADRE = exigir_directorio_temporal("siged-prueba-registro-v2-")
 from app import registro_restauracion as r
 from app import inventario_restauracion as inv
+from app import coordinacion as coord
+from app import diagnostico_restauracion as diag
 
 
 class EsquemaTest(unittest.TestCase):
@@ -50,6 +52,65 @@ class EsquemaTest(unittest.TestCase):
         r.escribir(self.datos)
         self.datos.update(estado='finalizada', paso='verificada')
         r.escribir(self.datos)
+
+    def test_diagnostico_pendiente_sin_modificar_datos(self):
+        r.escribir(self.datos)
+        with patch.object(coord, 'DATA_DIR', self.root), patch.multiple(diag, DB_PATH=inv.DB_PATH, STORAGE_DIR=inv.STORAGE_DIR, SECRET_PATH=inv.SECRET_PATH):
+            antes = {str(p.relative_to(self.root)): p.read_bytes() for p in self.root.rglob('*') if p.is_file()}
+            informe = coord.diagnosticar_restauracion()
+            self.assertEqual(informe['clasificacion'], 'evidencia coherente')
+            self.assertEqual(informe['operaciones'][0]['archivos_anteriores']['disponibles'], 2)
+            with self.assertRaises(RuntimeError):
+                coord.BloqueoDatos(False)
+            despues = {str(p.relative_to(self.root)): p.read_bytes() for p in self.root.rglob('*') if p.is_file() and p.name != '.siged-coordinacion.lock'}
+            self.assertEqual(antes, despues)
+            inv.DB_PATH.write_bytes(b'alterada')
+            informe = coord.diagnosticar_restauracion()
+            self.assertEqual(informe['clasificacion'], 'información insuficiente o estado incierto')
+            inv.DB_PATH.unlink()
+            self.assertEqual(coord.diagnosticar_restauracion()['operaciones'][0]['archivos_anteriores']['ausentes'], 1)
+            with patch.object(diag, '_inspeccionar', side_effect=RuntimeError('error')):
+                with self.assertRaises(RuntimeError): coord.diagnosticar_restauracion()
+            self.assertTrue(coord.diagnosticar_restauracion())
+
+    def test_diagnostico_incierto_y_discrepancia(self):
+        with patch.object(coord, 'DATA_DIR', self.root), patch.multiple(diag, DB_PATH=inv.DB_PATH, STORAGE_DIR=inv.STORAGE_DIR, SECRET_PATH=inv.SECRET_PATH):
+            self.assertEqual(coord.diagnosticar_restauracion()['clasificacion'], 'información insuficiente o estado incierto')
+            r.REGISTRO.write_text('{')
+            self.assertEqual(coord.diagnosticar_restauracion()['clasificacion'], 'información insuficiente o estado incierto')
+            legado = {k: v for k, v in self.datos.items() if k in r.BASE}
+            legado['version'] = 1
+            r.REGISTRO.write_text(json.dumps(legado))
+            self.assertEqual(coord.diagnosticar_restauracion()['clasificacion'], 'información insuficiente o estado incierto')
+            r.REGISTRO.unlink()
+            r.escribir(self.datos)
+            inv.DB_PATH.replace(self.op / 'anterior-base')
+            (self.op / 'anterior-base').write_bytes(b'alterado')
+            self.assertEqual(coord.diagnosticar_restauracion()['clasificacion'], 'discrepancia comprobada')
+
+    def test_diagnostico_conjuntos_modos_y_limites(self):
+        r.escribir(self.datos)
+        with patch.object(coord, 'DATA_DIR', self.root), patch.multiple(diag, DB_PATH=inv.DB_PATH, STORAGE_DIR=inv.STORAGE_DIR, SECRET_PATH=inv.SECRET_PATH):
+            rapido = coord.diagnosticar_restauracion('rapido')
+            self.assertEqual(rapido['clasificacion'], 'información insuficiente o estado incierto')
+            self.assertTrue(any(d['categoria'] == 'sin verificar' for d in rapido['operaciones'][0]['detalles']))
+            with patch.object(inv, 'huella', side_effect=KeyboardInterrupt):
+                cancelado = coord.diagnosticar_restauracion()
+                self.assertEqual(cancelado['clasificacion'], 'información insuficiente o estado incierto')
+                self.assertIn('sin verificar', cancelado['motivo'])
+            preparado = self.op / 'validado' / 'storage' / 'documento.txt'
+            preparado.unlink()
+            informe = coord.diagnosticar_restauracion()
+            self.assertTrue(any(d['conjunto'] == 'preparado' and d['categoria'] == 'archivo ausente' for d in informe['operaciones'][0]['detalles']))
+            contenido = self.previo.read_bytes()
+            self.previo.write_bytes(b'x' * len(contenido))
+            informe = coord.diagnosticar_restauracion()
+            self.assertEqual(informe['clasificacion'], 'discrepancia comprobada')
+            self.assertTrue(any(d['conjunto'] == 'respaldo' and d['categoria'] == 'hash diferente' for d in informe['operaciones'][0]['detalles']))
+            with patch.dict(os.environ, {'GESTOR_DIAGNOSTICO_MAX_BYTES': '1'}):
+                limitado = coord.diagnosticar_restauracion()
+                self.assertEqual(limitado['clasificacion'], 'información insuficiente o estado incierto')
+                self.assertIn('sin verificar', limitado['motivo'])
 
     def test_separacion_ausencias_y_huellas(self):
         inv.verificar(self.op, self.datos['inventario'])

@@ -8,6 +8,23 @@ import unittest
 
 
 class CoordinacionTest(unittest.TestCase):
+    def test_diagnostico_exclusivo(self):
+        servidor = self.mantener(False)
+        r = self.ejecutar('from app.coordinacion import diagnosticar_restauracion; diagnosticar_restauracion()')
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn('bloqueo de SIGED', r.stderr)
+        servidor.stdin.write('\n'); servidor.stdin.flush(); servidor.wait(timeout=15)
+        proceso = self.proceso("import app.diagnostico_restauracion as d; "
+                               "from app.coordinacion import diagnosticar_restauracion; "
+                               "d._inspeccionar=lambda: (print('listo', flush=True), input()); diagnosticar_restauracion()")
+        self.addCleanup(self.detener, proceso)
+        self.assertEqual(proceso.stdout.readline().strip(), 'listo')
+        otro = self.ejecutar('from app.coordinacion import diagnosticar_restauracion; diagnosticar_restauracion()')
+        self.assertNotEqual(otro.returncode, 0)
+        self.assertIn('bloqueo de SIGED', otro.stderr)
+        proceso.stdin.write('\n'); proceso.stdin.flush(); proceso.wait(timeout=15)
+        self.assertEqual(self.ejecutar('from app.coordinacion import diagnosticar_restauracion; diagnosticar_restauracion()').returncode, 0)
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory(prefix="siged-prueba-coordinacion-")
         self.addCleanup(self.tmp.cleanup)

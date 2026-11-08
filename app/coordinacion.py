@@ -12,16 +12,11 @@ class BloqueoNoDisponible(RuntimeError):
     """No fue posible garantizar acceso coordinado a los datos."""
 
 
-class BloqueoDatos:
+class _BloqueoSistema:
     def __init__(self, exclusivo: bool):
         self.exclusivo = exclusivo
         self.handle = None
         self._adquirir()
-        try:
-            comprobar_estado()
-        except BaseException:
-            self.cerrar()
-            raise
 
     def _adquirir(self):
         DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -95,3 +90,20 @@ class BloqueoDatos:
 
     def __exit__(self, *args):
         self.cerrar()
+
+
+class BloqueoDatos(_BloqueoSistema):
+    def __init__(self, exclusivo: bool):
+        super().__init__(exclusivo)
+        try:
+            comprobar_estado()
+        except BaseException:
+            self.cerrar()
+            raise
+
+
+def diagnosticar_restauracion(modo="profundo"):
+    """Única entrada sin comprobación previa: solo produce un informe de lectura."""
+    from app.diagnostico_restauracion import _inspeccionar
+    with _BloqueoSistema(exclusivo=True):
+        return _inspeccionar() if modo == "profundo" else _inspeccionar(modo)
