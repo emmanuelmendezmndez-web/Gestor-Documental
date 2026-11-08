@@ -1,0 +1,16 @@
+# Ejemplo para Caddy y SIGED en el mismo servidor. No iniciar sin configurar.
+# Variables obligatorias: SIGED_HOST, SIGED_CERT y SIGED_KEY.
+# La clave privada y los certificados no deben guardarse en el repositorio.
+{
+    admin off
+    auto_https off
+}
+
+https://{$SIGED_HOST} {
+    tls "{$SIGED_CERT}" "{$SIGED_KEY}"
+    reverse_proxy 127.0.0.1:8000 {
+        # La IP procede de la conexion directa, no de cabeceras del cliente.
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto https
+    }
+}

@@ -47,7 +47,8 @@ respaldo:
 ```powershell
 $env:GESTOR_DATA_DIR = 'C:\Ruta\Privada\SIGED-Datos'
 .\.venv\Scripts\python.exe -m app.crear_usuario
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+$env:GESTOR_HTTPS_ONLY = '0'
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --no-proxy-headers
 ```
 
 El primer comando de Python crea la base si es necesario y solicita los datos
@@ -62,9 +63,13 @@ variable `GESTOR_HTTPS_ONLY` activa la marca segura de la cookie cuando el
 servicio se utiliza detrás de HTTPS. La caché de previsualizaciones se guarda
 bajo `LOCALAPPDATA` cuando está definida.
 
-El archivo `Iniciar SIGED.bat` existente escucha en `0.0.0.0:8000`, por lo que
-puede admitir conexiones desde la red según la configuración del equipo. Evalúe
-la configuración de red y HTTPS antes de utilizarlo con otros equipos.
+`Iniciar SIGED.bat` es para desarrollo local: escucha solo en `127.0.0.1:8000`,
+desactiva la marca `Secure` de la cookie en ese proceso y no acepta encabezados
+de proxy. Use una carpeta de datos ficticia separada de la institucional.
+
+Para la preparación de producción HTTPS con Caddy consulte [DESPLIEGUE_HTTPS.md](DESPLIEGUE_HTTPS.md).
+No habilite acceso institucional a la aplicación hasta completar esa configuración
+y sus comprobaciones.
 
 ## Pruebas y respaldo
 

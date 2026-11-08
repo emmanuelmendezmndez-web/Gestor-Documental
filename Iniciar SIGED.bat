@@ -21,11 +21,13 @@ if errorlevel 1 (
 )
 
 echo Iniciando SIGED en http://127.0.0.1:8000
+echo Modo local de desarrollo. No usar para acceso institucional por red.
 echo Mantener la ventana abierta mientras el programa este en uso.
 echo Para detener el servidor, presiona Ctrl+C.
 echo.
 start "" "http://127.0.0.1:8000"
-"%PYTHON%" -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+set "GESTOR_HTTPS_ONLY=0"
+"%PYTHON%" -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --no-proxy-headers
 
 if errorlevel 1 (
     echo.
