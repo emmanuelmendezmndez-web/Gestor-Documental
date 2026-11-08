@@ -21,7 +21,7 @@ from app import inventario_restauracion as inv
 from app import registro_restauracion as r
 
 
-def _verificar():
+def _verificar(preparar=False):
     salida = {'estado': 'verificación incompleta', 'listo_recuperacion': False}
     try:
         presupuesto = inv.Presupuesto()
@@ -36,7 +36,10 @@ def _verificar():
         if total > inv.limite('GESTOR_VERIFICACION_MAX_BYTES', 10 * 1024**3):
             raise ValueError('Presupuesto excedido')
         margen = inv.limite('GESTOR_VERIFICACION_MARGEN_BYTES', 64 * 1024**2)
-        if shutil.disk_usage(r.DATA_DIR).free < total + margen:
+        extra = entradas.get('base', {}).get('tamano', 0) if preparar else 0
+        if total + extra > inv.limite('GESTOR_VERIFICACION_MAX_BYTES', 10 * 1024**3):
+            raise ValueError('Presupuesto excedido')
+        if shutil.disk_usage(r.DATA_DIR).free < total + extra + margen:
             raise ValueError('Espacio insuficiente')
         with directorio_privado(r.DATA_DIR) as temporal:
             from pathlib import Path
@@ -120,12 +123,20 @@ def _verificar():
                 salida['archivos_inventariados_sin_referencia'] = sum(
                     ruta.startswith('storage/') and fila['tipo'] == 'archivo' and ruta not in referenciados
                     for ruta, fila in entradas.items())
+            if preparar:
+                from app.preparacion_cola import transformar_copia, evaluar_clave
+                preparacion = transformar_copia(db, destino / 'base-candidata', presupuesto)
+                preparacion['operacion'] = evidencia['registro']['operacion']
+                preparacion['inventario_sha256'] = evidencia['registro']['inventario']['sha256']
+                preparacion['clave'] = evaluar_clave(evidencia, bool(os.environ.get('GESTOR_SECRET_KEY')))
             # Revalida conjunto completo, auxiliares, constancias y origen; sin otro bloqueo.
             final = {}
             if sel._seleccionar(final)['estado'] != 'candidato identificado' or final != evidencia:
                 raise ValueError('Evidencia final cambió')
             presupuesto.comprobar()
         salida['estado'] = 'copia verificada'
+        if preparar:
+            salida['preparacion_temporal'] = preparacion
     except (OSError, ValueError, sqlite3.Error, KeyboardInterrupt, RecursionError):
         salida['motivo'] = 'Verificación incompleta: error de copia, integridad, recursos o evidencia.'
     return salida

@@ -21,6 +21,99 @@ from app import seleccion_originales as sel
 
 
 class EsquemaTest(unittest.TestCase):
+    def test_preparacion_cola_y_clave_sin_autorizar(self):
+        from app import preparacion_cola as prep
+        inv.DB_PATH.unlink()
+        with sqlite3.connect(inv.DB_PATH) as db:
+            db.executescript('''
+                CREATE TABLE documentos(id INTEGER PRIMARY KEY, nombre_guardado TEXT, tamano_bytes INTEGER);
+                INSERT INTO documentos VALUES(1, 'documento.txt', 8);
+                CREATE TABLE eliminaciones_pendientes(id INTEGER PRIMARY KEY, tipo TEXT, nombre TEXT, identidad TEXT, estado TEXT, intentos INTEGER, ultimo_error TEXT, creado_en TEXT);
+                INSERT INTO eliminaciones_pendientes VALUES(1,'documento','documento.txt','x','pendiente',0,'','hoy');
+                INSERT INTO eliminaciones_pendientes VALUES(2,'documento','otro.txt','x','suspendida',1,'previo','hoy');
+            ''')
+        db.close()
+        (self.op / 'inventario.jsonl').unlink()
+        self.datos['inventario'] = inv.publicar(self.op, self.previo)
+        r.escribir(self.datos)
+        antes = inv.DB_PATH.read_bytes()
+        with patch.object(coord, 'DATA_DIR', self.root), patch.multiple(sel, DB_PATH=inv.DB_PATH, STORAGE_DIR=inv.STORAGE_DIR, SECRET_PATH=inv.SECRET_PATH):
+            with patch.dict(os.environ, {'GESTOR_SECRET_KEY': 'ficticia-distinta'}):
+                resultado = coord.preparar_cola_aislada()
+            self.assertEqual(resultado['estado'], 'copia verificada', resultado)
+            self.assertFalse(resultado['listo_recuperacion'])
+            p = resultado['preparacion_temporal']
+            self.assertEqual(p['clave'], 'entorno histórico no verificable')
+            self.assertEqual((p['total_tareas'], p['tareas_suspendidas']), (2, 1))
+            self.assertNotEqual(p['sha256_antes'], p['sha256_despues'])
+            self.assertEqual(p['sha256_antes'], hashlib.sha256(antes).hexdigest())
+            self.assertEqual(inv.DB_PATH.read_bytes(), antes)
+            self.assertEqual((inv.STORAGE_DIR / 'documento.txt').read_bytes(), b'anterior')
+            self.assertFalse(list(self.root.glob('.siged-verificacion-*')))
+        evidencia = {'registro': {'clave_origen': 'archivo'}, 'entradas': {'clave': {'tipo': 'archivo'}}}
+        self.assertIn('identificado', prep.evaluar_clave(evidencia, False))
+        self.assertIn('incompatible', prep.evaluar_clave(evidencia, True))
+        evidencia['entradas']['clave']['tipo'] = 'ausente'
+        self.assertEqual(prep.evaluar_clave(evidencia, False), 'evidencia insuficiente')
+
+    def test_preparacion_revierte_fallo(self):
+        from app import preparacion_cola as prep
+        anterior = self.root / 'anterior.db'
+        candidata = self.root / 'candidata.db'
+        with sqlite3.connect(anterior) as db:
+            db.executescript("CREATE TABLE eliminaciones_pendientes(id INTEGER, tipo TEXT, nombre TEXT, identidad TEXT, estado TEXT, intentos INTEGER, ultimo_error TEXT, creado_en TEXT); INSERT INTO eliminaciones_pendientes VALUES(1,'documento','a','x','pendiente',0,'','hoy');")
+        db.close()
+        antes = anterior.read_bytes()
+        original = prep._resumen
+        def fallo(*args, **kwargs):
+            if not kwargs and len(args) == 2:
+                raise ValueError('fallo simulado')
+            return original(*args, **kwargs)
+        with patch.object(prep, '_resumen', side_effect=fallo), self.assertRaises(ValueError):
+            prep.transformar_copia(anterior, candidata, inv.Presupuesto())
+        with sqlite3.connect(candidata) as db:
+            self.assertEqual(db.execute('SELECT estado FROM eliminaciones_pendientes').fetchone()[0], 'pendiente')
+        db.close()
+        self.assertEqual(anterior.read_bytes(), antes)
+        interrumpida = self.root / 'interrumpida.db'
+        with patch.object(prep, '_resumen', side_effect=KeyboardInterrupt), self.assertRaises(KeyboardInterrupt):
+            prep.transformar_copia(anterior, interrumpida, inv.Presupuesto())
+        with sqlite3.connect(interrumpida) as db:
+            self.assertEqual(db.execute('SELECT estado FROM eliminaciones_pendientes').fetchone()[0], 'pendiente')
+        db.close()
+        self.assertEqual(anterior.read_bytes(), antes)
+
+    def test_preparacion_rechaza_auxiliares(self):
+        from app import preparacion_cola as prep
+        anterior = self.root / 'anterior.db'
+        candidata = self.root / 'candidata.db'
+        anterior.write_bytes(b'base ficticia')
+        for base in (anterior, candidata):
+            for sufijo in ('-wal', '-shm', '-journal'):
+                auxiliar = base.with_name(base.name + sufijo)
+                auxiliar.write_bytes(b'auxiliar ficticio')
+                with self.assertRaises(ValueError):
+                    prep.transformar_copia(anterior, candidata, inv.Presupuesto())
+                self.assertEqual(auxiliar.read_bytes(), b'auxiliar ficticio')
+                self.assertEqual(anterior.read_bytes(), b'base ficticia')
+                self.assertFalse(candidata.exists())
+                auxiliar.unlink()
+        anterior.unlink()
+        with sqlite3.connect(anterior) as db:
+            db.execute('CREATE TABLE eliminaciones_pendientes(id INTEGER, tipo TEXT, nombre TEXT, identidad TEXT, estado TEXT, intentos INTEGER, ultimo_error TEXT, creado_en TEXT)')
+        db.close()
+        original = prep._comprobar_auxiliares
+        llamadas = []
+        def simular_auxiliar(base):
+            llamadas.append(base)
+            if len(llamadas) == 4:
+                base.with_name(base.name + '-wal').write_bytes(b'auxiliar ficticio')
+            return original(base)
+        with patch.object(prep, '_comprobar_auxiliares', side_effect=simular_auxiliar), self.assertRaises(ValueError):
+            prep.transformar_copia(anterior, candidata, inv.Presupuesto())
+        self.assertEqual(len(llamadas), 4)
+        self.assertEqual(candidata.with_name(candidata.name + '-wal').read_bytes(), b'auxiliar ficticio')
+
     def test_copia_sqlite_valida_y_fallos_controlados(self):
         inv.DB_PATH.unlink()
         with sqlite3.connect(inv.DB_PATH) as db:

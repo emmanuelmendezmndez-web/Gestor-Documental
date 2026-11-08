@@ -121,3 +121,10 @@ def verificar_originales_aislados():
     from app.verificacion_originales import _verificar
     with _BloqueoSistema(exclusivo=True):
         return _verificar()
+
+
+def preparar_cola_aislada():
+    """Comprueba una transformación efímera, sin autorizar recuperación."""
+    from app.verificacion_originales import _verificar
+    with _BloqueoSistema(exclusivo=True):
+        return _verificar(preparar=True)
