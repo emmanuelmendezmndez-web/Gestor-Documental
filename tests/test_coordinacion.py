@@ -8,6 +8,12 @@ import unittest
 
 
 class CoordinacionTest(unittest.TestCase):
+    def test_selector_rechaza_servidor_activo(self):
+        self.mantener(False)
+        resultado = self.ejecutar('from app.coordinacion import seleccionar_originales; seleccionar_originales()')
+        self.assertNotEqual(resultado.returncode, 0)
+        self.assertIn('bloqueo de SIGED', resultado.stderr)
+
     def test_diagnostico_exclusivo(self):
         servidor = self.mantener(False)
         r = self.ejecutar('from app.coordinacion import diagnosticar_restauracion; diagnosticar_restauracion()')

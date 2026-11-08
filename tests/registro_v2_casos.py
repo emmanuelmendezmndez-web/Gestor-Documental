@@ -16,6 +16,7 @@ from app import registro_restauracion as r
 from app import inventario_restauracion as inv
 from app import coordinacion as coord
 from app import diagnostico_restauracion as diag
+from app import seleccion_originales as sel
 
 
 class EsquemaTest(unittest.TestCase):
@@ -52,6 +53,61 @@ class EsquemaTest(unittest.TestCase):
         r.escribir(self.datos)
         self.datos.update(estado='finalizada', paso='verificada')
         r.escribir(self.datos)
+
+    def test_seleccion_originales_completo_y_errores(self):
+        r.escribir(self.datos)
+        with patch.object(coord, 'DATA_DIR', self.root), patch.multiple(sel, DB_PATH=inv.DB_PATH, STORAGE_DIR=inv.STORAGE_DIR, SECRET_PATH=inv.SECRET_PATH):
+            antes = {str(p.relative_to(self.root)): p.read_bytes() for p in self.root.rglob('*') if p.is_file()}
+            informe = coord.seleccionar_originales()
+            self.assertEqual(informe['estado'], 'candidato identificado', informe)
+            self.assertEqual(informe['clave_efectiva'], 'entorno no verificado')
+            self.assertFalse(informe['listo_recuperacion'])
+            historica = r.RAIZ / 'operacion-ijklmnop'; historica.mkdir()
+            antiguo = {k: v for k, v in self.datos.items() if k in r.BASE}
+            antiguo.update(version=1, operacion=historica.name, directorio=str(historica), estado='finalizada', paso='verificada')
+            r._inmutable(historica / 'finalizada-v1.json', antiguo)
+            self.assertEqual(coord.seleccionar_originales()['estado'], 'candidato identificado')
+            (historica / 'finalizada-v1.json').unlink(); historica.rmdir()
+            despues = {str(p.relative_to(self.root)): p.read_bytes() for p in self.root.rglob('*') if p.is_file() and p.name != '.siged-coordinacion.lock'}
+            self.assertEqual(antes, despues)
+            extra = inv.STORAGE_DIR / 'extra.txt'; extra.write_bytes(b'extra')
+            self.assertNotEqual(coord.seleccionar_originales()['estado'], 'candidato identificado')
+            extra.unlink()
+            with patch.dict(os.environ, {'GESTOR_SELECCION_MAX_BYTES': '1'}):
+                self.assertEqual(coord.seleccionar_originales()['estado'], 'evidencia insuficiente')
+
+    def test_seleccion_auxiliar_sqlite(self):
+        r.escribir(self.datos)
+        with patch.object(coord, 'DATA_DIR', self.root), patch.multiple(sel, DB_PATH=inv.DB_PATH, STORAGE_DIR=inv.STORAGE_DIR, SECRET_PATH=inv.SECRET_PATH):
+            auxiliar = inv.DB_PATH.parent / (inv.DB_PATH.name + '-wal')
+            auxiliar.write_bytes(b'ficticio')
+            self.assertEqual(coord.seleccionar_originales()['estado'], 'evidencia insuficiente')
+            self.assertEqual(auxiliar.read_bytes(), b'ficticio')
+
+    def test_seleccion_rechaza_v1_ausencias_y_procedencia(self):
+        r.escribir(self.datos)
+        with patch.object(coord, 'DATA_DIR', self.root), patch.multiple(sel, DB_PATH=inv.DB_PATH, STORAGE_DIR=inv.STORAGE_DIR, SECRET_PATH=inv.SECRET_PATH):
+            inv.DB_PATH.replace(self.op / 'anterior-base')
+            self.assertEqual(coord.seleccionar_originales()['estado'], 'evidencia insuficiente')
+            self.datos.update(estado='pendiente', paso='base-guardar')
+            r.escribir(self.datos)
+            self.assertEqual(coord.seleccionar_originales()['estado'], 'candidato identificado')
+            (self.op / 'anterior-base').write_bytes(b'alterada')
+            self.assertNotEqual(coord.seleccionar_originales()['estado'], 'candidato identificado')
+            legado = {k: v for k, v in self.datos.items() if k in r.BASE}; legado['version'] = 1
+            r.REGISTRO.write_text(json.dumps(legado))
+            self.assertEqual(coord.seleccionar_originales()['estado'], 'evidencia insuficiente')
+
+    def test_seleccion_hash_y_archivo_faltante(self):
+        r.escribir(self.datos)
+        with patch.object(coord, 'DATA_DIR', self.root), patch.multiple(sel, DB_PATH=inv.DB_PATH, STORAGE_DIR=inv.STORAGE_DIR, SECRET_PATH=inv.SECRET_PATH):
+            documento = inv.STORAGE_DIR / 'documento.txt'
+            original = documento.read_bytes(); info = documento.stat()
+            documento.write_bytes(b'x' * len(original))
+            os.utime(documento, ns=(info.st_atime_ns, info.st_mtime_ns))
+            self.assertEqual(coord.seleccionar_originales()['estado'], 'candidato rechazado')
+            documento.unlink()
+            self.assertNotEqual(coord.seleccionar_originales()['estado'], 'candidato identificado')
 
     def test_diagnostico_pendiente_sin_modificar_datos(self):
         r.escribir(self.datos)

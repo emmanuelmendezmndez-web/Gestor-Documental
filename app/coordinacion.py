@@ -107,3 +107,10 @@ def diagnosticar_restauracion(modo="profundo"):
     from app.diagnostico_restauracion import _inspeccionar
     with _BloqueoSistema(exclusivo=True):
         return _inspeccionar() if modo == "profundo" else _inspeccionar(modo)
+
+
+def seleccionar_originales():
+    """Selecciona únicamente para diagnóstico, bajo bloqueo exclusivo."""
+    from app.seleccion_originales import _seleccionar
+    with _BloqueoSistema(exclusivo=True):
+        return _seleccionar()
