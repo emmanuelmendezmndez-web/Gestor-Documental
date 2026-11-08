@@ -13,6 +13,7 @@ from app.configuracion import APP_DIR, AVISOS_DIR, STORAGE_DIR
 from app.csrf import validar_csrf
 from app.database import conectar, inicializar_db
 from app.mensajes import MENSAJES_HTTP
+from app.limite_solicitud import LimitarCuerpo
 from app.plantillas import templates
 from app.rutas_actividad import router as router_actividad
 from app.rutas_cuenta import router as router_cuenta
@@ -64,6 +65,9 @@ app.add_middleware(
     same_site="lax",
     https_only=COOKIE_HTTPS_ONLY,  # activa GESTOR_HTTPS_ONLY detrás de HTTPS
 )
+
+# Se incorpora al final para que esté por fuera de sesiones y del parser multipart.
+app.add_middleware(LimitarCuerpo)
 
 app.mount(
     "/static",

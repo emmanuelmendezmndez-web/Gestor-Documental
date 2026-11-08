@@ -77,6 +77,37 @@ No confunda esa opción con habilitar HTTPS.
 
 ## Comprobación antes de uso
 
+### Tamaño de las solicitudes
+
+SIGED conserva el límite de 20 MiB por archivo. El middleware ASGI limita el
+cuerpo HTTP completo, incluidos campos y separadores multipart, a 21 MiB
+(22 020 096 bytes) por defecto, tanto en desarrollo local como en producción.
+Para cambiarlo, configure `GESTOR_MAX_CUERPO_BYTES` en el proceso de Uvicorn antes
+de iniciarlo: debe ser un entero decimal mayor que 20 MiB. Un valor inválido
+impide el arranque. Deje margen suficiente para los campos multipart; el límite
+por archivo sigue siendo 20 MiB aunque aumente el límite total. Es un límite
+global del cuerpo de cada solicitud, no una cuota acumulada de almacenamiento.
+
+El middleware rechaza de inmediato un `Content-Length` excesivo y cuenta los
+bytes realmente recibidos cuando el cuerpo se transmite. No lee deliberadamente
+el resto una vez alcanzado el límite. El servidor, el proxy o el sistema operativo
+pueden haber almacenado previamente parte de los datos; esta protección no
+garantiza un límite global de memoria con muchas solicitudes concurrentes.
+
+En producción, el `Caddyfile.ejemplo` añade `request_body max_size` con el mismo
+valor predeterminado. Se ha verificado su presencia en el código de Caddy
+2.10.2; se propone 2.10.2 o posterior, sujeto a validación en el servidor. Trate
+esta integración como **experimental** hasta probar la versión elegida: la
+documentación actual marca específicamente la subdirectiva `set` como
+experimental desde 2.10.0, pero no aplica esa etiqueta a `max_size`. Las
+versiones pueden diferir en el momento y la forma de devolver 413. Configure
+`SIGED_MAX_CUERPO_BYTES` en Caddy y `GESTOR_MAX_CUERPO_BYTES` en Uvicorn con el
+mismo número de bytes. Un límite distinto en el proxy puede rechazar antes una
+solicitud válida o dejar que SIGED la rechace; el middleware sigue siendo la
+defensa local, también sin Caddy. El comportamiento del proxy ante cuerpos sin
+longitud o errores de lectura debe verificarse en el servidor definitivo.
+Referencia: [request_body de Caddy](https://caddyserver.com/docs/caddyfile/directives/request_body).
+
 - Desde un cliente administrado, abrir `https://<nombre-acordado>/` sin omitir
   advertencias y verificar SAN, cadena, vencimiento y renovación del certificado.
 - Verificar inicio y cierre de sesión, carga y descarga con datos ficticios;

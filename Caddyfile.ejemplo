@@ -8,6 +8,10 @@
 
 https://{$SIGED_HOST} {
     tls "{$SIGED_CERT}" "{$SIGED_KEY}"
+    # Caddy 2.10.2 o posterior; integración experimental pendiente de validar.
+    request_body {
+        max_size {$SIGED_MAX_CUERPO_BYTES:22020096}
+    }
     reverse_proxy 127.0.0.1:8000 {
         # La IP procede de la conexion directa, no de cabeceras del cliente.
         header_up X-Forwarded-For {remote_host}
