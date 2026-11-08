@@ -36,6 +36,8 @@ import zipfile
 from app.configuracion import BACKUP_DIR, DATA_DIR, DB_PATH, SECRET_PATH, STORAGE_DIR
 from app.coordinacion import BloqueoDatos
 from app.registro_restauracion import escribir as escribir_registro
+from app.registro_restauracion import conservar_legado, CAMBIOS
+from app.inventario_restauracion import publicar as publicar_inventario, verificar as verificar_inventario
 from app.seguridad import obtener_clave_secreta
 
 FORMAT_VERSION = 1
@@ -339,6 +341,8 @@ def restaurar_respaldo(archivo: Path) -> tuple[Path, dict]:
 
 def _restaurar_con_bloqueo(archivo: Path) -> tuple[Path, dict]:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
+    if not os.environ.get("GESTOR_SECRET_KEY") and not SECRET_PATH.is_file():
+        raise RuntimeError("Falta la clave de sesión efectiva; no se generará una durante la restauración.")
     for sufijo in ("-journal", "-wal", "-shm"):
         auxiliar = Path(str(DB_PATH) + sufijo)
         if auxiliar.exists() or auxiliar.is_symlink():
@@ -397,6 +401,7 @@ def _restaurar_con_bloqueo(archivo: Path) -> tuple[Path, dict]:
                     or (destino.exists() and destino.stat().st_dev != DATA_DIR.stat().st_dev)):
                 raise RuntimeError("Los datos activos deben estar en el mismo volumen y no ser enlaces.")
         persistente = Path(tempfile.mkdtemp(prefix="operacion-", dir=raiz))
+        conservar_legado()
         os.replace(validado, persistente / "validado")
         nuevo_db = persistente / "validado" / "database" / "gestor.db"
         nueva_storage = persistente / "validado" / "storage"
@@ -413,8 +418,13 @@ def _restaurar_con_bloqueo(archivo: Path) -> tuple[Path, dict]:
         for path in (p for p in (persistente / "validado").rglob("*") if p.is_file()):
             with path.open("rb+") as preparado:
                 os.fsync(preparado.fileno())
-        registro = {"version": 1, "operacion": persistente.name, "directorio": str(persistente),
-                    "respaldo_previo": str(previo), "estado": "iniciada", "paso": "preparada"}
+        inventario = publicar_inventario(persistente, previo)
+        verificar_inventario(persistente, inventario)
+        origen_clave = "entorno" if os.environ.get("GESTOR_SECRET_KEY") else "archivo"
+        pasos = CAMBIOS[:4] if origen_clave == "entorno" else list(CAMBIOS)
+        registro = {"version": 2, "operacion": persistente.name, "directorio": str(persistente),
+                    "respaldo_previo": str(previo), "estado": "iniciada", "paso": "preparada",
+                    "inventario": inventario, "clave_origen": origen_clave, "pasos": pasos, "secuencia": 0}
         escribir_registro(registro)
         def paso(nombre, operacion):
             registro.update(estado="pendiente", paso=nombre)

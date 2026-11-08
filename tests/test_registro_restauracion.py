@@ -33,13 +33,52 @@ crear_respaldo(DATA_DIR / 'entrada.zip')
         return p
 
     def test_normal(self):
-        self.run_code("from app.respaldo import restaurar_respaldo; from app.configuracion import DATA_DIR; restaurar_respaldo(DATA_DIR/'entrada.zip')")
+        self.run_code('''
+from app import respaldo
+from app.configuracion import DATA_DIR, DB_PATH, STORAGE_DIR, SECRET_PATH
+from app.registro_restauracion import leer, REGISTRO
+from app.inventario_restauracion import verificar
+original = respaldo.os.replace
+observados = []
+def comprobar_antes(origen, destino):
+    from pathlib import Path
+    if Path(origen) in (DB_PATH, STORAGE_DIR, SECRET_PATH) or Path(destino) in (DB_PATH, STORAGE_DIR, SECRET_PATH):
+        datos = leer(REGISTRO)
+        assert datos['version'] == 2 and datos['estado'] == 'pendiente'
+        verificar(Path(datos['directorio']), datos['inventario'])
+        observados.append(datos['paso'])
+    return original(origen, destino)
+respaldo.os.replace = comprobar_antes
+respaldo.restaurar_respaldo(DATA_DIR/'entrada.zip')
+assert observados == ['base-guardar', 'base-instalar', 'storage-guardar', 'storage-instalar']
+''')
         reg = json.loads((self.root / '.siged-restauracion.json').read_text(encoding='utf-8'))
         self.assertEqual(reg['estado'], 'finalizada')
         self.assertEqual((self.root / 'storage' / 'ficticio.txt').read_bytes(), b'nuevo')
         self.assertEqual((Path(reg['directorio']) / 'anterior-storage' / 'ficticio.txt').read_bytes(), b'anterior')
         self.assertTrue(Path(reg['respaldo_previo']).exists())
         self.run_code('import app.main')
+
+    def test_clave_local_inventariada_antes_del_cambio(self):
+        self.run_code('''
+import os, json, hashlib
+from pathlib import Path
+from app import respaldo
+from app.configuracion import DATA_DIR, SECRET_PATH
+SECRET_PATH.write_text('clave-local-ficticia-anterior-1234567890', encoding='utf-8')
+anterior = SECRET_PATH.read_bytes()
+os.environ.pop('GESTOR_SECRET_KEY', None)
+respaldo.restaurar_respaldo(DATA_DIR/'entrada.zip')
+registro = json.loads((DATA_DIR / '.siged-restauracion.json').read_text())
+assert registro['clave_origen'] == 'archivo'
+directorio = Path(registro['directorio'])
+filas = [json.loads(l) for l in (directorio / 'inventario.jsonl').read_text().splitlines()]
+clave = next(f for f in filas if f['conjunto'] == 'anterior' and f['ruta'] == 'clave')
+assert clave['sha256'] == hashlib.sha256(anterior).hexdigest()
+assert (directorio / 'anterior-clave').read_bytes() == anterior
+from app.registro_restauracion import comprobar_estado
+comprobar_estado()
+''')
 
     def test_cortes_y_arranque(self):
         for estado, paso in [('iniciada', 'preparada'), ('confirmada', 'base-instalar'), ('pendiente', 'storage-instalar')]:

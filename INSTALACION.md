@@ -124,3 +124,27 @@ sin eliminarlos; revise la base detenida. El registro se vacía a disco y se sus
 como archivo completo, pero su durabilidad ante pérdida eléctrica depende del sistema
 de archivos, Windows y el almacenamiento; Windows no garantiza aquí un vaciado del
 directorio. Las comprobaciones de espacio son estimaciones y no reservan el espacio.
+
+Las nuevas restauraciones usan el registro v2. Antes del primer cambio activo se
+publica un inventario inmutable `inventario.jsonl` con conjuntos separados anterior,
+preparado y respaldo previo (incluye ausencias, tamaños, identidades y SHA-256).
+No se equipara el archivo SQLite original con la copia de la API de respaldo.
+`inicio.json` y `finalizada.json` conservan las constancias por operación; si falta
+el registro principal, una operación sin finalización comprobable impide el arranque.
+Un inventario histórico no se compara con los datos activos que SIGED modificó
+legítimamente después de finalizar. SHA-256 no proporciona autenticidad criptográfica.
+
+El esquema v1 sigue siendo legible: su finalización registrada no demuestra un
+inventario que nunca existió. Antes de reemplazar ese registro por una nueva operación,
+se conserva la constancia exacta como `finalizada-v1.json`. Las operaciones antiguas
+sin constancia suficiente bloquean el arranque y requieren revisión administrativa.
+No se migran ni eliminan evidencias durante la lectura.
+
+El inventario se procesa por bloques, con límites configurables positivos:
+`GESTOR_INVENTARIO_MAX_ENTRADAS` (300000), `GESTOR_INVENTARIO_MAX_BYTES` (268435456,
+solo metadatos) y `GESTOR_INVENTARIO_MAX_SEGUNDOS` (3600). El lector usa memoria
+acotada por el límite de entradas, líneas de hasta 64 KiB y un presupuesto agregado
+para las operaciones históricas. La escritura limita la profundidad a 128 niveles.
+El tiempo se controla entre lecturas: no interrumpe una llamada de E/S bloqueada.
+Si se agota el presupuesto o falla la escritura, no se sustituyen datos activos y
+se conservan las evidencias parciales para revisión; no se reintenta sobrescribiéndolas.
