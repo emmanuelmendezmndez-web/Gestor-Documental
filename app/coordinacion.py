@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 
 from app.configuracion import DATA_DIR
+from app.registro_restauracion import comprobar_estado
 
 
 class BloqueoNoDisponible(RuntimeError):
@@ -16,6 +17,11 @@ class BloqueoDatos:
         self.exclusivo = exclusivo
         self.handle = None
         self._adquirir()
+        try:
+            comprobar_estado()
+        except BaseException:
+            self.cerrar()
+            raise
 
     def _adquirir(self):
         DATA_DIR.mkdir(parents=True, exist_ok=True)

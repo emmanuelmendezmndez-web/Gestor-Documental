@@ -112,6 +112,15 @@ lo mantiene. El archivo `.siged-coordinacion.lock` en `GESTOR_DATA_DIR` es estab
 no lo elimine ni sustituya. Los bloqueos solo coordinan procesos que usan este
 protocolo; la creación de respaldos y los comandos de usuarios, base y tareas de
 eliminación también participan. Herramientas externas y versiones anteriores pueden
-eludirlo. No detectan
-una restauración interrumpida tras la salida del proceso: revise y recupere el estado
-antes de volver a iniciar SIGED si hubo una interrupción.
+eludirlo. Una restauración registra sus pasos en `.siged-restauracion.json` y guarda
+originales en `.siged-restauraciones` dentro de `GESTOR_DATA_DIR`; proteja esa
+carpeta con los permisos institucionales del directorio de datos. Si el registro
+está pendiente o no puede leerse, SIGED y los comandos participantes no arrancan:
+conserve el registro, el directorio de trabajo y el respaldo previo para revisión y
+recuperación manual. No borre el registro para forzar el arranque. Las restauraciones
+finalizadas conservan los originales y consumen espacio hasta su revisión posterior.
+Si existen archivos SQLite `-journal`, `-wal` o `-shm`, la restauración se rechaza
+sin eliminarlos; revise la base detenida. El registro se vacía a disco y se sustituye
+como archivo completo, pero su durabilidad ante pérdida eléctrica depende del sistema
+de archivos, Windows y el almacenamiento; Windows no garantiza aquí un vaciado del
+directorio. Las comprobaciones de espacio son estimaciones y no reservan el espacio.

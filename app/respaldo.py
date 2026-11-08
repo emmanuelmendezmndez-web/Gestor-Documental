@@ -35,6 +35,7 @@ import zipfile
 
 from app.configuracion import BACKUP_DIR, DATA_DIR, DB_PATH, SECRET_PATH, STORAGE_DIR
 from app.coordinacion import BloqueoDatos
+from app.registro_restauracion import escribir as escribir_registro
 from app.seguridad import obtener_clave_secreta
 
 FORMAT_VERSION = 1
@@ -338,7 +339,22 @@ def restaurar_respaldo(archivo: Path) -> tuple[Path, dict]:
 
 def _restaurar_con_bloqueo(archivo: Path) -> tuple[Path, dict]:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="siged-restaurar-", dir=DATA_DIR) as temporal:
+    for sufijo in ("-journal", "-wal", "-shm"):
+        auxiliar = Path(str(DB_PATH) + sufijo)
+        if auxiliar.exists() or auxiliar.is_symlink():
+            raise RuntimeError(f"Existe {auxiliar.name}; detenga SIGED y revise SQLite antes de restaurar. No se ha eliminado.")
+    # Estimación conservadora: extracción, respaldo previo sin compresión y
+    # copias SQLite, además de margen para entradas y metadatos ZIP.
+    with zipfile.ZipFile(archivo) as z:
+        infos = z.infolist()
+        _validar_entradas(infos)
+        extraido = sum(i.file_size for i in infos)
+    tam_db = DB_PATH.stat().st_size if DB_PATH.is_file() else 0
+    tam_storage = sum(p.stat().st_size for p in STORAGE_DIR.rglob("*") if p.is_file() and not p.is_symlink()) if STORAGE_DIR.is_dir() else 0
+    requerido = extraido + tam_storage + 2 * tam_db + len(infos) * 2048 + 16 * 1024**2
+    if shutil.disk_usage(DATA_DIR).free < requerido or shutil.disk_usage(tempfile.gettempdir()).free < tam_db + 16 * 1024**2:
+        raise RuntimeError("Espacio insuficiente para validar y conservar el estado anterior del respaldo.")
+    with tempfile.TemporaryDirectory(prefix="siged-validar-restauracion-", dir=DATA_DIR) as temporal:
         root = Path(temporal)
         manifest = validar_respaldo(archivo, root / "validado")
         validado = root / "validado"
@@ -361,40 +377,79 @@ def _restaurar_con_bloqueo(archivo: Path) -> tuple[Path, dict]:
                 )
                 conexion.commit()
 
+        for sufijo in ("-journal", "-wal", "-shm"):
+            if Path(str(nuevo_db) + sufijo).exists():
+                raise RuntimeError("La base preparada tiene archivos auxiliares; no se modificarán los datos activos.")
+
         # Captura el estado actual antes de la restauración para permitir volver atrás.
         previo = _crear_respaldo_con_bloqueo(BACKUP_DIR / f"previo-restauracion-{datetime.now().strftime('%Y%m%d-%H%M%S')}.zip")
-        swaps: list[tuple[Path, Path | None]] = []
-        try:
-            for origen, destino in ((nuevo_db, DB_PATH), (nueva_storage, STORAGE_DIR)):
-                destino.parent.mkdir(parents=True, exist_ok=True)
-                anterior = root / f"anterior-{len(swaps)}"
-                if destino.exists():
-                    os.replace(destino, anterior)
-                    swaps.append((destino, anterior))
-                else:
-                    swaps.append((destino, None))
-                os.replace(origen, destino)
-            # Si la clave está definida en el entorno, esa variable sigue teniendo precedencia.
-            if not os.environ.get("GESTOR_SECRET_KEY"):
-                destino = SECRET_PATH
-                anterior = root / "anterior-clave"
-                if destino.exists():
-                    os.replace(destino, anterior)
-                    swaps.append((destino, anterior))
-                else:
-                    swaps.append((destino, None))
-                shutil.copy2(nueva_clave, destino)
-            return previo, manifest
-        except Exception:
-            # Recupera cada destino reemplazado, en orden inverso.
-            for destino, anterior in reversed(swaps):
-                if destino.is_dir():
-                    shutil.rmtree(destino)
-                else:
-                    destino.unlink(missing_ok=True)
-                if anterior is not None and anterior.exists():
-                    os.replace(anterior, destino)
-            raise
+        for sufijo in ("-journal", "-wal", "-shm"):
+            if Path(str(DB_PATH) + sufijo).exists():
+                raise RuntimeError("SQLite tiene archivos auxiliares; no se modificarán los datos activos.")
+        raiz = DATA_DIR / ".siged-restauraciones"
+        if raiz.is_symlink() or (hasattr(raiz, "is_junction") and raiz.is_junction()):
+            raise RuntimeError("El directorio de restauraciones no puede ser un enlace.")
+        raiz.mkdir(exist_ok=True)
+        if raiz.stat().st_dev != DATA_DIR.stat().st_dev:
+            raise RuntimeError("El directorio de restauraciones debe estar en el mismo volumen.")
+        for destino in (DB_PATH, STORAGE_DIR, SECRET_PATH):
+            if (destino.is_symlink() or (hasattr(destino, "is_junction") and destino.is_junction())
+                    or (destino.exists() and destino.stat().st_dev != DATA_DIR.stat().st_dev)):
+                raise RuntimeError("Los datos activos deben estar en el mismo volumen y no ser enlaces.")
+        persistente = Path(tempfile.mkdtemp(prefix="operacion-", dir=raiz))
+        os.replace(validado, persistente / "validado")
+        nuevo_db = persistente / "validado" / "database" / "gestor.db"
+        nueva_storage = persistente / "validado" / "storage"
+        nueva_clave = persistente / "validado" / "secrets" / "session_key"
+        def hash_archivo(path):
+            digest = hashlib.sha256()
+            with path.open("rb") as fuente:
+                for bloque in iter(lambda: fuente.read(1024 * 1024), b""):
+                    digest.update(bloque)
+            return digest.hexdigest()
+        hash_db = hash_archivo(nuevo_db)
+        hash_clave = hash_archivo(nueva_clave)
+        # Vaciar los contenidos preparados antes de registrar y sustituir.
+        for path in (p for p in (persistente / "validado").rglob("*") if p.is_file()):
+            with path.open("rb+") as preparado:
+                os.fsync(preparado.fileno())
+        registro = {"version": 1, "operacion": persistente.name, "directorio": str(persistente),
+                    "respaldo_previo": str(previo), "estado": "iniciada", "paso": "preparada"}
+        escribir_registro(registro)
+        def paso(nombre, operacion):
+            registro.update(estado="pendiente", paso=nombre)
+            escribir_registro(registro)
+            operacion()
+            registro.update(estado="confirmada", paso=nombre)
+            escribir_registro(registro)
+        for etiqueta, origen, destino in (("base", nuevo_db, DB_PATH), ("storage", nueva_storage, STORAGE_DIR)):
+            anterior = persistente / ("anterior-" + etiqueta)
+            if destino.exists():
+                paso(etiqueta + "-guardar", lambda: os.replace(destino, anterior))
+            paso(etiqueta + "-instalar", lambda: os.replace(origen, destino))
+        if not os.environ.get("GESTOR_SECRET_KEY"):
+            if SECRET_PATH.exists():
+                paso("clave-guardar", lambda: os.replace(SECRET_PATH, persistente / "anterior-clave"))
+            paso("clave-instalar", lambda: shutil.copy2(nueva_clave, SECRET_PATH))
+        registro.update(estado="pendiente", paso="verificacion")
+        escribir_registro(registro)
+        if hash_archivo(DB_PATH) != hash_db or (not os.environ.get("GESTOR_SECRET_KEY") and hash_archivo(SECRET_PATH) != hash_clave):
+            raise RuntimeError("Los archivos restaurados no coinciden con los validados.")
+        with closing(sqlite3.connect(DB_PATH.resolve().as_uri() + "?mode=ro", uri=True)) as conexion:
+            if conexion.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+                raise RuntimeError("La base restaurada no pasó la verificación de integridad.")
+        _comprobar_referencias(DB_PATH, manifest["files"])
+        esperados = {n for n in manifest["files"] if n.startswith("storage/")}
+        presentes = {"storage/" + p.relative_to(STORAGE_DIR).as_posix() for p in STORAGE_DIR.rglob("*") if p.is_file()}
+        if presentes != esperados:
+            raise RuntimeError("El contenido restaurado no coincide con el respaldo.")
+        for nombre, metadata in manifest["files"].items():
+            if nombre.startswith("storage/") and hash_archivo(STORAGE_DIR.joinpath(*PurePosixPath(nombre).parts[1:])) != metadata["sha256"]:
+                raise RuntimeError("Un archivo restaurado no coincide con el respaldo.")
+        registro.update(estado="finalizada", paso="verificada")
+        escribir_registro(registro)
+        # Conservar originales y respaldo previo; su limpieza se hará en una etapa posterior.
+        return previo, manifest
 
 
 def main() -> int:
