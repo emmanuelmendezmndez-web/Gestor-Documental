@@ -6,7 +6,7 @@
     <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{% block titulo %}SIGED | Panel de Control{% endblock %}</title>
     <link rel="icon" type="image/png" href="{{ url_for('static', path='img/siged-isotipo.png') }}?v=1">
-    <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}?v=23&busqueda=3">
+    <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}?v={% if pagina == 'biblioteca' %}27{% else %}23{% endif %}&busqueda=3">
     {% if usuario %}
     <link rel="stylesheet" href="{{ url_for('static', path='clippy/clippy.css') }}?v=6">
     {% endif %}

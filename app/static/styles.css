@@ -2276,6 +2276,72 @@ a.sesion-usuario[aria-current="page"] {
 .busqueda-asistida-dialogo #filtros-sugeridos[hidden] { display: none; }
 .busqueda-asistida-acciones { display: flex; justify-content: flex-end; gap: 8px; }
 @media (max-width: 900px) { .boton-busqueda-asistida span { display: none; } }
+/* Explorador de Biblioteca */
+.biblioteca-explorador { padding: 24px; }
+.biblioteca-explorador .encabezado-biblioteca { margin-bottom: 16px; }
+.biblioteca-explorador .biblioteca-contador { margin: 4px 0 0; color: #64748b; font-size: .85rem; }
+.biblioteca-explorador .filtros-biblioteca { margin: 0; padding: 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 9px; }
+.biblioteca-explorador .filtros-biblioteca > .busqueda { display: grid; grid-template-columns: minmax(160px, 1.5fr) minmax(130px, 1fr) minmax(130px, 1fr) auto; gap: 10px; margin: 0; }
+.biblioteca-explorador .busqueda > div { min-width: 0; }
+.biblioteca-explorador .busqueda input, .biblioteca-explorador .busqueda select { width: 100%; min-width: 0; height: 40px; }
+.biblioteca-explorador .busqueda label { font-size: .8rem; margin-bottom: 4px; }
+.biblioteca-explorador .acciones-busqueda { gap: 7px; }
+.biblioteca-explorador .acciones-busqueda button, .biblioteca-explorador .acciones-busqueda a { white-space: nowrap; padding: 9px 12px; }
+.biblioteca-explorador .avanzada { margin: 10px 0 0; }
+.biblioteca-explorador .avanzada summary { font-size: .85rem; }
+.biblioteca-explorador .avanzada .busqueda { display: grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap: 10px; margin-top: 10px; }
+.explorador-distribucion { display: grid; grid-template-columns: 190px minmax(0,1fr); gap: 16px; margin-top: 16px; align-items: start; }
+.explorador-lateral { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 9px; padding: 10px; }
+.explorador-lateral summary { color: #475569; font-size: .78rem; font-weight: 700; cursor: pointer; padding: 5px; }
+.explorador-categorias { display: grid; gap: 2px; margin-top: 6px; }
+.explorador-categorias a { display: flex; align-items: center; gap: 9px; color: #475569; text-decoration: none; padding: 8px; border-radius: 6px; font-size: .86rem; min-width: 0; }
+.explorador-categorias a span { overflow-wrap: anywhere; }
+.explorador-categorias svg { width: 17px; height: 17px; flex: none; fill: none; stroke: #6483a7; stroke-width: 1.8; stroke-linejoin: round; }
+.explorador-categorias a:hover, .explorador-categorias a[aria-current="page"] { background: #e8f0ff; color: #1d4ed8; }
+.explorador-categorias a[aria-current="page"] { font-weight: 700; }
+.explorador-principal { min-width: 0; }
+.biblioteca-explorador .barra-seleccion { margin: 0 0 10px; padding: 8px 10px; gap: 8px; }
+.lista-documentos { display: grid; gap: 3px; }
+.archivo-fila { display: grid; grid-template-columns: 20px minmax(0,2fr) minmax(85px,1fr) minmax(86px,.8fr) auto; align-items: center; gap: 10px; padding: 9px 10px; border: 1px solid #e2e8f0; border-radius: 7px; background: #fff; color: #334155; }
+.archivo-fila.sin-seleccion { grid-template-columns: minmax(0,2fr) minmax(85px,1fr) minmax(86px,.8fr) auto; }
+.archivo-fila:hover { background: #f8fbff; border-color: #bfd4fb; }
+.archivo-fila:has(.seleccion-documento:checked) { background: #eff6ff; border-color: #60a5fa; }
+.archivo-documento { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.archivo-documento > svg { flex: none; }
+.archivo-identidad, .archivo-categoria, .archivo-fecha { min-width: 0; overflow-wrap: anywhere; font-size: .84rem; }
+.archivo-identidad .enlace-titulo { display: block; }
+.archivo-identidad .archivo-nombre, .archivo-identidad .subtexto, .archivo-fecha .subtexto { display: block; color: #64748b; font-size: .78rem; line-height: 1.35; }
+.archivo-acciones .acciones { display: flex; flex-wrap: nowrap; gap: 5px; }
+.archivo-acciones .acciones a, .archivo-acciones .acciones button { min-width: 34px; width: 34px; height: 34px; padding: 0; }
+.archivo-acciones svg { width: 18px; height: 18px; }
+@media (max-width: 1050px) {
+ .biblioteca-explorador .filtros-biblioteca > .busqueda { grid-template-columns: repeat(2,minmax(0,1fr)); }
+ .archivo-fila { grid-template-columns: 20px minmax(0,1fr) auto; }
+ .archivo-fila.sin-seleccion { grid-template-columns: minmax(0,1fr) auto; }
+ .archivo-categoria, .archivo-fecha { grid-column: 2; }
+ .archivo-acciones { grid-column: 3; grid-row: 1 / span 3; }
+ .sin-seleccion .archivo-categoria, .sin-seleccion .archivo-fecha { grid-column: 1; }
+ .sin-seleccion .archivo-acciones { grid-column: 2; }
+}
+@media (max-width: 700px) {
+ .biblioteca-explorador { padding: 15px; }
+ .explorador-distribucion { grid-template-columns: minmax(0,1fr); gap: 10px; }
+ .explorador-categorias { grid-template-columns: repeat(auto-fit,minmax(130px,1fr)); }
+ .archivo-fila { grid-template-columns: 20px minmax(0,1fr) auto; gap: 5px 7px; }
+ .archivo-fila.sin-seleccion { grid-template-columns: minmax(0,1fr) auto; }
+ .archivo-documento { grid-column: 2 / -1; }
+ .sin-seleccion .archivo-documento { grid-column: 1 / -1; }
+ .archivo-categoria { grid-column: 2; grid-row: 2; }
+ .archivo-fecha { grid-column: 3; grid-row: 2; }
+ .sin-seleccion .archivo-categoria { grid-column: 1; }
+ .sin-seleccion .archivo-fecha { grid-column: 2; }
+ .archivo-acciones { grid-column: 2 / -1; grid-row: 3; }
+ .sin-seleccion .archivo-acciones { grid-column: 1 / -1; }
+}
+@media (max-width: 420px) {
+ .biblioteca-explorador .filtros-biblioteca > .busqueda { grid-template-columns: minmax(0,1fr); }
+ .biblioteca-explorador .acciones-busqueda { flex-wrap: wrap; }
+}
 
 /* Búsqueda compartida del encabezado */
 .app-topbar .busqueda-global { flex: 0 1 590px; min-width: 0; align-items: center; gap: 6px; }

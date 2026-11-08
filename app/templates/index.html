@@ -3,9 +3,9 @@
 {% block contenido %}
 {% from "_iconos.html" import icono_archivo %}
 
-<section class="panel">
+<section class="panel biblioteca-explorador">
     <div class="encabezado-biblioteca">
-        <h2>Biblioteca de documentos</h2>
+        <div><h2>Biblioteca</h2><p class="biblioteca-contador">{{ total }} documento{{ "" if total == 1 else "s" }} encontrado{{ "" if total == 1 else "s" }}</p></div>
         <a href="/expedientes" class="boton-secundario boton-expedientes">
             <svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true" focusable="false"><path d="M3.5 7.5h6l2 2h9v9.75H3.5zM3.5 10h17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>
             <span>Expedientes</span>
@@ -103,11 +103,25 @@
         </details>
     </form>
 
+    {% macro enlace_categoria(categoria) -%}
+        /?{%- for clave, valor in filtros.items() if clave != 'categoria' and valor -%}
+            {{ clave | urlencode }}={{ valor | urlencode }}&amp;
+        {%- endfor -%}
+        categoria={{ categoria | urlencode }}
+        {%- if categoria == filtros['categoria'] and pagina_actual > 1 -%}&amp;p={{ pagina_actual }}{%- endif -%}
+    {%- endmacro %}
+    <div class="explorador-distribucion">
+        <details class="explorador-lateral" open>
+            <summary>Explorar categorías</summary>
+            <nav aria-label="Categorías documentales" class="explorador-categorias">
+                <a href="{{ enlace_categoria('') }}" {% if not filtros['categoria'] %}aria-current="page"{% endif %}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5h6l2 2h10v10H3z"/></svg><span>Todas las categorías</span></a>
+                {% for cat in categorias %}
+                <a href="{{ enlace_categoria(cat) }}" {% if filtros['categoria'] == cat %}aria-current="page"{% endif %}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5h6l2 2h10v10H3z"/></svg><span>{{ cat }}</span></a>
+                {% endfor %}
+            </nav>
+        </details>
+        <div class="explorador-principal">
     {% if documentos %}
-    <p class="resumen-resultados">
-        {{ total }} documento{{ "" if total == 1 else "s" }}{% if hay_filtros %} con esos filtros{% endif %}.
-    </p>
-
     {% if puede("papelera") %}
     <form id="seleccion-papelera" action="/documentos/papelera" method="post" data-required-selection="documento_ids" data-confirm-title="Enviar documentos a la papelera" data-confirm="Los documentos seleccionados dejarán de aparecer en la biblioteca. Podrás restaurarlos desde la papelera." data-confirm-label="Enviar a papelera" data-confirm-tone="danger"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div class="barra-seleccion">
@@ -125,26 +139,17 @@
     </form>
     {% endif %}
 
-    <div class="tabla-scroll">
-        <table>
-            <thead>
-                <tr>
-                    {% if puede("papelera") %}<th scope="col">Seleccionar</th>{% endif %}
-                    <th scope="col">Título</th>
-                    <th scope="col">Archivo</th>
-                    <th scope="col">Categoría</th>
-                    <th scope="col">Fecha</th>
-                    <th scope="col">Acciones</th>
-                </tr>
-            </thead>
-            <tbody>
+    <div class="lista-documentos" role="list" aria-label="Documentos">
                 {% for documento in documentos %}
-                <tr>
+                <article class="archivo-fila{% if not puede('papelera') %} sin-seleccion{% endif %}" role="listitem">
                     {% if puede("papelera") %}
-                    <td><input type="checkbox" class="seleccion-checkbox seleccion-documento" name="documento_ids" value="{{ documento['id'] }}" form="seleccion-papelera" aria-label="Seleccionar {{ documento['titulo'] }}"></td>
+                    <div class="archivo-seleccion"><input type="checkbox" class="seleccion-checkbox seleccion-documento" name="documento_ids" value="{{ documento['id'] }}" form="seleccion-papelera" aria-label="Seleccionar {{ documento['titulo'] }}"></div>
                     {% endif %}
-                    <td>
+                    <div class="archivo-documento">
+                        {{ icono_archivo(documento["nombre_archivo"], 26) }}
+                        <div class="archivo-identidad">
                         <a href="/documentos/{{ documento['id'] }}" class="enlace-titulo">{{ documento["titulo"] }}</a>
+                        <span class="archivo-nombre">{{ documento["nombre_archivo"] }}</span>
                         {% if documento["numero_oficio"] or documento["departamento"] %}
                         <span class="subtexto">
                             {% if documento["numero_oficio"] %}Of. {{ documento["numero_oficio"] }}{% endif %}
@@ -152,21 +157,16 @@
                             {% if documento["departamento"] %}{{ documento["departamento"] }}{% endif %}
                         </span>
                         {% endif %}
-                    </td>
-                    <td>
-                        <span class="archivo">
-                            {{ icono_archivo(documento["nombre_archivo"]) }}
-                            <span>{{ documento["nombre_archivo"] }}</span>
-                        </span>
-                    </td>
-                    <td>{{ documento["categoria"] }}</td>
-                    <td>
-                        {{ documento["fecha_efectiva"] }}
+                        </div>
+                    </div>
+                    <div class="archivo-categoria"><span class="sr-only">Categoría: </span>{{ documento["categoria"] }}</div>
+                    <div class="archivo-fecha">
+                        <span class="sr-only">Fecha: </span>{{ documento["fecha_efectiva"] }}
                         {% if not documento["fecha_documento"] %}
                         <span class="subtexto">fecha de registro</span>
                         {% endif %}
-                    </td>
-                    <td>
+                    </div>
+                    <div class="archivo-acciones">
                         <div class="acciones">
                             <a
                                 href="/documentos/{{ documento['id'] }}"
@@ -264,11 +264,9 @@
                             </form>
                             {% endif %}
                         </div>
-                    </td>
-                </tr>
+                    </div>
+                </article>
                 {% endfor %}
-            </tbody>
-        </table>
     </div>
     {% if total_paginas > 1 %}
     <nav class="paginacion" aria-label="Paginación">
@@ -291,5 +289,7 @@
         {% endif %}
     </p>
     {% endif %}
+        </div>
+    </div>
 </section>
 {% endblock %}
