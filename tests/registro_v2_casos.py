@@ -7,6 +7,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import sqlite3
 import unittest
 from unittest.mock import patch
 
@@ -20,6 +21,97 @@ from app import seleccion_originales as sel
 
 
 class EsquemaTest(unittest.TestCase):
+    def test_copia_sqlite_valida_y_fallos_controlados(self):
+        inv.DB_PATH.unlink()
+        with sqlite3.connect(inv.DB_PATH) as db:
+            db.execute('CREATE TABLE documentos(id INTEGER PRIMARY KEY, nombre_guardado TEXT, tamano_bytes INTEGER, eliminado_en TEXT)')
+            db.execute("INSERT INTO documentos VALUES(1,'documento.txt',8,'2026-01-01')")
+        db.close()
+        (self.op / 'inventario.jsonl').unlink()
+        self.datos['inventario'] = inv.publicar(self.op, self.previo)
+        r.escribir(self.datos)
+        with patch.object(coord, 'DATA_DIR', self.root), patch.multiple(sel, DB_PATH=inv.DB_PATH, STORAGE_DIR=inv.STORAGE_DIR, SECRET_PATH=inv.SECRET_PATH):
+            antes = {str(p.relative_to(self.root)): p.read_bytes() for p in self.root.rglob('*') if p.is_file()}
+            from app import verificacion_originales as ver
+            sincronizar = ver.os.fsync
+            seleccionar = sel._seleccionar
+            def bajo_bloqueo(*args):
+                with self.assertRaises(coord.BloqueoNoDisponible):
+                    coord._BloqueoSistema(exclusivo=True)
+                return seleccionar(*args)
+            def copia_bajo_bloqueo(fd):
+                with self.assertRaises(coord.BloqueoNoDisponible):
+                    coord._BloqueoSistema(exclusivo=True)
+                return sincronizar(fd)
+            with patch.object(sel, '_seleccionar', side_effect=bajo_bloqueo) as llamadas, patch.object(ver.os, 'fsync', side_effect=copia_bajo_bloqueo):
+                resultado = coord.verificar_originales_aislados()
+            self.assertEqual(llamadas.call_count, 2)
+            self.assertEqual(resultado['estado'], 'copia verificada', resultado)
+            self.assertFalse(resultado['listo_recuperacion'])
+            despues = {str(p.relative_to(self.root)): p.read_bytes() for p in self.root.rglob('*') if p.is_file() and p.name != '.siged-coordinacion.lock'}
+            self.assertEqual(antes, despues)
+            with patch.dict(os.environ, {'GESTOR_VERIFICACION_MAX_BYTES': '1'}):
+                self.assertEqual(coord.verificar_originales_aislados()['estado'], 'verificación incompleta')
+            with patch.object(ver.shutil, 'disk_usage', return_value=type('Uso', (), {'free': 0})()):
+                self.assertEqual(coord.verificar_originales_aislados()['estado'], 'verificación incompleta')
+            with patch.object(ver.os, 'fsync', side_effect=PermissionError):
+                self.assertEqual(coord.verificar_originales_aislados()['estado'], 'verificación incompleta')
+            with patch.object(ver.os, 'fsync', side_effect=KeyboardInterrupt):
+                self.assertEqual(coord.verificar_originales_aislados()['estado'], 'verificación incompleta')
+            self.assertEqual(inv.DB_PATH.read_bytes(), antes['gestor.db'])
+            self.assertFalse(list(self.root.glob('.siged-verificacion-*')))
+
+    def test_copia_rechaza_referencia_rota(self):
+        inv.DB_PATH.unlink()
+        with sqlite3.connect(inv.DB_PATH) as db:
+            db.execute('CREATE TABLE documentos(id INTEGER PRIMARY KEY, nombre_guardado TEXT, tamano_bytes INTEGER)')
+            db.execute("INSERT INTO documentos VALUES(1,'faltante.txt',8)")
+        db.close()
+        (self.op / 'inventario.jsonl').unlink()
+        self.datos['inventario'] = inv.publicar(self.op, self.previo)
+        r.escribir(self.datos)
+        with patch.object(coord, 'DATA_DIR', self.root), patch.multiple(sel, DB_PATH=inv.DB_PATH, STORAGE_DIR=inv.STORAGE_DIR, SECRET_PATH=inv.SECRET_PATH):
+            antes = inv.DB_PATH.read_bytes()
+            self.assertEqual(coord.verificar_originales_aislados()['estado'], 'verificación incompleta')
+            self.assertEqual(inv.DB_PATH.read_bytes(), antes)
+
+    def test_copia_rechaza_relaciones_invalidas(self):
+        inv.DB_PATH.unlink()
+        with sqlite3.connect(inv.DB_PATH) as db:
+            db.executescript('''
+                CREATE TABLE documentos(id INTEGER PRIMARY KEY, nombre_guardado TEXT, tamano_bytes INTEGER);
+                INSERT INTO documentos VALUES(1, 'documento.txt', 8);
+                CREATE TABLE expedientes(id INTEGER PRIMARY KEY);
+                CREATE TABLE expediente_documentos(expediente_id INTEGER, documento_id INTEGER);
+                INSERT INTO expediente_documentos VALUES(99, 1);
+            ''')
+        db.close()
+        (self.op / 'inventario.jsonl').unlink()
+        self.datos['inventario'] = inv.publicar(self.op, self.previo)
+        r.escribir(self.datos)
+        with patch.object(coord, 'DATA_DIR', self.root), patch.multiple(sel, DB_PATH=inv.DB_PATH, STORAGE_DIR=inv.STORAGE_DIR, SECRET_PATH=inv.SECRET_PATH):
+            antes = inv.DB_PATH.read_bytes()
+            self.assertEqual(coord.verificar_originales_aislados()['estado'], 'verificación incompleta')
+            self.assertEqual(inv.DB_PATH.read_bytes(), antes)
+            with coord._BloqueoSistema(exclusivo=True):
+                pass
+
+    def test_copia_detecta_cambio_durante_lectura(self):
+        r.escribir(self.datos)
+        from app import verificacion_originales as ver
+        documento = inv.STORAGE_DIR / 'documento.txt'
+        sincronizar = ver.os.fsync
+        def cambiar(fd):
+            documento.write_bytes(b'cambio externo simulado')
+            return sincronizar(fd)
+        with patch.object(coord, 'DATA_DIR', self.root), patch.multiple(sel, DB_PATH=inv.DB_PATH, STORAGE_DIR=inv.STORAGE_DIR, SECRET_PATH=inv.SECRET_PATH):
+            with patch.object(ver.os, 'fsync', side_effect=cambiar):
+                resultado = coord.verificar_originales_aislados()
+            self.assertEqual(resultado['estado'], 'verificación incompleta')
+            self.assertFalse(resultado['listo_recuperacion'])
+            self.assertEqual(inv.DB_PATH.read_bytes(), b'base anterior ficticia')
+            self.assertFalse(list(self.root.glob('.siged-verificacion-*')))
+
     def setUp(self):
         temp = tempfile.TemporaryDirectory(dir=PADRE)
         self.addCleanup(temp.cleanup)
@@ -60,6 +152,10 @@ class EsquemaTest(unittest.TestCase):
             antes = {str(p.relative_to(self.root)): p.read_bytes() for p in self.root.rglob('*') if p.is_file()}
             informe = coord.seleccionar_originales()
             self.assertEqual(informe['estado'], 'candidato identificado', informe)
+            verificacion = coord.verificar_originales_aislados()
+            self.assertEqual(verificacion['estado'], 'verificación incompleta')
+            self.assertEqual(verificacion['seleccion'], 'candidato identificado')
+            self.assertFalse(verificacion['listo_recuperacion'])
             self.assertEqual(informe['clave_efectiva'], 'entorno no verificado')
             self.assertFalse(informe['listo_recuperacion'])
             historica = r.RAIZ / 'operacion-ijklmnop'; historica.mkdir()
@@ -83,6 +179,21 @@ class EsquemaTest(unittest.TestCase):
             auxiliar.write_bytes(b'ficticio')
             self.assertEqual(coord.seleccionar_originales()['estado'], 'evidencia insuficiente')
             self.assertEqual(auxiliar.read_bytes(), b'ficticio')
+
+    def test_verificacion_mantiene_bloqueo_en_seleccion(self):
+        r.escribir(self.datos)
+        original = sel._seleccionar
+        def comprobar(*args):
+            with self.assertRaises(coord.BloqueoNoDisponible):
+                coord.BloqueoDatos(True)
+            return original(*args)
+        with patch.object(coord, 'DATA_DIR', self.root), patch.multiple(sel, DB_PATH=inv.DB_PATH, STORAGE_DIR=inv.STORAGE_DIR, SECRET_PATH=inv.SECRET_PATH):
+            with patch.object(sel, '_seleccionar', side_effect=comprobar) as seleccion:
+                resultado = coord.verificar_originales_aislados()
+            self.assertEqual(seleccion.call_count, 1)
+            self.assertEqual(resultado['estado'], 'verificación incompleta')
+            self.assertFalse(resultado['listo_recuperacion'])
+            self.assertEqual(coord.seleccionar_originales()['estado'], 'candidato identificado')
 
     def test_seleccion_rechaza_v1_ausencias_y_procedencia(self):
         r.escribir(self.datos)

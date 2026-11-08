@@ -14,7 +14,7 @@ class Rechazado(ValueError):
     pass
 
 
-def _seleccionar():
+def _seleccionar(_evidencias=None):
     resultado = {'estado': 'evidencia insuficiente', 'listo_recuperacion': False}
     try:
         presupuesto = inv.Presupuesto()
@@ -147,6 +147,10 @@ def _seleccionar():
             raise Rechazado('Faltan entradas del conjunto anterior')
         resultado.update(estado='candidato identificado', operacion=principal['operacion'], componentes=ubicaciones,
                          clave_efectiva=('entorno no verificado' if principal['clave_origen'] == 'entorno' else 'archivo inventariado'))
+        if _evidencias is not None:
+            _evidencias.update(registro=principal, entradas=esperado,
+                raices={n: (op / ('anterior-' + n) if ubicaciones[n] == 'guardado' else activos[n])
+                        for n in activos})
     except Rechazado as error:
         resultado['estado'] = 'candidato rechazado'
         resultado['motivo'] = str(error)

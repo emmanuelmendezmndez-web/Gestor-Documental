@@ -114,3 +114,10 @@ def seleccionar_originales():
     from app.seleccion_originales import _seleccionar
     with _BloqueoSistema(exclusivo=True):
         return _seleccionar()
+
+
+def verificar_originales_aislados():
+    """Verifica copias sin liberar el bloqueo ni autorizar recuperación."""
+    from app.verificacion_originales import _verificar
+    with _BloqueoSistema(exclusivo=True):
+        return _verificar()
