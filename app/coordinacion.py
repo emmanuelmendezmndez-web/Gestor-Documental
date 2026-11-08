@@ -128,3 +128,17 @@ def preparar_cola_aislada():
     from app.verificacion_originales import _verificar
     with _BloqueoSistema(exclusivo=True):
         return _verificar(preparar=True)
+
+
+def preparar_persistente():
+    """Conserva la preparación incompleta o íntegra bajo bloqueo exclusivo."""
+    from app.verificacion_originales import _verificar
+    with _BloqueoSistema(exclusivo=True):
+        return _verificar(preparar=True, persistente=True)
+
+
+def inspeccionar_preparacion():
+    """Revisa la preparación sin modificarla ni autorizar recuperación."""
+    from app.preparacion_persistente import _inspeccionar
+    with _BloqueoSistema(exclusivo=True):
+        return _inspeccionar()

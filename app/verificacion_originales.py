@@ -21,7 +21,7 @@ from app import inventario_restauracion as inv
 from app import registro_restauracion as r
 
 
-def _verificar(preparar=False):
+def _verificar(preparar=False, persistente=False):
     salida = {'estado': 'verificación incompleta', 'listo_recuperacion': False}
     try:
         presupuesto = inv.Presupuesto()
@@ -41,7 +41,13 @@ def _verificar(preparar=False):
             raise ValueError('Presupuesto excedido')
         if shutil.disk_usage(r.DATA_DIR).free < total + extra + margen:
             raise ValueError('Espacio insuficiente')
-        with directorio_privado(r.DATA_DIR) as temporal:
+        if persistente and not preparar:
+            raise ValueError('La preparación persistente requiere transformación')
+        nombre = None
+        if persistente:
+            from app.preparacion_persistente import _nombre
+            nombre = _nombre(evidencia['registro']['operacion'])
+        with directorio_privado(r.DATA_DIR, nombre=nombre, conservar=persistente) as temporal:
             from pathlib import Path
             destino = Path(temporal)
             for ruta, fila in entradas.items():
@@ -134,9 +140,15 @@ def _verificar(preparar=False):
             if sel._seleccionar(final)['estado'] != 'candidato identificado' or final != evidencia:
                 raise ValueError('Evidencia final cambió')
             presupuesto.comprobar()
-        salida['estado'] = 'copia verificada'
+            if persistente:
+                from app.preparacion_persistente import publicar, _inspeccionar
+                publicar(destino, evidencia, preparacion, presupuesto)
+                comprobacion = _inspeccionar()
+                if comprobacion['estado'] != 'preparación íntegra':
+                    raise ValueError('Preparación publicada no verificable')
+        salida['estado'] = 'preparación íntegra' if persistente else 'copia verificada'
         if preparar:
-            salida['preparacion_temporal'] = preparacion
+            salida['preparacion' if persistente else 'preparacion_temporal'] = preparacion
     except (OSError, ValueError, sqlite3.Error, KeyboardInterrupt, RecursionError):
         salida['motivo'] = 'Verificación incompleta: error de copia, integridad, recursos o evidencia.'
     return salida

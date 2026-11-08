@@ -21,6 +21,180 @@ from app import seleccion_originales as sel
 
 
 class EsquemaTest(unittest.TestCase):
+    def _base_para_preparacion(self):
+        inv.DB_PATH.unlink()
+        with sqlite3.connect(inv.DB_PATH) as db:
+            db.executescript('''
+                CREATE TABLE documentos(id INTEGER PRIMARY KEY, nombre_guardado TEXT, tamano_bytes INTEGER);
+                INSERT INTO documentos VALUES(1, 'documento.txt', 8);
+                CREATE TABLE eliminaciones_pendientes(id INTEGER PRIMARY KEY, tipo TEXT, nombre TEXT, identidad TEXT, estado TEXT, intentos INTEGER, ultimo_error TEXT, creado_en TEXT);
+                INSERT INTO eliminaciones_pendientes VALUES(1,'documento','documento.txt','x','pendiente',0,'','hoy');
+            ''')
+        db.close()
+        (self.op / 'inventario.jsonl').unlink()
+        self.datos['inventario'] = inv.publicar(self.op, self.previo)
+        r.escribir(self.datos)
+
+    def test_preparacion_persistente_y_nuevo_proceso(self):
+        from app import preparacion_persistente as pp
+        self._base_para_preparacion()
+        original = inv.DB_PATH.read_bytes()
+        documentos = (inv.STORAGE_DIR / 'documento.txt').read_bytes()
+        with patch.object(coord, 'DATA_DIR', self.root), patch.multiple(sel, DB_PATH=inv.DB_PATH, STORAGE_DIR=inv.STORAGE_DIR, SECRET_PATH=inv.SECRET_PATH):
+            resultado = coord.preparar_persistente()
+            self.assertEqual(resultado['estado'], 'preparación íntegra', resultado)
+            self.assertFalse(resultado['listo_recuperacion'])
+            root = self.root / pp._nombre(self.op.name)
+            self.assertTrue((root / 'constancia-preparacion.json').is_file())
+            self.assertEqual((root / 'base').read_bytes(), original)
+            self.assertNotEqual((root / 'base-candidata').read_bytes(), original)
+            self.assertEqual((root / 'storage' / 'documento.txt').read_bytes(), documentos)
+            with sqlite3.connect(root / 'base-candidata') as db:
+                self.assertEqual(db.execute('SELECT estado FROM eliminaciones_pendientes').fetchone()[0], 'suspendida')
+            db.close()
+            antes = (root / 'constancia-preparacion.json').read_bytes()
+            self.assertNotEqual(coord.preparar_persistente()['estado'], 'preparación íntegra')
+            self.assertEqual((root / 'constancia-preparacion.json').read_bytes(), antes)
+            env = os.environ.copy(); env['GESTOR_DATA_DIR'] = str(self.root)
+            proceso = subprocess.run([sys.executable, '-m', 'app.preparacion_persistente'], env=env, capture_output=True, text=True, timeout=40)
+            self.assertEqual(proceso.returncode, 0, proceso.stderr)
+            self.assertEqual(json.loads(proceso.stdout)['estado'], 'preparación íntegra')
+            with self.assertRaises(RuntimeError): coord.BloqueoDatos(False)
+            with patch.object(pp, 'verificar_acl_privada', side_effect=PermissionError):
+                self.assertEqual(coord.inspeccionar_preparacion()['estado'], 'no verificable')
+            constancia = root / 'constancia-preparacion.json'
+            alterada = json.loads(antes); alterada['operacion'] = 'operacion-zzzzzzzz'
+            constancia.write_text(json.dumps(alterada), encoding='utf-8')
+            self.assertEqual(coord.inspeccionar_preparacion()['estado'], 'contradictoria')
+            alterada = json.loads(antes); alterada['tareas_suspendidas'] += 1
+            constancia.write_text(json.dumps(alterada), encoding='utf-8')
+            self.assertEqual(coord.inspeccionar_preparacion()['estado'], 'contradictoria')
+            constancia.write_bytes(antes)
+            extra = root / 'inesperado'; extra.write_bytes(b'ficticio')
+            self.assertEqual(coord.inspeccionar_preparacion()['estado'], 'contradictoria')
+            extra.unlink()
+            faltante = root / 'storage' / 'documento.txt'
+            guardado = root / 'documento-guardado'
+            faltante.rename(guardado)
+            self.assertEqual(coord.inspeccionar_preparacion()['estado'], 'contradictoria')
+            guardado.rename(faltante)
+            (root / 'storage' / 'documento.txt').write_bytes(b'modificado')
+            self.assertEqual(coord.inspeccionar_preparacion()['estado'], 'contradictoria')
+            self.assertEqual(inv.DB_PATH.read_bytes(), original)
+            self.assertEqual((inv.STORAGE_DIR / 'documento.txt').read_bytes(), documentos)
+
+    def test_preparacion_finalizada_antes_de_interrupcion(self):
+        from app import preparacion_persistente as pp
+        from app import constancia_preparacion as cp
+        self._base_para_preparacion()
+        original = inv.DB_PATH.read_bytes()
+        publicar = cp.publicar
+        def interrumpir(*args):
+            publicar(*args)
+            raise KeyboardInterrupt
+        with patch.object(coord, 'DATA_DIR', self.root), patch.multiple(sel, DB_PATH=inv.DB_PATH, STORAGE_DIR=inv.STORAGE_DIR, SECRET_PATH=inv.SECRET_PATH):
+            with patch.object(cp, 'publicar', side_effect=interrumpir):
+                self.assertNotEqual(coord.preparar_persistente()['estado'], 'preparación íntegra')
+            self.assertEqual(coord.inspeccionar_preparacion()['estado'], 'preparación íntegra')
+            self.assertFalse(coord.inspeccionar_preparacion()['listo_recuperacion'])
+            self.assertEqual(inv.DB_PATH.read_bytes(), original)
+
+    def test_preparacion_rechaza_espacio_y_permisos(self):
+        from app import verificacion_originales as ver
+        from app import temporal_privado as privado
+        self._base_para_preparacion()
+        original = inv.DB_PATH.read_bytes()
+        with patch.object(coord, 'DATA_DIR', self.root), patch.multiple(sel, DB_PATH=inv.DB_PATH, STORAGE_DIR=inv.STORAGE_DIR, SECRET_PATH=inv.SECRET_PATH):
+            with patch.object(ver.shutil, 'disk_usage', return_value=type('Uso', (), {'free': 0})()):
+                self.assertEqual(coord.preparar_persistente()['estado'], 'verificación incompleta')
+            with patch.object(privado, '_volumen_acl', side_effect=PermissionError):
+                self.assertEqual(coord.preparar_persistente()['estado'], 'verificación incompleta')
+            self.assertEqual(inv.DB_PATH.read_bytes(), original)
+            self.assertFalse(list(self.root.glob('.siged-preparacion-*')))
+
+    def test_preparacion_clave_local_y_entorno_cambiado(self):
+        from app import constancia_preparacion as cp
+        from app import preparacion_persistente as pp
+        self._base_para_preparacion()
+        inv.SECRET_PATH.write_text('clave-ficticia', encoding='utf-8')
+        (self.op / 'inventario.jsonl').unlink()
+        self.datos['clave_origen'] = 'archivo'
+        self.datos['pasos'] = r.CAMBIOS[:]
+        self.datos['inventario'] = inv.publicar(self.op, self.previo)
+        r.REGISTRO.unlink()
+        (self.op / 'inicio.json').unlink()
+        r.escribir(self.datos)
+        with patch.object(coord, 'DATA_DIR', self.root), patch.multiple(sel, DB_PATH=inv.DB_PATH, STORAGE_DIR=inv.STORAGE_DIR, SECRET_PATH=inv.SECRET_PATH), patch.dict(os.environ, {'GESTOR_SECRET_KEY': ''}):
+            resultado = coord.preparar_persistente()
+            self.assertEqual(resultado['estado'], 'preparación íntegra', resultado)
+            root = self.root / pp._nombre(self.op.name)
+            self.assertEqual(cp.leer(root)['clave'], 'archivo identificado')
+            self.assertNotIn('clave-ficticia', (root / 'constancia-preparacion.json').read_text())
+            with patch.dict(os.environ, {'GESTOR_SECRET_KEY': 'otra-clave-ficticia'}):
+                informe = coord.inspeccionar_preparacion()
+                self.assertIn('incompatible', informe['clave'])
+                self.assertFalse(informe['listo_recuperacion'])
+            self.assertEqual(inv.SECRET_PATH.read_text(), 'clave-ficticia')
+
+    def test_preparacion_interrumpida_conserva_evidencia(self):
+        from app import preparacion_persistente as pp
+        self._base_para_preparacion()
+        original = inv.DB_PATH.read_bytes()
+        with patch.object(coord, 'DATA_DIR', self.root), patch.multiple(sel, DB_PATH=inv.DB_PATH, STORAGE_DIR=inv.STORAGE_DIR, SECRET_PATH=inv.SECRET_PATH):
+            with patch.object(pp, 'publicar', side_effect=KeyboardInterrupt):
+                self.assertNotEqual(coord.preparar_persistente()['estado'], 'preparación íntegra')
+            root = self.root / pp._nombre(self.op.name)
+            self.assertTrue((root / 'base').exists())
+            self.assertFalse((root / 'constancia-preparacion.json').exists())
+            self.assertEqual(coord.inspeccionar_preparacion()['estado'], 'incompleta')
+            self.assertNotEqual(coord.preparar_persistente()['estado'], 'preparación íntegra')
+            self.assertEqual(inv.DB_PATH.read_bytes(), original)
+
+    def test_constancia_independiente_sin_sobrescritura(self):
+        from app import constancia_preparacion as cp
+        carpeta = self.root / 'preparacion-ficticia'
+        carpeta.mkdir()
+        antes = inv.DB_PATH.read_bytes()
+        datos = {'version': 1, 'operacion': self.op.name,
+                 'inventario_sha256': self.datos['inventario']['sha256'],
+                 'sqlite_anterior': {'sha256': 'a' * 64, 'tamano': 123},
+                 'sqlite_verificada': {'sha256': 'a' * 64, 'tamano': 123},
+                 'sqlite_transformada': {'sha256': 'b' * 64, 'tamano': 123},
+                 'tareas_suspendidas': 1, 'clave': 'entorno no acreditado',
+                 'listo_recuperacion': False}
+        cp.publicar(carpeta, datos)
+        self.assertEqual(cp.leer(carpeta), datos)
+        contenido = (carpeta / 'constancia-preparacion.json').read_bytes()
+        with self.assertRaises(FileExistsError):
+            cp.publicar(carpeta, datos)
+        self.assertEqual((carpeta / 'constancia-preparacion.json').read_bytes(), contenido)
+        self.assertFalse(list(carpeta.glob('*.tmp')))
+        for incorrecto in ({**datos, 'listo_recuperacion': True},
+                           {**datos, 'sqlite_verificada': {'sha256': 'c' * 64, 'tamano': 123}},
+                           {**datos, 'clave': 'verificada'}):
+            with self.assertRaises(ValueError): cp.validar(incorrecto)
+        path = carpeta / 'constancia-preparacion.json'
+        for texto in (b'{', b'{"version":1,"version":1}'):
+            path.write_bytes(texto)
+            with self.assertRaises(ValueError): cp.leer(carpeta)
+        self.assertEqual(inv.DB_PATH.read_bytes(), antes)
+
+    def test_constancia_publicacion_interrumpida(self):
+        from app import constancia_preparacion as cp
+        carpeta = self.root / 'preparacion-ficticia'
+        carpeta.mkdir()
+        datos = {'version': 1, 'operacion': self.op.name,
+                 'inventario_sha256': self.datos['inventario']['sha256'],
+                 'sqlite_anterior': {'sha256': 'a' * 64, 'tamano': 1},
+                 'sqlite_verificada': {'sha256': 'a' * 64, 'tamano': 1},
+                 'sqlite_transformada': {'sha256': 'b' * 64, 'tamano': 1},
+                 'tareas_suspendidas': 0, 'clave': 'evidencia insuficiente',
+                 'listo_recuperacion': False}
+        with patch.object(cp.os, 'link', side_effect=OSError('fallo simulado')):
+            with self.assertRaises(OSError): cp.publicar(carpeta, datos)
+        self.assertEqual(list(carpeta.iterdir()), [])
+        with self.assertRaises(FileNotFoundError): cp.leer(carpeta)
+
     def test_preparacion_cola_y_clave_sin_autorizar(self):
         from app import preparacion_cola as prep
         inv.DB_PATH.unlink()
