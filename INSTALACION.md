@@ -105,3 +105,13 @@ espacio disponible mediante `GESTOR_RESPALDO_MAX_ENTRADAS`,
 positivos). El manifiesto sigue limitado a 16 MiB. La verificación necesita espacio
 temporal para el contenido descomprimido; un corte abrupto del proceso o del
 sistema puede dejar temporales que deben revisarse y retirarse de forma segura.
+
+El servidor adquiere un bloqueo compartido al cargar `app.main`; la restauración
+requiere un bloqueo exclusivo y rechaza la operación si otro servidor o restaurador
+lo mantiene. El archivo `.siged-coordinacion.lock` en `GESTOR_DATA_DIR` es estable:
+no lo elimine ni sustituya. Los bloqueos solo coordinan procesos que usan este
+protocolo; la creación de respaldos y los comandos de usuarios, base y tareas de
+eliminación también participan. Herramientas externas y versiones anteriores pueden
+eludirlo. No detectan
+una restauración interrumpida tras la salida del proceso: revise y recupere el estado
+antes de volver a iniciar SIGED si hubo una interrupción.

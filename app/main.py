@@ -1,3 +1,10 @@
+import atexit
+from app.coordinacion import BloqueoDatos
+
+# Antes de importar routers o cargar la clave de sesión. Vive hasta terminar el proceso.
+_bloqueo_servidor = BloqueoDatos(exclusivo=False)
+atexit.register(_bloqueo_servidor.cerrar)
+
 import logging
 import os
 from contextlib import asynccontextmanager

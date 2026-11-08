@@ -219,5 +219,7 @@ def inicializar_db():
 
 
 if __name__ == "__main__":
-    inicializar_db()
-    print(f"Base de datos creada en: {DB_PATH}")
+    from app.coordinacion import BloqueoDatos
+    with BloqueoDatos(exclusivo=False):
+        inicializar_db()
+        print(f"Base de datos creada en: {DB_PATH}")

@@ -34,6 +34,7 @@ import unicodedata
 import zipfile
 
 from app.configuracion import BACKUP_DIR, DATA_DIR, DB_PATH, SECRET_PATH, STORAGE_DIR
+from app.coordinacion import BloqueoDatos
 from app.seguridad import obtener_clave_secreta
 
 FORMAT_VERSION = 1
@@ -180,6 +181,11 @@ def _agregar_archivo(archive: zipfile.ZipFile, nombre: str, path: Path, kind: st
 
 def crear_respaldo(salida: Path | None = None) -> Path:
     """Genera, verifica y publica un ZIP sin reemplazar un archivo existente."""
+    with BloqueoDatos(exclusivo=False):
+        return _crear_respaldo_con_bloqueo(salida)
+
+
+def _crear_respaldo_con_bloqueo(salida: Path | None = None) -> Path:
     if not DB_PATH.is_file():
         raise RuntimeError(f"No se encontró la base de datos: {DB_PATH}")
     if not STORAGE_DIR.is_dir():
@@ -326,6 +332,11 @@ def _validar_en_directorio(archivo: Path, staging: Path) -> dict:
 
 def restaurar_respaldo(archivo: Path) -> tuple[Path, dict]:
     """Valida todo antes de tocar datos y deja un respaldo previo automático."""
+    with BloqueoDatos(exclusivo=True):
+        return _restaurar_con_bloqueo(archivo)
+
+
+def _restaurar_con_bloqueo(archivo: Path) -> tuple[Path, dict]:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="siged-restaurar-", dir=DATA_DIR) as temporal:
         root = Path(temporal)
@@ -351,7 +362,7 @@ def restaurar_respaldo(archivo: Path) -> tuple[Path, dict]:
                 conexion.commit()
 
         # Captura el estado actual antes de la restauración para permitir volver atrás.
-        previo = crear_respaldo(BACKUP_DIR / f"previo-restauracion-{datetime.now().strftime('%Y%m%d-%H%M%S')}.zip")
+        previo = _crear_respaldo_con_bloqueo(BACKUP_DIR / f"previo-restauracion-{datetime.now().strftime('%Y%m%d-%H%M%S')}.zip")
         swaps: list[tuple[Path, Path | None]] = []
         try:
             for origen, destino in ((nuevo_db, DB_PATH), (nueva_storage, STORAGE_DIR)):

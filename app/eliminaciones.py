@@ -161,10 +161,12 @@ def reintentar_pendientes(limite: int = 200) -> dict[int, str]:
 
 
 if __name__ == "__main__":
-    resultados = reintentar_pendientes()
-    with conectar() as conexion:
-        totales = {fila["estado"]: fila["cantidad"] for fila in conexion.execute(
-            "SELECT estado, COUNT(*) AS cantidad FROM eliminaciones_pendientes GROUP BY estado"
-        )}
-    print(f"Tareas procesadas: {len(resultados)}; pendientes: {totales.get('pendiente', 0)}; "
-          f"suspendidas para revisión: {totales.get('suspendida', 0)}")
+    from app.coordinacion import BloqueoDatos
+    with BloqueoDatos(exclusivo=False):
+        resultados = reintentar_pendientes()
+        with conectar() as conexion:
+            totales = {fila["estado"]: fila["cantidad"] for fila in conexion.execute(
+                "SELECT estado, COUNT(*) AS cantidad FROM eliminaciones_pendientes GROUP BY estado"
+            )}
+        print(f"Tareas procesadas: {len(resultados)}; pendientes: {totales.get('pendiente', 0)}; "
+              f"suspendidas para revisión: {totales.get('suspendida', 0)}")

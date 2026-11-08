@@ -39,9 +39,16 @@ with conectar() as db:
             sock.bind(("127.0.0.1", 0))
             puerto = sock.getsockname()[1]
         cls.base = f"http://127.0.0.1:{puerto}"
+        # En Windows el ejecutable del venv es un lanzador que crea otro proceso;
+        # terminarlo no termina el servidor hijo ni libera su bloqueo.
+        python_real = Path(sys.base_prefix) / "python.exe"
+        python_servidor = str(python_real) if os.name == "nt" and python_real.is_file() else sys.executable
+        entorno_servidor = cls.env.copy()
+        if python_servidor != sys.executable:
+            entorno_servidor["PYTHONPATH"] = os.pathsep.join((str(Path(sys.prefix) / "Lib" / "site-packages"), entorno_servidor["PYTHONPATH"]))
         cls.servidor = subprocess.Popen(
-            [sys.executable, "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", str(puerto), "--log-level", "error"],
-            cwd=RAIZ, env=cls.env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            [python_servidor, "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", str(puerto), "--log-level", "error"],
+            cwd=RAIZ, env=entorno_servidor, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         try:
