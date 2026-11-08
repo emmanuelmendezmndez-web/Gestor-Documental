@@ -142,3 +142,24 @@ def inspeccionar_preparacion():
     from app.preparacion_persistente import _inspeccionar
     with _BloqueoSistema(exclusivo=True):
         return _inspeccionar()
+
+
+def comprobar_recuperacion(operacion, confirmacion):
+    """Inspección previa bajo bloqueo exclusivo; no aplica recuperación."""
+    from app.recuperacion_administrativa import _comprobar
+    with _BloqueoSistema(exclusivo=True):
+        return _comprobar(operacion, confirmacion)
+
+
+def inspeccionar_desplazamiento(operacion, confirmacion, componente):
+    """Identifica un original bajo bloqueo exclusivo, sin moverlo."""
+    from app.desplazamiento_original import _operar
+    with _BloqueoSistema(exclusivo=True):
+        return _operar(operacion, confirmacion, componente, False)
+
+
+def desplazar_original(operacion, confirmacion, componente):
+    """Conserva un original inventariado sin instalar datos ni habilitar arranque."""
+    from app.desplazamiento_original import _operar
+    with _BloqueoSistema(exclusivo=True):
+        return _operar(operacion, confirmacion, componente, True)

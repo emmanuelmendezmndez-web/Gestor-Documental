@@ -138,6 +138,39 @@ def publicar(root, evidencia, preparacion, presupuesto):
     return datos
 
 
+def _verificar_preparado(evidencia):
+    """Comprueba las copias contra evidencia v2 ya validada, sin decidir ubicación original."""
+    op = evidencia['registro']['operacion']
+    root = r.DATA_DIR / _nombre(op)
+    info = inv.inspeccionar(root)
+    if info is None or not stat.S_ISDIR(info.st_mode):
+        raise ValueError('Preparación ausente')
+    datos = cp.leer(root)
+    if datos['operacion'] != op or datos['inventario_sha256'] != evidencia['registro']['inventario']['sha256'] or 'componentes' not in datos:
+        raise ValueError('Constancia contradictoria')
+    presupuesto = inv.Presupuesto()
+    verificar_acl_privada(root, inv.limite('GESTOR_INVENTARIO_MAX_SEGUNDOS', 3600), presupuesto.max_entradas)
+    with os.scandir(root) as entradas:
+        raiz = set()
+        for entrada in entradas:
+            presupuesto.comprobar(entrada=True)
+            raiz.add(entrada.name)
+    permitido = {'base', 'storage', 'base-candidata', 'componentes.jsonl', 'constancia-preparacion.json'}
+    if evidencia['entradas']['clave']['tipo'] != 'ausente': permitido.add('clave')
+    if raiz != permitido: raise ValueError('Componentes inesperados')
+    manifestadas = _leer_manifiesto(root, datos['componentes'], evidencia['entradas'], presupuesto)
+    reales = _arbol(root, evidencia['entradas'], presupuesto)
+    if reales != manifestadas: raise ValueError('Componente alterado')
+    base, candidata = reales['base'], reales['base-candidata']
+    if datos['sqlite_verificada'] != {'sha256': base['sha256'], 'tamano': base['tamano']} or datos['sqlite_transformada'] != {'sha256': candidata['sha256'], 'tamano': candidata['tamano']}:
+        raise ValueError('Huellas inconsistentes')
+    _comprobar_sqlite(root, presupuesto, datos['tareas_suspendidas'])
+    origen = evidencia['registro']['clave_origen']
+    if (origen == 'entorno' and datos['clave'] != 'entorno no acreditado') or (origen == 'archivo' and datos['clave'] not in ('archivo identificado', 'configuracion incompatible')):
+        raise ValueError('Procedencia de clave contradictoria')
+    return datos
+
+
 def _inspeccionar():
     resultado = {'estado': 'no verificable', 'listo_recuperacion': False}
     try:
@@ -154,32 +187,10 @@ def _inspeccionar():
         if inv.inspeccionar(root / 'constancia-preparacion.json') is None:
             resultado['estado'] = 'incompleta'
             return resultado
-        datos = cp.leer(root)
-        if datos['operacion'] != op or datos['inventario_sha256'] != evidencia['registro']['inventario']['sha256'] or 'componentes' not in datos:
-            raise ValueError('Constancia contradictoria')
-        presupuesto = inv.Presupuesto()
-        verificar_acl_privada(root, inv.limite('GESTOR_INVENTARIO_MAX_SEGUNDOS', 3600), presupuesto.max_entradas)
-        with os.scandir(root) as entradas:
-            raiz = set()
-            for entrada in entradas:
-                presupuesto.comprobar(entrada=True)
-                raiz.add(entrada.name)
-        permitido = {'base', 'storage', 'base-candidata', 'componentes.jsonl', 'constancia-preparacion.json'}
-        if evidencia['entradas']['clave']['tipo'] != 'ausente': permitido.add('clave')
-        if raiz != permitido: raise ValueError('Componentes inesperados')
-        manifestadas = _leer_manifiesto(root, datos['componentes'], evidencia['entradas'], presupuesto)
-        reales = _arbol(root, evidencia['entradas'], presupuesto)
-        if reales != manifestadas: raise ValueError('Componente alterado')
-        base, candidata = reales['base'], reales['base-candidata']
-        if datos['sqlite_verificada'] != {'sha256': base['sha256'], 'tamano': base['tamano']} or datos['sqlite_transformada'] != {'sha256': candidata['sha256'], 'tamano': candidata['tamano']}:
-            raise ValueError('Huellas inconsistentes')
-        _comprobar_sqlite(root, presupuesto, datos['tareas_suspendidas'])
+        _verificar_preparado(evidencia)
         final = {}
         if sel._seleccionar(final)['estado'] != 'candidato identificado' or final != evidencia:
             raise ValueError('Evidencia anterior cambió')
-        origen = evidencia['registro']['clave_origen']
-        if (origen == 'entorno' and datos['clave'] != 'entorno no acreditado') or (origen == 'archivo' and datos['clave'] not in ('archivo identificado', 'configuracion incompatible')):
-            raise ValueError('Procedencia de clave contradictoria')
         actual = cola.evaluar_clave(evidencia, bool(os.environ.get('GESTOR_SECRET_KEY')))
         resultado.update(estado='preparación íntegra', clave=actual)
     except (OSError, sqlite3.Error, RecursionError, KeyboardInterrupt):

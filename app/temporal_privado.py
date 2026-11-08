@@ -67,7 +67,7 @@ def _volumen_acl(parent):
 def directorio_privado(parent, *, nombre=None, conservar=False):
     parent = Path(parent).resolve(strict=True)
     _volumen_acl(parent)
-    if nombre is not None and not re.fullmatch(r'\.siged-preparacion-operacion-[a-z0-9_]{8}', nombre):
+    if nombre is not None and not re.fullmatch(r'\.siged-(?:preparacion|conservacion)-operacion-[a-z0-9_]{8}', nombre):
         raise ValueError('Nombre de preparación inválido')
     path = parent / (nombre or ('.siged-verificacion-' + uuid.uuid4().hex))
     if os.path.lexists(path):
@@ -110,7 +110,7 @@ while ($stack.Count -gt 0) {
     $r = @($rules | Where-Object { $_.IdentityReference.Value -eq $s })
     if ($r.Count -ne 1 -or $r[0].AccessControlType -ne 'Allow' -or $r[0].FileSystemRights -ne 'FullControl') { throw 'Acceso inesperado' }
   }
-  if (($atributos -band [System.IO.FileAttributes]::Directory) -ne 0) {
+  if (($atributos -band [System.IO.FileAttributes]::Directory) -ne 0 -and $env:SIGED_ACL_SOLO_RAIZ -ne '1') {
     foreach ($child in [System.IO.Directory]::EnumerateFileSystemEntries($item)) {
       $vistos++
       if ($vistos -gt $maximo) { throw 'Limite de entradas excedido' }
@@ -121,13 +121,13 @@ while ($stack.Count -gt 0) {
 '''
 
 
-def verificar_acl_privada(path, segundos, max_entradas=300000):
-    """Comprueba ACL del árbol existente sin seguir puntos de reanálisis."""
+def _verificar_acl(path, segundos, max_entradas, solo_raiz):
     path = Path(path)
     _volumen_acl(path.parent)
     env = os.environ.copy()
     env['SIGED_TEMP_PRIVADO'] = str(path)
     env['SIGED_MAX_ENTRADAS_ACL'] = str(max_entradas)
+    env['SIGED_ACL_SOLO_RAIZ'] = '1' if solo_raiz else '0'
     powershell = Path(os.environ['SystemRoot']) / 'System32/WindowsPowerShell/v1.0/powershell.exe'
     try:
         resultado = subprocess.run([str(powershell), '-NoProfile', '-NonInteractive', '-Command', _SCRIPT_VERIFICAR], env=env, capture_output=True, timeout=segundos)
@@ -135,3 +135,15 @@ def verificar_acl_privada(path, segundos, max_entradas=300000):
         raise OSError('Comprobación ACL incompleta') from exc
     if resultado.returncode:
         raise OSError('ACL privada no verificable')
+
+
+def verificar_acl_privada(path, segundos, max_entradas=300000):
+    """Comprueba ACL del árbol existente sin seguir puntos de reanálisis."""
+    _verificar_acl(path, segundos, max_entradas, False)
+
+
+def verificar_acl_raiz_conservacion(path, segundos, max_entradas=300000):
+    """Verifica solo el contenedor: los originales conservan sus ACL previas."""
+    if not re.fullmatch(r'\.siged-conservacion-operacion-[a-z0-9_]{8}', Path(path).name):
+        raise ValueError('No es un contenedor de conservación')
+    _verificar_acl(path, segundos, max_entradas, True)

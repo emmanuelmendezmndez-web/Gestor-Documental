@@ -21,6 +21,105 @@ from app import seleccion_originales as sel
 
 
 class EsquemaTest(unittest.TestCase):
+    def test_desplazamiento_desde_original_guardado(self):
+        from app import desplazamiento_original as desplazamiento
+        self._base_para_preparacion()
+        original = inv.DB_PATH.read_bytes()
+        guardada = self.op / 'anterior-base'
+        inv.DB_PATH.rename(guardada)
+        self.datos.update(estado='pendiente', paso='base-guardar')
+        r.escribir(self.datos)
+        with patch.object(coord, 'DATA_DIR', self.root), patch.multiple(sel, DB_PATH=inv.DB_PATH, STORAGE_DIR=inv.STORAGE_DIR, SECRET_PATH=inv.SECRET_PATH):
+            self.assertEqual(coord.preparar_persistente()['estado'], 'preparación íntegra')
+            self.assertEqual(coord.desplazar_original(self.op.name, self.op.name, 'base')['estado'], 'desplazado confirmado')
+            self.assertFalse(guardada.exists())
+            conservada = self.root / desplazamiento._nombre(self.op.name) / 'base'
+            self.assertEqual(conservada.read_bytes(), original)
+            self.assertEqual(coord.inspeccionar_desplazamiento(self.op.name, self.op.name, 'base')['estado'], 'desplazado confirmado')
+            with self.assertRaises(RuntimeError): coord.BloqueoDatos(False)
+
+    def test_desplazamiento_reanuda_tras_movimiento(self):
+        from app import desplazamiento_original as desplazamiento
+        self._base_para_preparacion()
+        original = inv.DB_PATH.read_bytes()
+        documento = (inv.STORAGE_DIR / 'documento.txt').read_bytes()
+        with patch.object(coord, 'DATA_DIR', self.root), patch.multiple(sel, DB_PATH=inv.DB_PATH, STORAGE_DIR=inv.STORAGE_DIR, SECRET_PATH=inv.SECRET_PATH):
+            self.assertEqual(coord.preparar_persistente()['estado'], 'preparación íntegra')
+            antes_registro = r.REGISTRO.read_bytes()
+            self.assertEqual(coord.inspeccionar_desplazamiento(self.op.name, self.op.name, 'base')['estado'], 'en origen')
+            publicar = desplazamiento._publicar
+            def cortar(path, datos):
+                if path.name == 'confirmacion-base.json': raise KeyboardInterrupt
+                return publicar(path, datos)
+            with patch.object(desplazamiento, '_publicar', side_effect=cortar):
+                interrumpida = coord.desplazar_original(self.op.name, self.op.name, 'base')
+            self.assertEqual(interrumpida['estado'], 'no verificable')
+            root = self.root / desplazamiento._nombre(self.op.name)
+            self.assertFalse(inv.DB_PATH.exists())
+            self.assertEqual((root / 'base').read_bytes(), original)
+            self.assertTrue((root / 'intencion-base.json').is_file())
+            self.assertFalse((root / 'confirmacion-base.json').exists())
+            self.assertEqual(coord.inspeccionar_desplazamiento(self.op.name, self.op.name, 'base')['estado'], 'desplazado sin confirmación')
+            env = os.environ.copy(); env['GESTOR_DATA_DIR'] = str(self.root)
+            proceso = subprocess.run([sys.executable, '-m', 'app.desplazamiento_original', 'desplazar', '--operacion', self.op.name,
+                                     '--confirmar-operacion', self.op.name, '--componente', 'base'],
+                                    env=env, capture_output=True, text=True, timeout=40)
+            self.assertEqual(proceso.returncode, 0, proceso.stderr)
+            self.assertEqual(json.loads(proceso.stdout)['estado'], 'desplazado confirmado')
+            self.assertEqual(coord.desplazar_original(self.op.name, self.op.name, 'base')['estado'], 'desplazado confirmado')
+            self.assertEqual(coord.desplazar_original(self.op.name, self.op.name, 'storage')['estado'], 'desplazado confirmado')
+            self.assertEqual((root / 'storage' / 'documento.txt').read_bytes(), documento)
+            self.assertEqual(r.REGISTRO.read_bytes(), antes_registro)
+            with self.assertRaises(RuntimeError): coord.BloqueoDatos(False)
+            self.assertFalse(coord.inspeccionar_desplazamiento(self.op.name, self.op.name, 'base')['listo_recuperacion'])
+
+    def test_desplazamiento_rechaza_destino_y_alteracion(self):
+        from app import desplazamiento_original as desplazamiento
+        self._base_para_preparacion()
+        original = inv.DB_PATH.read_bytes()
+        with patch.object(coord, 'DATA_DIR', self.root), patch.multiple(sel, DB_PATH=inv.DB_PATH, STORAGE_DIR=inv.STORAGE_DIR, SECRET_PATH=inv.SECRET_PATH):
+            self.assertEqual(coord.preparar_persistente()['estado'], 'preparación íntegra')
+            with patch.dict(os.environ, {'GESTOR_SELECCION_MAX_BYTES': '1'}):
+                self.assertEqual(coord.desplazar_original(self.op.name, self.op.name, 'base')['estado'], 'no verificable')
+            self.assertFalse((self.root / desplazamiento._nombre(self.op.name)).exists())
+            self.assertEqual(coord.desplazar_original(self.op.name, 'incorrecta', 'base')['estado'], 'no verificable')
+            with patch.object(desplazamiento.os, 'rename', side_effect=PermissionError):
+                self.assertEqual(coord.desplazar_original(self.op.name, self.op.name, 'base')['estado'], 'no verificable')
+            root = self.root / desplazamiento._nombre(self.op.name)
+            self.assertEqual(inv.DB_PATH.read_bytes(), original)
+            intencion = root / 'intencion-base.json'
+            contenido = intencion.read_bytes()
+            intencion.write_bytes(b'{')
+            self.assertEqual(coord.inspeccionar_desplazamiento(self.op.name, self.op.name, 'base')['estado'], 'no verificable')
+            contradictoria = json.loads(contenido); contradictoria['componente'] = 'storage'
+            intencion.write_text(json.dumps(contradictoria), encoding='utf-8')
+            self.assertEqual(coord.inspeccionar_desplazamiento(self.op.name, self.op.name, 'base')['estado'], 'no verificable')
+            contradictoria = json.loads(contenido); contradictoria['version'] = True
+            intencion.write_text(json.dumps(contradictoria), encoding='utf-8')
+            self.assertEqual(coord.inspeccionar_desplazamiento(self.op.name, self.op.name, 'base')['estado'], 'no verificable')
+            intencion.write_bytes(contenido)
+            self.assertEqual(coord.inspeccionar_desplazamiento(self.op.name, self.op.name, 'base')['estado'], 'en origen')
+            identidad_duplicada = self.op / 'anterior-base'
+            os.link(inv.DB_PATH, identidad_duplicada)
+            self.assertEqual(coord.inspeccionar_desplazamiento(self.op.name, self.op.name, 'base')['estado'], 'no verificable')
+            identidad_duplicada.unlink()
+            with coord._BloqueoSistema(exclusivo=True):
+                with self.assertRaises(coord.BloqueoNoDisponible):
+                    coord.inspeccionar_desplazamiento(self.op.name, self.op.name, 'base')
+            (root / 'base').write_bytes(b'ocupado')
+            self.assertEqual(coord.desplazar_original(self.op.name, self.op.name, 'base')['estado'], 'no verificable')
+            self.assertEqual((root / 'base').read_bytes(), b'ocupado')
+            self.assertEqual(inv.DB_PATH.read_bytes(), original)
+            (root / 'base').unlink()
+            self.assertEqual(coord.desplazar_original(self.op.name, self.op.name, 'base')['estado'], 'desplazado confirmado')
+            extraviado = root / 'base-ficticia-apartada'
+            (root / 'base').rename(extraviado)
+            self.assertEqual(coord.inspeccionar_desplazamiento(self.op.name, self.op.name, 'base')['estado'], 'no verificable')
+            extraviado.rename(root / 'base')
+            (root / 'base').write_bytes(b'alterado')
+            self.assertEqual(coord.inspeccionar_desplazamiento(self.op.name, self.op.name, 'base')['estado'], 'no verificable')
+            with coord._BloqueoSistema(exclusivo=True): pass
+
     def _base_para_preparacion(self):
         inv.DB_PATH.unlink()
         with sqlite3.connect(inv.DB_PATH) as db:
@@ -59,6 +158,13 @@ class EsquemaTest(unittest.TestCase):
             proceso = subprocess.run([sys.executable, '-m', 'app.preparacion_persistente'], env=env, capture_output=True, text=True, timeout=40)
             self.assertEqual(proceso.returncode, 0, proceso.stderr)
             self.assertEqual(json.loads(proceso.stdout)['estado'], 'preparación íntegra')
+            antes_registro = r.REGISTRO.read_bytes()
+            informe = coord.comprobar_recuperacion(self.op.name, self.op.name)
+            self.assertEqual(informe['estado'], 'bloqueada')
+            self.assertIn('no se ha acreditado', informe['motivo'].lower())
+            self.assertFalse(informe['listo_recuperacion'])
+            self.assertEqual(r.REGISTRO.read_bytes(), antes_registro)
+            self.assertEqual((root / 'constancia-preparacion.json').read_bytes(), antes)
             with self.assertRaises(RuntimeError): coord.BloqueoDatos(False)
             with patch.object(pp, 'verificar_acl_privada', side_effect=PermissionError):
                 self.assertEqual(coord.inspeccionar_preparacion()['estado'], 'no verificable')
@@ -130,11 +236,35 @@ class EsquemaTest(unittest.TestCase):
             root = self.root / pp._nombre(self.op.name)
             self.assertEqual(cp.leer(root)['clave'], 'archivo identificado')
             self.assertNotIn('clave-ficticia', (root / 'constancia-preparacion.json').read_text())
+            antes = {str(p.relative_to(self.root)): p.read_bytes() for p in self.root.rglob('*') if p.is_file()}
+            self.assertIn('confirmación', coord.comprobar_recuperacion(self.op.name, 'incorrecta')['motivo'])
+            selector = sel._seleccionar
+            def bajo_exclusivo(*args):
+                with self.assertRaises(coord.BloqueoNoDisponible): coord._BloqueoSistema(exclusivo=True)
+                return selector(*args)
+            with patch.object(sel, '_seleccionar', side_effect=bajo_exclusivo):
+                informe = coord.comprobar_recuperacion(self.op.name, self.op.name)
+            self.assertEqual(informe['estado'], 'bloqueada')
+            self.assertFalse(informe['listo_recuperacion'])
+            self.assertIn('no implementada', informe['motivo'])
+            despues = {str(p.relative_to(self.root)): p.read_bytes() for p in self.root.rglob('*') if p.is_file()}
+            self.assertEqual(antes, despues)
+            original_desplazado = self.root / 'base-desplazada-ficticia'
+            inv.DB_PATH.rename(original_desplazado)
+            try:
+                self.assertEqual(coord.inspeccionar_preparacion()['estado'], 'no verificable')
+                with self.assertRaises(RuntimeError): coord.BloqueoDatos(False)
+            finally:
+                original_desplazado.rename(inv.DB_PATH)
             with patch.dict(os.environ, {'GESTOR_SECRET_KEY': 'otra-clave-ficticia'}):
                 informe = coord.inspeccionar_preparacion()
                 self.assertIn('incompatible', informe['clave'])
                 self.assertFalse(informe['listo_recuperacion'])
             self.assertEqual(inv.SECRET_PATH.read_text(), 'clave-ficticia')
+            from app import desplazamiento_original as desplazamiento
+            self.assertEqual(coord.desplazar_original(self.op.name, self.op.name, 'clave')['estado'], 'desplazado confirmado')
+            self.assertFalse(inv.SECRET_PATH.exists())
+            self.assertEqual((self.root / desplazamiento._nombre(self.op.name) / 'clave').read_text(), 'clave-ficticia')
 
     def test_preparacion_interrumpida_conserva_evidencia(self):
         from app import preparacion_persistente as pp
