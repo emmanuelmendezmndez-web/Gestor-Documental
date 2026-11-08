@@ -25,10 +25,12 @@ import hashlib
 import json
 import os
 from pathlib import Path, PurePosixPath
+import re
 import shutil
 import sqlite3
 import sys
 import tempfile
+import unicodedata
 import zipfile
 
 from app.configuracion import BACKUP_DIR, DATA_DIR, DB_PATH, SECRET_PATH, STORAGE_DIR
@@ -36,12 +38,83 @@ from app.seguridad import obtener_clave_secreta
 
 FORMAT_VERSION = 1
 MAX_MANIFEST_BYTES = 16 * 1024 * 1024
+MAX_SESSION_KEY_BYTES = 64 * 1024
+_WINDOWS_RESERVED = re.compile(r"^(?:CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³])(?:\..*)?$", re.IGNORECASE)
+
+
+def _limite(nombre: str, predeterminado: int) -> int:
+    valor = os.environ.get(nombre)
+    if valor is None:
+        return predeterminado
+    try:
+        limite = int(valor)
+    except ValueError as error:
+        raise ValueError(f"{nombre} debe ser un entero positivo.") from error
+    if limite <= 0:
+        raise ValueError(f"{nombre} debe ser un entero positivo.")
+    return limite
 
 
 def _safe_name(name: str) -> bool:
-    path = PurePosixPath(name)
-    return (bool(name) and not path.is_absolute() and ".." not in path.parts
-            and "\\" not in name and not name.startswith("/"))
+    if not name or len(name) > 32767 or name.startswith("/") or "\\" in name:
+        return False
+    parts = name.rstrip("/").split("/")
+    if not parts or any(not p or p in {".", ".."} or p[-1] in {" ", "."}
+                        or len(p.encode("utf-16-le", errors="surrogatepass")) > 510
+                        or any(ord(c) < 32 or c in '<>:"|?*' for c in p)
+                        or _WINDOWS_RESERVED.fullmatch(p) for p in parts):
+        return False
+    return True
+
+
+def _validar_entradas(infos: list[zipfile.ZipInfo]) -> None:
+    max_entradas = _limite("GESTOR_RESPALDO_MAX_ENTRADAS", 100_000)
+    max_archivo = _limite("GESTOR_RESPALDO_MAX_ARCHIVO_BYTES", 64 * 1024**3)
+    max_total = _limite("GESTOR_RESPALDO_MAX_TOTAL_BYTES", 1024**4)
+    if len(infos) > max_entradas:
+        raise ValueError("El respaldo supera el límite de entradas.")
+    total = 0
+    nombres: set[str] = set()
+    rutas: dict[str, tuple[str, bool]] = {}
+    for info in infos:
+        name = info.filename
+        if name in nombres:
+            raise ValueError("El ZIP contiene nombres duplicados.")
+        nombres.add(name)
+        if not _safe_name(name):
+            raise ValueError("El ZIP contiene una ruta no segura.")
+        if not (name in {"manifest.json", "database/gestor.db", "secrets/session_key", "storage/"}
+                or (name.startswith("storage/") and not name.endswith("/"))):
+            raise ValueError(f"Entrada no permitida en el respaldo: {name}")
+        if name == "storage/" and info.file_size:
+            raise ValueError("El directorio storage no puede contener datos.")
+        mode = (info.external_attr >> 16) & 0o170000
+        if mode == 0o120000:
+            raise ValueError("El ZIP contiene un enlace simbólico.")
+        if info.file_size > max_archivo:
+            raise ValueError("El respaldo supera el límite por archivo.")
+        total += info.file_size
+        if total > max_total:
+            raise ValueError("El respaldo supera el límite de tamaño total.")
+        # Comparar también directorios implícitos evita colisiones archivo/directorio.
+        partes = name.rstrip("/").split("/")
+        for i in range(1, len(partes) + 1):
+            original = "/".join(partes[:i])
+            clave = unicodedata.normalize("NFC", original).casefold()
+            directorio = i < len(partes) or name.endswith("/")
+            previo = rutas.get(clave)
+            if previo is not None and previo != (original, directorio):
+                raise ValueError("El ZIP contiene rutas equivalentes en Windows.")
+            rutas[clave] = (original, directorio)
+
+
+def _sin_claves_duplicadas(pares: list[tuple[str, object]]) -> dict:
+    resultado = {}
+    for clave, valor in pares:
+        if clave in resultado:
+            raise ValueError("El manifiesto contiene claves duplicadas.")
+        resultado[clave] = valor
+    return resultado
 
 
 def _referencias_archivos(db: Path) -> dict[str, int | None]:
@@ -168,20 +241,36 @@ def crear_respaldo(salida: Path | None = None) -> Path:
 
 def validar_respaldo(archivo: Path, staging: Path | None = None) -> dict:
     """Comprueba hashes, SQLite y las referencias; admite respaldos previos completos."""
+    if staging is None:
+        with tempfile.TemporaryDirectory(prefix="siged-verificar-") as temporal:
+            return validar_respaldo(archivo, Path(temporal))
+    staging = Path(staging)
+    if staging.is_symlink() or (staging.exists() and (not staging.is_dir() or any(staging.iterdir()))):
+        raise ValueError("El directorio de validación debe estar vacío y no ser un enlace.")
+    staging.mkdir(parents=True, exist_ok=True)
+    try:
+        return _validar_en_directorio(archivo, staging)
+    except BaseException:
+        for item in staging.iterdir():
+            if item.is_dir() and not item.is_symlink():
+                shutil.rmtree(item)
+            else:
+                item.unlink()
+        raise
+
+
+def _validar_en_directorio(archivo: Path, staging: Path) -> dict:
     archivo = archivo.expanduser().resolve()
     if not archivo.is_file():
         raise FileNotFoundError(archivo)
     with zipfile.ZipFile(archivo) as archive:
         infos = archive.infolist()
         names = [item.filename for item in infos]
-        if len(names) != len(set(names)):
-            raise ValueError("El ZIP contiene nombres duplicados.")
-        if any(not _safe_name(name) for name in names):
-            raise ValueError("El ZIP contiene una ruta no segura.")
+        _validar_entradas(infos)
         info = archive.getinfo("manifest.json")
         if info.file_size > MAX_MANIFEST_BYTES:
             raise ValueError("El manifiesto es demasiado grande.")
-        manifest = json.loads(archive.read(info).decode("utf-8"))
+        manifest = json.loads(archive.read(info).decode("utf-8"), object_pairs_hook=_sin_claves_duplicadas)
         if manifest.get("format") != "SIGED-backup" or manifest.get("format_version") != FORMAT_VERSION:
             raise ValueError("Formato o versión de respaldo no compatible.")
         files = manifest.get("files")
@@ -191,26 +280,35 @@ def validar_respaldo(archivo: Path, staging: Path | None = None) -> dict:
         required = {"database/gestor.db", "secrets/session_key"}
         if not required.issubset(files) or not (any(name.startswith("storage/") for name in files) or "storage/" in names):
             raise ValueError("Faltan la base de datos, la clave o el directorio de archivos.")
-        if staging is None:
-            with tempfile.TemporaryDirectory(prefix="siged-verificar-") as temporal:
-                return validar_respaldo(archivo, Path(temporal))
         extracted: dict[str, Path] = {}
         if "storage/" in names:
             (staging / "storage").mkdir(parents=True, exist_ok=True)
+        total_real = info.file_size
+        max_archivo = _limite("GESTOR_RESPALDO_MAX_ARCHIVO_BYTES", 64 * 1024**3)
+        max_total = _limite("GESTOR_RESPALDO_MAX_TOTAL_BYTES", 1024**4)
         for name, metadata in files.items():
             member = archive.getinfo(name)
             mode = (member.external_attr >> 16) & 0o170000
             if mode == 0o120000:
                 raise ValueError("El ZIP contiene un enlace simbólico.")
-            if member.file_size != metadata.get("size"):
+            if not isinstance(metadata, dict) or type(metadata.get("size")) is not int or member.file_size != metadata.get("size"):
                 raise ValueError(f"Tamaño incorrecto: {name}")
+            if name == "secrets/session_key" and member.file_size > MAX_SESSION_KEY_BYTES:
+                raise ValueError("La clave de sesión es demasiado grande.")
             target = staging.joinpath(*PurePosixPath(name).parts)
             target.parent.mkdir(parents=True, exist_ok=True)
             digest = hashlib.sha256()
+            longitud = 0
             with archive.open(member) as source, target.open("wb") as out:
                 for block in iter(lambda: source.read(1024 * 1024), b""):
+                    longitud += len(block)
+                    total_real += len(block)
+                    if longitud > max_archivo or longitud > member.file_size or total_real > max_total:
+                        raise ValueError("La extracción supera el tamaño permitido.")
                     digest.update(block)
                     out.write(block)
+            if longitud != member.file_size:
+                raise ValueError(f"Tamaño descomprimido incorrecto: {name}")
             if digest.hexdigest() != metadata.get("sha256"):
                 raise ValueError(f"La verificación SHA-256 falló: {name}")
             extracted[name] = target

@@ -97,3 +97,11 @@ en un lugar protegido. Para una captura integral de los archivos adicionales de
 detener SIGED y usar `python -m app.respaldo restaurar ARCHIVO.zip --confirmar`;
 esta operación reemplaza los datos de la instalación seleccionada. Revise las
 advertencias y limitaciones descritas en `app/respaldo.py` antes de ejecutarla.
+
+La validación admite ZIP64 y limita por defecto a 100 000 entradas, 64 GiB por
+archivo y 1 TiB descomprimido en total. Ajuste estos límites al volumen y al
+espacio disponible mediante `GESTOR_RESPALDO_MAX_ENTRADAS`,
+`GESTOR_RESPALDO_MAX_ARCHIVO_BYTES` y `GESTOR_RESPALDO_MAX_TOTAL_BYTES` (enteros
+positivos). El manifiesto sigue limitado a 16 MiB. La verificación necesita espacio
+temporal para el contenido descomprimido; un corte abrupto del proceso o del
+sistema puede dejar temporales que deben revisarse y retirarse de forma segura.
