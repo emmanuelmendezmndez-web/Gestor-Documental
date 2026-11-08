@@ -35,6 +35,8 @@
     let cambioPendiente = null;
     let editandoConsulta = false;
     let propuestaContextual = null;
+    let aclaracionIntencion = false;
+    let revisarDesdeBarra = null;
     const memoria = window.crearMemoriaTemporal();
     const editados = { has: clave => Boolean(memoria.consultar()?.manuales.includes(clave)) };
     const dudasPendientes = () => (interpretacion?.dudas || [])
@@ -262,6 +264,7 @@
     }
     function descartarPropuesta() {
         propuestaContextual = null;
+        aclaracionIntencion = false;
         if (panelContextual) { panelContextual.replaceChildren(); panelContextual.hidden = true; }
     }
     function reflejarMemoria() {
@@ -277,10 +280,44 @@
     if (instruccionContextual && proponerContexto && panelContextual && typeof window.sigedInterpretarContexto === "function") {
         instruccionContextual.addEventListener("input", descartarPropuesta);
         instruccionContextual.addEventListener("keydown", evento => { if (evento.key === "Enter") { evento.preventDefault(); proponerContexto.click(); } });
-        proponerContexto.addEventListener("click", () => {
+        const pantallaActual = () => {
+            const ruta = window.location.pathname;
+            if (ruta === "/") return "biblioteca";
+            if (/^\/expedientes\/[^/]+\/?$/.test(ruta)) return "expediente";
+            const pantallas = {"/inicio":"inicio", "/buscar":"buscar", "/subir":"subir", "/expedientes":"expedientes", "/papelera":"papelera", "/usuarios":"usuarios", "/cuenta":"cuenta", "/actividad":"actividad"};
+            return pantallas[ruta] || "desconocida";
+        };
+        const mostrarAyuda = tema => {
+            descartarPropuesta(); panelContextual.hidden = false;
+            const c = window.sigedClippyConfig || {};
+            const capacidades = {ver:c.puedeVer, ver_expedientes:c.puedeVerExpedientes, gestionar_expedientes:c.puedeGestionarExpedientes,
+                subir:c.puedeSubir, papelera:c.puedePapelera, restaurar:c.puedeRestaurar, eliminar:c.puedeEliminar, usuarios:c.puedeUsuarios};
+            panelContextual.textContent = window.sigedConsultarAyuda(tema, {pantalla:pantallaActual(), capacidades});
+        };
+        function revisarInstruccion(forzarBusqueda = false) {
             descartarPropuesta();
             const estado = memoria.consultar();
             panelContextual.hidden = false;
+            if (!forzarBusqueda && typeof window.sigedClasificarAyuda === "function" && typeof window.sigedConsultarAyuda === "function") {
+                const clasificacion = window.sigedClasificarAyuda(instruccionContextual.value, {estado, categorias, areas});
+                if (clasificacion.tipo === "ayuda") { mostrarAyuda(clasificacion.tema); return; }
+                if (clasificacion.tipo === "aclaracion") {
+                    aclaracionIntencion = true;
+                    const pregunta = document.createElement("p"); pregunta.textContent = "¿Quieres ayuda o iniciar una búsqueda documental?";
+                    const ayuda = document.createElement("button"); ayuda.type = "button"; ayuda.className = "boton-secundario"; ayuda.textContent = "Quiero ayuda";
+                    const buscar = document.createElement("button"); buscar.type = "button"; buscar.className = "boton-secundario"; buscar.textContent = "Preparar búsqueda";
+                    ayuda.addEventListener("click", () => {
+                        const temas = clasificacion.motivo === "varios_temas" ? clasificacion.alternativas : [];
+                        if (!temas.length) { mostrarAyuda(""); return; }
+                        const nombres = {permisos:"Permisos", biblioteca:"Biblioteca", busqueda:"Búsqueda", subida:"Subida", expedientes:"Expedientes", gestionar_expedientes:"Crear expediente", vincular_documentos:"Vincular documentos", papelera:"Papelera", restaurar:"Restaurar", eliminar_definitivamente:"Eliminación definitiva", usuarios:"Usuarios"};
+                        panelContextual.replaceChildren();
+                        const elegir = document.createElement("p"); elegir.textContent = "¿Sobre qué tema necesitas ayuda?"; panelContextual.append(elegir);
+                        for (const tema of temas) { const boton = document.createElement("button"); boton.type = "button"; boton.textContent = nombres[tema] || tema; boton.addEventListener("click", () => mostrarAyuda(tema)); panelContextual.append(boton); }
+                    });
+                    buscar.addEventListener("click", () => revisarInstruccion(true));
+                    panelContextual.replaceChildren(); panelContextual.append(pregunta, ayuda, buscar); return;
+                }
+            }
             if (!estado || claves.some(clave => campos[clave].value.trim() !== (estado.filtros[clave] || ""))) {
                 panelContextual.textContent = "Corrige o termina de editar los filtros antes de continuar."; return;
             }
@@ -321,7 +358,9 @@
                 descartarPropuesta(); instruccionContextual.value = ""; reflejarMemoria();
             });
             panelContextual.replaceChildren(); panelContextual.append(detalle, aplicar, cancelar);
-        });
+        }
+        revisarDesdeBarra = revisarInstruccion;
+        proponerContexto.addEventListener("click", () => revisarInstruccion());
     }
     function mostrarCambio() {
         resumen.hidden = false;
@@ -351,6 +390,21 @@
         if (memoria.consultar() && !dialogo.open && !editandoConsulta) borrarInteraccion();
         editandoConsulta = false;
         const estado = memoria.consultar();
+        const entrada = frase.value;
+        const clasificacion = entrada.trim() && revisarDesdeBarra && typeof window.sigedClasificarAyuda === "function" && typeof window.sigedConsultarAyuda === "function"
+            ? window.sigedClasificarAyuda(entrada, {estado, categorias, areas}) : null;
+        if (clasificacion && clasificacion.tipo !== "busqueda_documental") {
+            if (!estado) {
+                memoria.iniciar("", "documentos", {});
+                consulta = ""; busquedaRapida = null; interpretacion = null;
+                consultaTexto.textContent = "Sin consulta escrita"; reflejarMemoria();
+            }
+            instruccionContextual.value = entrada;
+            frase.value = estado?.consulta || "";
+            dialogo.showModal();
+            revisarDesdeBarra();
+            return;
+        }
         if (!estado) { busquedaRapida = null; consulta = frase.value; actualizar(); }
         else if (estado.consulta !== frase.value) {
             if (estado.manuales.length) cambioPendiente = {rapida: null, consulta: frase.value};
@@ -376,7 +430,7 @@
     });
     formulario.addEventListener("submit", evento => {
         evento.preventDefault();
-        if (propuestaContextual) { panelContextual.hidden = false; return; }
+        if (propuestaContextual || aclaracionIntencion) { panelContextual.hidden = false; return; }
         if (cambioPendiente) { mostrarCambio(); return; }
         if (dudasPendientes().length) {
             mostrarAvisos("Resuelve la aclaración o elige dejarla sin aplicar antes de buscar.");

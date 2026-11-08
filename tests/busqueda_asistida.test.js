@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
 
-function iniciar() {
+function iniciar(config = {}, ruta = '/inicio') {
     const controles = {};
     for (const id of ['busqueda-asistida', 'abrir-busqueda-asistida', 'cerrar-busqueda-asistida',
         'busqueda-global', 'consulta-asistida-texto', 'editar-consulta-asistida', 'filtros-sugeridos', 'form-busqueda-asistida',
@@ -41,30 +41,108 @@ function iniciar() {
     const window = {
         sigedOpcionesBusqueda: { categorias: ['Contratos', 'Actas', 'Informes', 'Certificados', 'Bitacoras', 'Inventarios', 'Otros'],
             areas: ['Tesorería', 'Obras Públicas', 'Recursos Humanos'], areaUsuario: 'Tesorería', rol: 'lector', usuarioId: 10 },
-        location: { pathname: '/inicio', assign: valor => { destino = valor; } },
+        sigedClippyConfig: config,
+        location: { pathname: ruta, assign: valor => { destino = valor; } },
         listeners: {}, addEventListener(tipo, fn) { this.listeners[tipo] = fn; },
     };
     class Fecha extends Date {
         constructor(...args) { super(...(args.length ? args : ['2026-10-28T12:00:00'])); }
     }
-    const contexto = { window, Date: Fecha, URLSearchParams, URL, console,
+    const eventosDocumento = {};
+    class FormularioGlobal { constructor() { this.method = 'get'; this.action = 'http://localhost/buscar'; } }
+    const contexto = { window, Date: Fecha, URLSearchParams, URL, console, HTMLFormElement:FormularioGlobal, FormData:class { get(){ return 'contratos'; } },
         sessionStorage: { getItem: () => '1', setItem() {} },
         fetch: async () => ({ ok: true, json: async () => ({}) }),
-        document: { getElementById: id => controles[id], querySelector: () => null, addEventListener() {}, createElement: () => ({
+        document: { getElementById: id => controles[id], querySelector: () => null, addEventListener(tipo, fn) { eventosDocumento[tipo] = fn; }, createElement: () => ({
             children: [], listeners: {}, style: {}, setAttribute() {}, focus() {}, append(...items) { this.children.push(...items); },
             replaceChildren() { this.children = []; }, addEventListener(tipo, fn) { this.listeners[tipo] = fn; },
         }) },
     };
-    for (const nombre of ['memoria_temporal.js', 'interprete_busqueda.js', 'interprete_contextual.js', 'busqueda_asistida.js']) {
+    for (const nombre of ['memoria_temporal.js', 'interprete_busqueda.js', 'interprete_contextual.js', 'clasificador_ayuda_clippy.js', 'catalogo_ayuda_clippy.js', 'busqueda_asistida.js']) {
         const archivo = path.join(__dirname, '..', 'app', 'static', nombre);
         vm.runInNewContext(fs.readFileSync(archivo, 'utf8'), contexto);
         if (nombre === 'memoria_temporal.js') window.crearMemoriaTemporal = () => { window.memoriaPrueba = contexto.crearMemoriaTemporal(); return window.memoriaPrueba; };
+        if (nombre === 'interprete_busqueda.js') contexto.sigedInterpretarBusqueda = window.sigedInterpretarBusqueda;
         if (nombre === 'interprete_contextual.js') window.sigedInterpretarContexto = (texto, ctx) => contexto.sigedInterpretarContexto(texto, ctx, window.sigedInterpretarBusqueda.detallar);
+        if (nombre === 'clasificador_ayuda_clippy.js') window.sigedClasificarAyuda = contexto.sigedClasificarAyuda;
+        if (nombre === 'catalogo_ayuda_clippy.js') window.sigedConsultarAyuda = contexto.sigedConsultarAyuda;
     }
     return { interpretar: texto => JSON.parse(JSON.stringify(window.sigedInterpretarBusqueda(
         texto, window.sigedOpcionesBusqueda.categorias, window.sigedOpcionesBusqueda.areas))), controles, destino: () => destino,
-        memoria: window.memoriaPrueba, eventosVentana: window.listeners, rapidos };
+        memoria: window.memoriaPrueba, eventosVentana: window.listeners, eventosDocumento, FormularioGlobal, rapidos };
 }
+
+test('Con Clippy clasifica ayuda desde la barra sin generar filtros', () => {
+    const p = iniciar({puedeVer:true, puedeSubir:true}, '/inicio'), c = p.controles;
+    c['busqueda-global'].value = '¿Cómo subo un documento?'; c['abrir-busqueda-asistida'].listeners.click();
+    assert.match(c['propuesta-contextual'].textContent, /Abre Subir documento desde el menú/);
+    assert.equal(JSON.stringify(p.memoria.consultar().filtros), '{}'); assert.equal(p.destino(), undefined);
+});
+test('la ayuda de búsqueda desde Inicio indica dónde escribir y cómo precisar resultados', () => {
+    const p = iniciar({puedeVer:true, puedeVerExpedientes:true}, '/inicio'), c = p.controles;
+    c['busqueda-global'].value = '¿Cómo busco un documento?'; c['abrir-busqueda-asistida'].listeners.click();
+    assert.match(c['propuesta-contextual'].textContent, /barra superior y pulsa Buscar/);
+    assert.match(c['propuesta-contextual'].textContent, /filtros de Biblioteca/);
+    assert.equal(JSON.stringify(p.memoria.consultar().filtros), '{}');
+});
+test('Con Clippy prepara búsquedas desde la barra y pide aclaración para intenciones ambiguas', () => {
+    const p = iniciar({puedeVer:true, puedeVerExpedientes:true}, '/'), c = p.controles;
+    c['busqueda-global'].value = 'Busca contratos de 2025'; c['abrir-busqueda-asistida'].listeners.click();
+    assert.equal(c['asistido-categoria'].value, 'Contratos'); assert.equal(c['asistido-desde'].value, '2025-01-01');
+    c['asistido-autor'].value = 'Ejemplo'; c['asistido-autor'].listeners.input();
+    const antes = JSON.stringify(p.memoria.consultar());
+    c['editar-consulta-asistida'].listeners.click(); c['busqueda-global'].value = '¿Cómo?'; c['abrir-busqueda-asistida'].listeners.click();
+    assert.match(c['propuesta-contextual'].agregados[0].textContent, /ayuda o iniciar una búsqueda/);
+    assert.equal(JSON.stringify(p.memoria.consultar()), antes); assert.equal(p.destino(), undefined);
+});
+test('corrección desde la barra usa la interacción anterior y espera confirmación', () => {
+    const p = iniciar({puedeVer:true}, '/'), c = p.controles;
+    c['busqueda-global'].value = 'Contratos de Tesorería de marzo de 2025'; c['abrir-busqueda-asistida'].listeners.click();
+    c['asistido-autor'].value = 'Ejemplo'; c['asistido-autor'].listeners.input();
+    const antes = JSON.stringify(p.memoria.consultar());
+    c['editar-consulta-asistida'].listeners.click(); c['busqueda-global'].value = 'Mejor de abril'; c['abrir-busqueda-asistida'].listeners.click();
+    assert.match(c['propuesta-contextual'].agregados[0].textContent, /2025-04-01/);
+    assert.equal(JSON.stringify(p.memoria.consultar()), antes);
+    c['propuesta-contextual'].agregados[1].listeners.click();
+    assert.equal(c['asistido-desde'].value, '2025-04-01'); assert.equal(c['asistido-autor'].value, 'Ejemplo');
+});
+test('el envío global conserva su acción GET sin interceptarse', () => {
+    const p = iniciar(); let detenido = false;
+    p.eventosDocumento.submit({target:new p.FormularioGlobal(), preventDefault(){detenido = true;}});
+    assert.equal(detenido, false); assert.equal(p.destino(), undefined);
+    const plantilla = fs.readFileSync(path.join(__dirname, '../app/templates/base.html'), 'utf8');
+    assert.match(plantilla, /<form action="\/buscar" method="get" class="busqueda-global"/);
+    assert.match(plantilla, /name="q"/);
+});
+
+test('ayuda respeta capacidades de lector, editor y administrador sin cambiar filtros', () => {
+    for (const [config, ruta, pregunta, patron] of [
+        [{puedeVer:true, puedeVerExpedientes:true, puedeGestionarExpedientes:false}, '/expedientes', 'Cómo crear un expediente', /administradora/],
+        [{puedeVer:true, puedePapelera:true, puedeRestaurar:true, puedeEliminar:false}, '/papelera', 'Cómo eliminar definitivamente', /administradora/],
+        [{puedeVer:true, puedePapelera:true, puedeRestaurar:true, puedeEliminar:true}, '/papelera', 'Cómo eliminar definitivamente', /no se puede deshacer/],
+        [{puedeVer:true}, '/inicio', 'Por qué no puedo eliminar', /dependen de tu cuenta/]
+    ]) {
+        const p = iniciar(config, ruta), c = p.controles;
+        c['busqueda-global'].value = 'Contratos de Tesorería de marzo de 2025'; c['abrir-busqueda-asistida'].listeners.click();
+        const anterior = JSON.stringify(p.memoria.consultar());
+        c['instruccion-contextual'].value = pregunta; c['proponer-contexto'].listeners.click();
+        assert.match(c['propuesta-contextual'].textContent, patron);
+        assert.equal(JSON.stringify(p.memoria.consultar()), anterior); assert.equal(p.destino(), undefined);
+    }
+});
+
+test('intención ambigua exige elegir y prepara búsqueda sin ejecutarla', () => {
+    const p = iniciar({puedeVer:true}, '/biblioteca'), c = p.controles;
+    c['busqueda-global'].value = 'contratos de 2025'; c['abrir-busqueda-asistida'].listeners.click();
+    const anterior = JSON.stringify(p.memoria.consultar());
+    c['instruccion-contextual'].value = '¿Cómo?'; c['proponer-contexto'].listeners.click();
+    assert.match(c['propuesta-contextual'].agregados[0].textContent, /ayuda o iniciar una búsqueda/);
+    c['form-busqueda-asistida'].listeners.submit({preventDefault(){}});
+    assert.equal(p.destino(), undefined); assert.equal(JSON.stringify(p.memoria.consultar()), anterior);
+    c['propuesta-contextual'].agregados[2].listeners.click();
+    assert.match(c['propuesta-contextual'].agregados[0].textContent, /Comenzar una consulta nueva/);
+    assert.equal(JSON.stringify(p.memoria.consultar()), anterior); assert.equal(p.destino(), undefined);
+});
 
 test('propuestas contextuales requieren confirmación y permiten cancelar sin buscar', () => {
     const p = iniciar(), c = p.controles;

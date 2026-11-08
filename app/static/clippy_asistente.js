@@ -151,15 +151,16 @@
             } else if (ruta === "/subir") {
                 ayudaDeEstaSeccion = "En Subir documento, completa título y categoría, y selecciona un archivo permitido de hasta 20 MB.";
             } else if (ruta === "/expedientes") {
-                ayudaDeEstaSeccion = "Al crear un expediente, SIGED asigna su folio automáticamente; después podrás vincular documentos.";
+                ayudaDeEstaSeccion = config.puedeGestionarExpedientes ? "Al crear un expediente, SIGED asigna su folio automáticamente; después podrás vincular documentos." : "En Expedientes puedes consultar los asuntos y abrir sus fichas.";
             } else if (ruta.startsWith("/expedientes/") && ruta.endsWith("/eliminar")) {
                 ayudaDeEstaSeccion = "Revisa el folio antes de confirmar: solo se elimina la ficha y sus vínculos; los originales permanecen en Biblioteca.";
             } else if (ruta.startsWith("/expedientes/")) {
-                ayudaDeEstaSeccion = "En la ficha puedes buscar documentos y vincular uno o varios al expediente.";
-                if (config.cantidadExpediente !== null) {
+                ayudaDeEstaSeccion = config.puedeGestionarExpedientes ? "En la ficha puedes buscar documentos y vincular uno o varios al expediente." : "En la ficha puedes consultar el expediente.";
+                if (typeof config.cantidadExpediente === "number") {
                     const cantidad = config.cantidadExpediente;
                     const plural = cantidad === 1 ? "" : "s";
-                    ayudaDeEstaSeccion = `Este expediente tiene ${cantidad} documento${plural} vinculado${plural}. Busca por oficio, registro o parte del título para localizar otros documentos del mismo asunto.`;
+                    ayudaDeEstaSeccion = `Este expediente tiene ${cantidad} documento${plural} vinculado${plural}.` +
+                        (config.puedeGestionarExpedientes ? " Busca por oficio, registro o parte del título para localizar otros documentos del mismo asunto." : "");
                 }
             } else if (ruta === "/papelera") {
                 ayudaDeEstaSeccion = "En Papelera puedes seleccionar varios documentos y restaurarlos; la eliminación definitiva no se puede deshacer.";
@@ -234,6 +235,7 @@
                     "Busca oficios y actas del mismo asunto, selecciona los que correspondan y vincúlalos."
                 ]
             };
+            if (!config.puedeGestionarExpedientes) delete guias["/expedientes"];
             let pasoGuia = 0;
 
             let ultimoConsejo = 0;
@@ -241,8 +243,13 @@
             let esHabitual = false;
             const consejosMostrados = new Set();
             const dialogoConfirmacion = document.getElementById("dialogo-confirmacion");
+            const dialogoBusqueda = document.getElementById("busqueda-asistida");
+            let ultimaEscritura = 0;
+            document.addEventListener("input", () => { ultimaEscritura = Date.now(); });
+            const dialogoOcupado = () => Boolean(dialogoConfirmacion?.open || dialogoBusqueda?.open);
             const decirConsejo = (texto, forzar = false, mantener = false) => {
-                if (!texto || dialogoConfirmacion?.open || consejosMostrados.has(texto)) return false;
+                if (!texto || dialogoOcupado() || consejosMostrados.has(texto)) return false;
+                if (!forzar && ultimaEscritura && Date.now() - ultimaEscritura < 3000) return false;
                 if (!forzar && accionSaludo && !accionSaludo.hidden) return false;
                 if (!forzar && Date.now() - ultimoConsejo < (esHabitual ? 20000 : 5000)) return false;
                 consejosMostrados.add(texto);
@@ -336,7 +343,7 @@
                 if (["password", "file", "hidden", "button", "submit", "checkbox", "radio"].includes(campo.type)) return;
                 window.clearTimeout(lecturasProgramadas.get(campo));
                 const temporizador = window.setTimeout(() => {
-                    if (dialogoConfirmacion?.open) return;
+                    if (dialogoOcupado() || Date.now() - ultimaEscritura < 3000) return;
                     const valor = campo.value
                         .replace(/[\u0000-\u001f\u007f]/g, " ")
                         .replace(/\s+/g, " ")
@@ -345,7 +352,7 @@
                     const lectura = valor.length > 100 ? valor.slice(0, 97).trimEnd() + "…" : valor;
                     agente.stop();
                     agente.speak(`${campo.dataset.clippyRead}: ${lectura}`);
-                }, evento.type === "change" ? 250 : 1000);
+                }, 3000);
                 lecturasProgramadas.set(campo, temporizador);
             };
             document.addEventListener("input", programarLectura);
@@ -415,14 +422,14 @@
                         texto = `${apertura} ¿Volvemos a ${nombresSeccion[seccionFrecuente] || "tu sección habitual"}?`;
                         etiqueta = "Ir";
                         destino = rutas[seccionFrecuente];
-                    } else if (!esHabitual) {
+                    } else if (!esHabitual && config.puedeSubir) {
                         texto = `${apertura} ¿Te muestro cómo subir un documento?`;
                         etiqueta = "Ver guía";
                         destino = rutas.subir || "/";
                     }
                 }
                 saludoPendiente = window.setTimeout(() => {
-                    if (!decirConsejo(texto, true, true)) return;
+                    if (!decirConsejo(texto, false, true)) return;
                     if (accionSaludo) {
                         accionSaludo.textContent = etiqueta;
                         accionSaludo.href = destino;
