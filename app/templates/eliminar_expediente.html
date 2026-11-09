@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_iconos.html" import icono_carpeta %}
 
 {% block contenido %}
 <section class="panel ficha confirmacion">
@@ -30,9 +31,11 @@
         method="post"
         data-confirm-title="Eliminar expediente"
         data-confirm="Se eliminará la ficha de «{{ expediente['folio'] }} — {{ expediente['titulo'] }}» y sus vínculos. Los documentos originales seguirán disponibles en la biblioteca."
+        data-confirm-description="Se eliminará la ficha y sus vínculos. Los documentos originales seguirán disponibles en la biblioteca."
         data-confirm-label="Eliminar expediente"
         data-confirm-tone="danger"
     ><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <template data-confirm-file-icon>{{ icono_carpeta() }}</template>
         <div class="acciones-formulario">
             <button type="submit" class="boton-peligro">Sí, eliminar expediente</button>
             <a href="/expedientes/{{ expediente['id'] }}" class="boton-secundario">Cancelar</a>

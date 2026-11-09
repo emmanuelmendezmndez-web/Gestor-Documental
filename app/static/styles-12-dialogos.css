@@ -1,0 +1,187 @@
+/* Confirmaciones y animaciones compartidas entre diálogos. */
+
+@font-face {
+    font-family: 'Inter SIGED';
+    src: url('fonts/inter/InterVariable.woff2') format('woff2');
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+}
+
+.dialogo-confirmacion {
+    width: min(460px, calc(100vw - 32px));
+    max-width: none;
+    margin: auto;
+    padding: 0;
+    max-height: calc(100vh - 32px);
+    max-height: calc(100dvh - 32px);
+    overflow-y: auto;
+    border: 0;
+    border-radius: 16px;
+    color: #243247;
+    background: transparent;
+    font-family: 'Inter SIGED', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    box-shadow: 0 24px 64px rgb(15 23 42 / 24%), 0 4px 16px rgb(15 23 42 / 10%);
+}
+
+.dialogo-confirmacion::backdrop {
+    background: rgb(15 23 42 / 48%);
+    animation: fondo-dialogo-aparece 0.15s ease-out both;
+}
+
+.dialogo-confirmacion[open] {
+    animation: dialogo-aparece 0.2s cubic-bezier(0.2, 0.75, 0.25, 1) both;
+}
+
+.dialogo-confirmacion.dialogo-cerrando {
+    animation: dialogo-desaparece 0.14s ease-in both;
+}
+
+.dialogo-confirmacion.dialogo-cerrando::backdrop {
+    animation: fondo-dialogo-desaparece 0.14s ease-in both;
+}
+
+.dialogo-confirmacion-contenido {
+    padding: 30px;
+    border: 1px solid #dbe4ef;
+    border-radius: 16px;
+    background: white;
+}
+
+.dialogo-confirmacion-encabezado { display: flex; align-items: center; gap: 15px; margin-bottom: 18px; }
+
+.dialogo-confirmacion-icono {
+    display: grid;
+    width: 48px;
+    height: 48px;
+    place-items: center;
+    flex: none;
+    border: 1px solid #bfdbfe;
+    border-radius: 12px;
+    color: #1d4ed8;
+    background: #e3edf9;
+}
+
+.dialogo-confirmacion[data-tono="peligro"] .dialogo-confirmacion-icono { color: #b91c1c; background: #fef2f2; border-color: #fecaca; }
+
+.dialogo-confirmacion-icono svg {
+    width: 25px;
+    height: 25px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    display: none;
+}
+
+.dialogo-confirmacion:not([data-icono]) .dialogo-confirmacion-icono svg[data-icono="aviso"],
+.dialogo-confirmacion[data-icono="aviso"] .dialogo-confirmacion-icono svg[data-icono="aviso"],
+.dialogo-confirmacion[data-icono="documento"] .dialogo-confirmacion-icono svg[data-icono="documento"],
+.dialogo-confirmacion[data-icono="expediente"] .dialogo-confirmacion-icono svg[data-icono="expediente"],
+.dialogo-confirmacion[data-icono="papelera"] .dialogo-confirmacion-icono svg[data-icono="papelera"],
+.dialogo-confirmacion[data-icono="usuario"] .dialogo-confirmacion-icono svg[data-icono="usuario"],
+.dialogo-confirmacion[data-icono="comunicado"] .dialogo-confirmacion-icono svg[data-icono="comunicado"],
+.dialogo-confirmacion[data-icono="enviar-papelera"] .dialogo-confirmacion-icono svg[data-icono="enviar-papelera"],
+.dialogo-confirmacion[data-icono="restaurar"] .dialogo-confirmacion-icono svg[data-icono="restaurar"],
+.dialogo-confirmacion[data-icono="administracion"] .dialogo-confirmacion-icono svg[data-icono="administracion"] { display: block; }
+
+.dialogo-confirmacion-contenido h2 {
+    min-width: 0;
+    margin: 0;
+    font-size: 21px;
+    font-weight: 700;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+}
+
+.dialogo-confirmacion-contenido p {
+    margin: 0;
+    color: var(--color-texto-suave);
+    font-size: 15px;
+    font-weight: 400;
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+}
+
+.dialogo-confirmacion-contenido p strong { color: #1e293b; font-weight: 700; }
+
+.dialogo-confirmacion-afectado { display: grid; gap: 5px; margin-top: 18px; padding: 12px 14px; border: 1px solid #e2e8f0; border-radius: 9px; background: #f8fafc; overflow-wrap: anywhere; }
+.dialogo-confirmacion-afectado[hidden] { display: none; }
+.dialogo-confirmacion-afectado span { color: #64748b; font-size: 12px; font-weight: 600; }
+.dialogo-confirmacion-afectado strong { color: #243247; font-size: 15px; font-weight: 600; line-height: 1.45; }
+.dialogo-confirmacion-afectado-detalle { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.dialogo-confirmacion-afectado-detalle strong { min-width: 0; }
+.dialogo-confirmacion-afectado-icono { display: flex; flex: none; }
+.dialogo-confirmacion-afectado-icono:empty { display: none; }
+
+.dialogo-confirmacion-acciones {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 26px;
+    padding-top: 20px;
+    border-top: 1px solid #e8edf4;
+}
+
+.dialogo-confirmacion-acciones .boton-secundario,
+.dialogo-confirmacion-acciones .boton-modal-confirmar,
+.dialogo-confirmacion-acciones .boton-peligro { min-height: 44px; border-radius: 9px; font-family: inherit; }
+
+.dialogo-confirmacion-acciones button { transition: background-color 0.15s ease, border-color 0.15s ease; }
+.dialogo-confirmacion-acciones button:focus-visible { outline: 3px solid #60a5fa; outline-offset: 2px; }
+.dialogo-confirmacion-acciones button:active { filter: brightness(.92); }
+.dialogo-confirmacion-acciones .boton-secundario { background: #f8fafc; border: 1px solid #cbd5e1; color: #243247; }
+.dialogo-confirmacion-acciones .boton-secundario:hover { background: #e3edf9; border-color: #94a3b8; }
+
+@media (max-width: 420px) {
+    .dialogo-confirmacion-contenido { padding: 22px; }
+    .dialogo-confirmacion-acciones button { flex: 1 1 130px; }
+}
+
+.boton-modal-confirmar { background: #2563eb; color: #fff; }
+.boton-modal-confirmar:hover { background: #1d4ed8; }
+.dialogo-confirmacion .boton-modal-confirmar.boton-peligro { background: #dc1414; }
+.dialogo-confirmacion .boton-modal-confirmar.boton-peligro:hover { background: #b61010; }
+.dialogo-confirmacion[data-tono="aviso"]:not([data-icono="enviar-papelera"]) .boton-modal-confirmar.boton-peligro { background: #2563eb; }
+.dialogo-confirmacion[data-tono="aviso"]:not([data-icono="enviar-papelera"]) .boton-modal-confirmar.boton-peligro:hover { background: #1d4ed8; }
+
+@keyframes dialogo-aparece {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes dialogo-desaparece {
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(7px); }
+}
+
+@keyframes fondo-dialogo-aparece {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes fondo-dialogo-desaparece {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+.dialogo-clave-confirmacion {
+    display: grid;
+    gap: 7px;
+    margin-top: 18px;
+}
+
+.dialogo-clave-confirmacion[hidden] {
+    display: none;
+}
+
+.dialogo-clave-confirmacion label {
+    font-size: 0.9rem;
+    font-weight: 650;
+}
+
+.dialogo-clave-confirmacion input[type="password"] {
+    max-width: none;
+}

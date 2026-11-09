@@ -274,99 +274,6 @@
     border-top: 5px solid #c0392b;
 }
 
-.dialogo-confirmacion {
-    width: min(460px, calc(100vw - 32px));
-    max-width: none;
-    margin: auto;
-    padding: 0;
-    overflow: visible;
-    border: 0;
-    border-radius: 16px;
-    color: var(--color-texto);
-    background: transparent;
-    box-shadow: 0 24px 70px rgb(15 23 42 / 28%);
-}
-
-.dialogo-confirmacion::backdrop {
-    background: rgb(15 23 42 / 48%);
-    backdrop-filter: blur(3px);
-    animation: fondo-dialogo-aparece 0.2s ease-out both;
-}
-
-.dialogo-confirmacion[open] {
-    animation: dialogo-aparece 0.2s cubic-bezier(0.2, 0.75, 0.25, 1) both;
-}
-
-.dialogo-confirmacion.dialogo-cerrando {
-    animation: dialogo-desaparece 0.17s ease-in both;
-}
-
-.dialogo-confirmacion.dialogo-cerrando::backdrop {
-    animation: fondo-dialogo-desaparece 0.17s ease-in both;
-}
-
-.dialogo-confirmacion-contenido {
-    padding: 28px;
-    border: 1px solid rgb(226 232 240 / 90%);
-    border-radius: 16px;
-    background: white;
-}
-
-.dialogo-confirmacion-icono {
-    display: grid;
-    width: 48px;
-    height: 48px;
-    place-items: center;
-    margin-bottom: 16px;
-    border-radius: 14px;
-    color: #a84a08;
-    background: #fff3df;
-}
-
-.dialogo-confirmacion-icono svg {
-    width: 25px;
-    height: 25px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.8;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-}
-
-.dialogo-confirmacion-contenido h2 {
-    margin: 0 0 8px;
-    font-size: 1.2rem;
-}
-
-.dialogo-confirmacion-contenido p {
-    margin: 0;
-    color: var(--color-texto-suave);
-    line-height: 1.55;
-}
-
-.dialogo-confirmacion-acciones {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 10px;
-    margin-top: 24px;
-}
-
-.dialogo-confirmacion-acciones .boton-secundario,
-.dialogo-confirmacion-acciones .boton-modal-confirmar,
-.dialogo-confirmacion-acciones .boton-peligro {
-    min-height: 42px;
-}
-
-.boton-modal-confirmar {
-    background: var(--color-primario);
-    color: #fff;
-}
-
-.boton-modal-confirmar:hover {
-    background: #1d4ed8;
-}
-
 .boton-peligro {
     display: inline-block;
     background: #dc2626;
@@ -382,26 +289,6 @@
 
 .boton-peligro:hover {
     background: #b91c1c;
-}
-
-@keyframes dialogo-aparece {
-    from { opacity: 0; transform: translateY(12px) scale(0.97); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-@keyframes dialogo-desaparece {
-    from { opacity: 1; transform: translateY(0) scale(1); }
-    to { opacity: 0; transform: translateY(7px) scale(0.985); }
-}
-
-@keyframes fondo-dialogo-aparece {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-
-@keyframes fondo-dialogo-desaparece {
-    from { opacity: 1; }
-    to { opacity: 0; }
 }
 
 @keyframes panel-aparece {
@@ -466,23 +353,4 @@
     font-size: 0.82rem;
     font-weight: 600;
     line-height: 1.25;
-}
-
-.dialogo-clave-confirmacion {
-    display: grid;
-    gap: 7px;
-    margin-top: 18px;
-}
-
-.dialogo-clave-confirmacion[hidden] {
-    display: none;
-}
-
-.dialogo-clave-confirmacion label {
-    font-size: 0.9rem;
-    font-weight: 650;
-}
-
-.dialogo-clave-confirmacion input[type="password"] {
-    max-width: none;
 }

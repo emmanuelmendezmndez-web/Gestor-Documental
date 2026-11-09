@@ -72,7 +72,7 @@
                     {% endif %}
                 </form>
                 <form action="/avisos/{{ aviso['id'] }}/eliminar" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <button type="submit" class="boton-peligro" data-confirm-title="Eliminar aviso" data-confirm="El aviso «{{ aviso['titulo'] }}» se eliminará definitivamente." data-confirm-label="Eliminar aviso" data-confirm-tone="danger">Eliminar</button>
+                    <button type="submit" class="boton-peligro" data-confirm-title="Eliminar aviso" data-confirm="El aviso «{{ aviso['titulo'] }}» se eliminará definitivamente." data-confirm-description="El aviso se eliminará definitivamente." data-confirm-label="Eliminar aviso" data-confirm-tone="danger">Eliminar</button>
                 </form>
             </div>
         </article>

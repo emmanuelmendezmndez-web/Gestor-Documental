@@ -33,6 +33,7 @@
         method="post"
         data-confirm-title="Eliminar cuenta definitivamente"
         data-confirm="La cuenta de «{{ editado['nombre'] }}» se borrará por completo y esa persona no podrá volver a entrar. Su historial de actividad se conservará."
+        data-confirm-description="La cuenta se borrará por completo y la persona no podrá volver a entrar. Su historial de actividad se conservará."
         data-confirm-label="Eliminar definitivamente"
         data-confirm-tone="danger"
     ><input type="hidden" name="csrf_token" value="{{ csrf_token }}">

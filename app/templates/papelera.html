@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_iconos.html" import icono_archivo %}
 
 {% block contenido %}
 <section class="panel">
@@ -60,7 +61,8 @@
                                 <span>Restaurar</span>
                             </button>
                             {% if puede("eliminar") %}
-                            <button type="submit" class="boton-peligro boton-accion-papelera" form="eliminar-individual-{{ documento['id'] }}" data-confirm-title="Eliminar archivo definitivamente" data-confirm="Se borrará «{{ documento['nombre_archivo'] }}» y no podrá recuperarse." data-confirm-label="Eliminar definitivamente" data-confirm-tone="danger">
+                            <button type="submit" class="boton-peligro boton-accion-papelera" form="eliminar-individual-{{ documento['id'] }}" data-confirm-title="Eliminar archivo definitivamente" data-confirm="Se borrará «{{ documento['nombre_archivo'] }}» y no podrá recuperarse." data-confirm-description="El archivo se borrará y no podrá recuperarse." data-confirm-label="Eliminar definitivamente" data-confirm-tone="danger">
+                                <template data-confirm-file-icon>{{ icono_archivo(documento["nombre_archivo"], 26) }}</template>
                                 <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" focusable="false"><path d="M4 7h16M9 7V4h6v3m-9 0 1 13h10l1-13M10 11l4 4m0-4-4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
                                 <span>Eliminar definitivamente</span>
                             </button>

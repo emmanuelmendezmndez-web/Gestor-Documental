@@ -24,3 +24,10 @@
         {% endif %}
     </svg>
 {% endmacro %}
+
+{% macro icono_carpeta(ancho=28) %}
+    <svg viewBox="0 0 64 52" width="{{ ancho }}" height="{{ (ancho * 52 / 64) | round | int }}" aria-hidden="true" focusable="false">
+        <path class="carpeta-fondo" d="M5 8a5 5 0 0 1 5-5h14l6 6h24a5 5 0 0 1 5 5v28a5 5 0 0 1-5 5H10a5 5 0 0 1-5-5z"/>
+        <path class="carpeta-frente" d="M5 19a5 5 0 0 1 5-5h44a5 5 0 0 1 5 5v23a5 5 0 0 1-5 5H10a5 5 0 0 1-5-5z"/>
+    </svg>
+{% endmacro %}

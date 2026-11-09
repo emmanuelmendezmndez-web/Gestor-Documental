@@ -3,6 +3,9 @@
     if (!dialogo) return;
     const titulo = document.getElementById("dialogo-confirmacion-titulo");
     const mensaje = document.getElementById("dialogo-confirmacion-mensaje");
+    const afectado = document.getElementById("dialogo-confirmacion-afectado");
+    const nombreAfectado = document.getElementById("dialogo-confirmacion-afectado-nombre");
+    const iconoAfectado = document.getElementById("dialogo-confirmacion-afectado-icono");
     const botonConfirmar = dialogo.querySelector("[data-dialogo-confirmar]");
     const botonCancelar = dialogo.querySelector("[data-dialogo-cancelar]");
     const campoClaveContenedor = document.getElementById("dialogo-clave-confirmacion");
@@ -18,6 +21,29 @@
         campoClave.disabled = true;
         campoClave.setCustomValidity("");
         campoClaveContenedor.hidden = true;
+    }
+
+    // Resalta únicamente el fragmento ya delimitado en el mensaje, sin HTML dinámico.
+    function mostrarMensaje(texto) {
+        const inicio = texto.indexOf("«"), fin = texto.indexOf("»", inicio + 1);
+        if (inicio < 0 || fin <= inicio + 1) { mensaje.textContent = texto; return ""; }
+        const nombre = document.createElement("strong");
+        nombre.textContent = texto.slice(inicio, fin + 1);
+        mensaje.replaceChildren(document.createTextNode(texto.slice(0, inicio)), nombre,
+            document.createTextNode(texto.slice(fin + 1)));
+        return texto.slice(inicio + 1, fin);
+    }
+
+    function iconoOperacion(ruta, origen) {
+        if (origen.dataset.confirmPassword === "true") return "administracion";
+        if (ruta === "/papelera/restaurar" || /^\/documentos\/\d+\/restaurar$/.test(ruta)) return "restaurar";
+        if (ruta === "/documentos/papelera" || /^\/documentos\/\d+\/eliminar$/.test(ruta)) return "enviar-papelera";
+        if (ruta.startsWith("/documentos/")) return "documento";
+        if (ruta.startsWith("/expedientes/")) return "expediente";
+        if (ruta.startsWith("/papelera/")) return "papelera";
+        if (ruta.startsWith("/usuarios/")) return "usuario";
+        if (ruta.startsWith("/avisos/")) return "comunicado";
+        return "aviso";
     }
 
     function cerrarDialogo(alTerminar) {
@@ -37,6 +63,7 @@
             dialogo.removeEventListener("animationend", finalizar);
             if (respaldoCierre !== null) window.clearTimeout(respaldoCierre);
             dialogo.classList.remove("dialogo-cerrando");
+            cerrandoDialogo = false;
             dialogo.close();
             alTerminar?.();
         };
@@ -59,6 +86,11 @@
             if (!haySeleccion) {
                 evento.preventDefault();
                 soloAviso = true;
+                dialogo.dataset.tono = "aviso";
+                dialogo.dataset.icono = "aviso";
+                afectado.hidden = true;
+                nombreAfectado.textContent = "";
+                iconoAfectado.replaceChildren();
                 botonConfirmar.classList.remove("boton-peligro");
                 botonCancelar.hidden = true;
                 titulo.textContent = "Selecciona documentos";
@@ -76,11 +108,23 @@
         }
 
         evento.preventDefault();
+        soloAviso = false;
+        botonCancelar.hidden = false;
         formularioPendiente = formulario;
         botonPendiente = boton;
         origenConfirmacion = origen;
+        const ruta = boton?.getAttribute("formaction") || formulario.getAttribute("action") || "";
+        const reversible = ruta === "/documentos/papelera" || /^\/documentos\/\d+\/eliminar$/.test(ruta) || ruta === "/papelera/restaurar" || /^\/documentos\/\d+\/restaurar$/.test(ruta);
+        dialogo.dataset.tono = reversible ? "aviso" : origen.dataset.confirmTone === "danger" ? "peligro" : "normal";
+        dialogo.dataset.icono = iconoOperacion(ruta, origen);
         titulo.textContent = origen.dataset.confirmTitle || "Confirma esta acción";
-        mensaje.textContent = origen.dataset.confirm || "¿Deseas continuar?";
+        const nombreEnMensaje = mostrarMensaje(origen.dataset.confirm || "¿Deseas continuar?");
+        const nombre = origen.dataset.confirmSubject || nombreEnMensaje;
+        if (nombre && origen.dataset.confirmDescription) mensaje.textContent = origen.dataset.confirmDescription;
+        nombreAfectado.textContent = nombre;
+        const plantillaIcono = origen.querySelector("template[data-confirm-file-icon]");
+        iconoAfectado.replaceChildren(...(nombre && plantillaIcono ? [plantillaIcono.content.cloneNode(true)] : []));
+        afectado.hidden = !nombre;
         botonConfirmar.textContent = origen.dataset.confirmLabel || "Continuar";
         botonConfirmar.classList.toggle("boton-peligro", origen.dataset.confirmTone === "danger");
         const requiereClave = origen.dataset.confirmPassword === "true";
@@ -98,6 +142,7 @@
         cerrarDialogo();
     });
     botonConfirmar.addEventListener("click", () => {
+        if (cerrandoDialogo || !dialogo.open) return;
         if (soloAviso) {
             cerrarDialogo();
             return;
@@ -124,11 +169,10 @@
             campoOculto.value = campoClave.value;
             limpiarClaveConfirmacion();
         }
-        cerrarDialogo(() => {
-            origen.dataset.confirmado = "true";
-            if (boton && boton.form === formulario) formulario.requestSubmit(boton);
-            else formulario.requestSubmit();
-        });
+        dialogo.close();
+        origen.dataset.confirmado = "true";
+        if (boton && boton.form === formulario) formulario.requestSubmit(boton);
+        else formulario.requestSubmit();
     });
 
     dialogo.addEventListener("cancel", (evento) => {
@@ -140,6 +184,8 @@
     });
 
     dialogo.addEventListener("close", () => {
+        // El evento puede llegar después de haber abierto otra confirmación.
+        if (dialogo.open) return;
         cerrandoDialogo = false;
         soloAviso = false;
         limpiarClaveConfirmacion();

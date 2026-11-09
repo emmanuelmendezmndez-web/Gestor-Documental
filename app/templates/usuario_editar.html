@@ -99,7 +99,9 @@
         action="/usuarios/{{ editado['id'] }}/estado"
         method="post"
         data-confirm-title="Desactivar usuario"
+        data-confirm-subject="{{ editado['nombre'] }}"
         data-confirm="{{ editado['nombre'] }} no podrá iniciar sesión hasta que vuelvas a activar su cuenta. Sus datos se conservarán y se cerrarán sus sesiones actuales."
+        data-confirm-description="La persona no podrá iniciar sesión hasta que vuelvas a activar su cuenta. Sus datos se conservarán y se cerrarán sus sesiones actuales."
         data-confirm-label="Desactivar usuario"
         data-confirm-tone="danger"
     ><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -130,6 +132,7 @@
         class="form-accion-inline"
         data-confirm-title="Eliminar cuenta definitivamente"
         data-confirm="La cuenta de «{{ editado['nombre'] }}» se borrará por completo y esa persona no podrá volver a entrar. Su historial de actividad se conservará."
+        data-confirm-description="La cuenta se borrará por completo y la persona no podrá volver a entrar. Su historial de actividad se conservará."
         data-confirm-label="Eliminar definitivamente"
         data-confirm-tone="danger"
     ><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
