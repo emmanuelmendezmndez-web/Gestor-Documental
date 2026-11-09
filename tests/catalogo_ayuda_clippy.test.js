@@ -7,6 +7,13 @@ const consultar = require('../app/static/catalogo_ayuda_clippy.js');
 const general = 'Consulta con una persona administradora para obtener orientación sobre esta función.';
 const contexto = (pantalla, capacidades) => ({pantalla, capacidades});
 
+test('una ayuda puede consultarse desde otra pantalla reconocida', () => {
+    const capacidades = {ver:true, subir:true};
+    assert.match(consultar('subida', contexto('inicio', capacidades)), /Subir documento/);
+    assert.equal(consultar('subida', contexto('desconocida', capacidades)), general);
+    assert.equal(consultar('subida', contexto('inicio', {ver:true, subir:false})), general);
+});
+
 test('lector consulta expedientes sin instrucciones de gestión', () => {
     const c = contexto('expedientes', {ver:true, ver_expedientes:true, gestionar_expedientes:false});
     assert.match(consultar('expedientes', c), /consultar/);

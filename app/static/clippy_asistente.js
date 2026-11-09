@@ -86,7 +86,7 @@
                 if (figuraActual?.matches(":hover, :focus-visible") ||
                     (bocadilloActual && getComputedStyle(bocadilloActual).display !== "none")) return;
                 const inactivo = figuraActual?.classList.contains("clippy-inactivo");
-                const escala = inactivo ? (window.innerWidth <= 700 ? 0.32 : 0.38) : 1;
+                const escala = inactivo ? (window.innerWidth <= 700 ? 0.40 : 0.50) : 1;
                 const anchoFigura = 124 * escala;
                 const altoFigura = 93 * escala;
                 // Reservar también el espacio que ocupará al volver a tamaño completo.
@@ -191,6 +191,8 @@
             window.addEventListener("keydown", habilitarEfectos, { capture: true, once: true });
 
             const ruta = window.location.pathname;
+            // Consejos breves del personaje: pueden incluir el estado de la página.
+            // Las preguntas explícitas se responden por separado con el catálogo.
             let ayudaDeEstaSeccion = "Puedo orientarte sobre esta sección. Haz clic en mí cuando quieras otro consejo.";
             if (ruta === "/inicio") {
                 ayudaDeEstaSeccion = "En Inicio puedes consultar indicadores, avisos y los documentos recientes.";
@@ -295,6 +297,36 @@
             let ultimaEscritura = 0;
             document.addEventListener("input", () => { ultimaEscritura = Date.now(); });
             const dialogoOcupado = () => Boolean(dialogoConfirmacion?.open || dialogoBusqueda?.open);
+            // Las nuevas reacciones no deben activar sonidos del personaje.
+            const animador = agente._animator;
+            const nuevasReacciones = ["Greeting", "Wave"];
+            if (typeof animador?._playSound === "function") {
+                const reproducirSonido = animador._playSound.bind(animador);
+                animador._playSound = (...args) => {
+                    if (!nuevasReacciones.includes(animador.currentAnimationName)) reproducirSonido(...args);
+                };
+            }
+            // La reacción va detrás del texto en la misma cola del motor; si el
+            // usuario pide otro mensaje, stop() descarta la reacción pendiente.
+            const reaccionar = nombre => {
+                if (!nombre || movimientoReducido.matches || document.hidden || agente._hidden ||
+                    !agente.hasAnimation(nombre) || typeof agente._addToQueue !== "function") return;
+                const solicitada = Date.now();
+                agente._addToQueue(siguiente => {
+                    if (movimientoReducido.matches || document.hidden || agente._hidden || dialogoOcupado() || Date.now() - solicitada > 15000) {
+                        siguiente();
+                        return;
+                    }
+                    agente._playInternal(nombre, (_nombre, estado) => {
+                        if (estado === clippy.Animator.States.EXITED) siguiente();
+                    });
+                });
+            };
+            movimientoReducido.addEventListener?.("change", evento => {
+                if (evento.matches && ["Explain", "LookLeft", "Congratulate", ...nuevasReacciones].includes(agente._animator?.currentAnimationName)) {
+                    agente._animator.exitAnimation();
+                }
+            });
             const decirConsejo = (texto, forzar = false, mantener = false) => {
                 if (!texto || dialogoOcupado() || consejosMostrados.has(texto)) return false;
                 if (!forzar && ultimaEscritura && Date.now() - ultimaEscritura < 3000) return false;
@@ -430,6 +462,10 @@
                     } else {
                         agente.speak(ayudaDeEstaSeccion + " Enfoca un campo o marca una opción y te daré un consejo relacionado.");
                     }
+                    const exitos = ["subido", "editado", "restaurado", "documentos_restaurados", "expediente_creado"];
+                    reaccionar(config.bibliotecaSinResultados || config.busquedaSinResultados
+                        ? "LookLeft" : exitos.includes(codigoAviso) ? "Congratulate" :
+                            agente.hasAnimation("Wave") ? "Wave" : "Explain");
                 };
                 personaje.addEventListener("click", hablar);
                 personaje.addEventListener("keydown", (evento) => {
@@ -488,6 +524,7 @@
                 }
                 saludoPendiente = window.setTimeout(() => {
                     if (!decirConsejo(texto, false, true)) return;
+                    reaccionar("Greeting");
                     if (accionSaludo) {
                         accionSaludo.textContent = etiqueta;
                         accionSaludo.href = destino;

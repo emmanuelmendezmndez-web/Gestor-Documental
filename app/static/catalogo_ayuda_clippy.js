@@ -1,6 +1,10 @@
 // Las capacidades personalizan el texto; el servidor autoriza cada operación.
 ((raiz) => {
     const orientacion = 'Consulta con una persona administradora para obtener orientación sobre esta función.';
+    // Pantallas desde las que se admite consultar el catálogo. Es independiente
+    // de las pantallas donde se realiza cada acción descrita en una ayuda.
+    const pantallasReconocidas = ['inicio', 'biblioteca', 'buscar', 'subir', 'expedientes', 'expediente', 'papelera', 'usuarios', 'cuenta', 'actividad'];
+    // `pantallas` identifica el destino de la ayuda; no restringe dónde se pregunta.
     const catalogo = Object.freeze({
         biblioteca: {pantallas:['biblioteca'], capacidades:['ver'], respuesta:'Abre Biblioteca y combina título, categoría, área o fechas para precisar los resultados.'},
         busqueda: {pantallas:['buscar', 'biblioteca'], capacidades:['ver', 'ver_expedientes'], respuesta:'Escribe el título, folio o número de oficio en la barra superior y pulsa Buscar. También puedes usar los filtros de Biblioteca para precisar los resultados.'},
@@ -12,13 +16,13 @@
         restaurar: {pantallas:['papelera'], capacidades:['ver', 'papelera', 'restaurar'], respuesta:'En Papelera selecciona los documentos y pulsa Restaurar selección para devolverlos a Biblioteca.'},
         eliminar_definitivamente: {pantallas:['papelera'], capacidades:['ver', 'papelera', 'eliminar'], respuesta:'En Papelera puedes seleccionar documentos y elegir Eliminar selección definitivamente. Esta acción no se puede deshacer.'},
         usuarios: {pantallas:['usuarios'], capacidades:['ver', 'usuarios'], respuesta:'En Usuarios completa Crear usuario y asigna únicamente el rol y el área necesarios para sus tareas.'},
-        permisos: {pantallas:['inicio', 'biblioteca', 'buscar', 'subir', 'expedientes', 'expediente', 'papelera', 'usuarios', 'cuenta', 'actividad'], capacidades:['ver'], respuesta:'Las acciones disponibles dependen de tu cuenta. Consulta a una persona administradora si necesitas acceso.'}
+        permisos: {capacidades:['ver'], respuesta:'Las acciones disponibles dependen de tu cuenta. Consulta a una persona administradora si necesitas acceso.'}
     });
 
     function consultar(tema, contexto) {
         if (typeof tema !== 'string' || !Object.hasOwn(catalogo, tema)) return orientacion;
         const ayuda = catalogo[tema];
-        if (!contexto || !catalogo.permisos.pantallas.includes(contexto.pantalla)) return orientacion;
+        if (!contexto || !pantallasReconocidas.includes(contexto.pantalla)) return orientacion;
         const capacidades = contexto.capacidades;
         if (!capacidades || typeof capacidades !== 'object' || Array.isArray(capacidades) ||
             !ayuda.capacidades.every(clave => Object.hasOwn(capacidades, clave) && capacidades[clave] === true)) return orientacion;

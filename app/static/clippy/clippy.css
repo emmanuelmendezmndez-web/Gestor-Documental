@@ -64,9 +64,9 @@
 .clippy-accion:hover, .clippy-accion:focus-visible { background: #1d4ed8; color: white; }
 .clippy-accion[hidden] { display: none; }
 .clippy { transform-origin: right bottom; transition: transform 0.3s ease; }
-.clippy.clippy-inactivo { transform: scale(0.38); }
+.clippy.clippy-inactivo { transform: scale(0.50); }
 @media (max-width: 700px) {
-    .clippy.clippy-inactivo { transform: scale(0.32); }
+    .clippy.clippy-inactivo { transform: scale(0.40); }
 }
 @media (prefers-reduced-motion: reduce) {
     .clippy { transition: none; }
