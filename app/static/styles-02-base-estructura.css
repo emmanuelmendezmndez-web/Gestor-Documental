@@ -87,7 +87,7 @@ main {
     overflow-y: auto;
     background: #1d2a3c;
     color: #f4f7fb;
-    transition: width 0.24s ease, flex-basis 0.24s ease, padding 0.24s ease;
+    transition: width 0.24s cubic-bezier(.4, 0, .2, 1), flex-basis 0.24s cubic-bezier(.4, 0, .2, 1), padding 0.24s cubic-bezier(.4, 0, .2, 1);
 }
 
 .sidebar.is-collapsed {
@@ -98,18 +98,24 @@ main {
 }
 
 .sidebar-toggle {
-    display: grid;
-    width: 36px;
-    height: 36px;
-    place-items: center;
-    padding: 0;
-    margin: 0 auto 12px;
-    border: 1px solid rgb(191 219 254 / 32%);
-    border-radius: 50%;
-    background: rgb(255 255 255 / 5%);
-    color: #bfdbfe;
+    display: flex;
+    width: 100%;
+    min-height: 40px;
+    align-items: center;
+    gap: 9px;
+    padding: 8px 12px;
+    margin: 0 0 18px;
+    border: 1px solid rgb(147 197 253 / 38%);
+    border-radius: 8px;
+    background: rgb(147 197 253 / 16%);
+    color: #dbeafe;
+    font: inherit;
+    font-size: .85rem;
+    font-weight: 600;
+    overflow: hidden;
+    white-space: nowrap;
     cursor: pointer;
-    transition: border-color 0.18s ease, background-color 0.18s ease, color 0.18s ease;
+    transition: border-color 0.18s ease, background-color 0.18s ease, color 0.18s ease, width 0.24s cubic-bezier(.4, 0, .2, 1), margin 0.24s cubic-bezier(.4, 0, .2, 1), padding 0.24s cubic-bezier(.4, 0, .2, 1);
 }
 
 .sidebar-toggle:hover {
@@ -117,6 +123,11 @@ main {
     background: rgb(147 197 253 / 16%);
     color: white;
 }
+
+.sidebar-toggle:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
+.sidebar-toggle:active { background: rgb(96 165 250 / 30%); }
+.sidebar.is-collapsed .sidebar-toggle { width: 44px; justify-content: center; gap: 0; padding: 8px; margin-right: calc((100% - 44px) / 2); margin-left: calc((100% - 44px) / 2); }
+.sidebar.is-collapsed .sidebar-toggle span { display: none; }
 
 .sidebar-toggle svg {
     width: 17px;
@@ -127,18 +138,22 @@ main {
     stroke-linecap: round;
     stroke-linejoin: round;
     transition: transform 0.2s ease;
+    flex: none;
 }
 
-.sidebar.is-collapsed .sidebar-toggle svg {
-    transform: rotate(0deg);
+.sidebar-toggle-flecha {
+    transform-box: fill-box;
+    transform-origin: center;
+    transition: transform 0.2s ease;
 }
 
-.sidebar:not(.is-collapsed) .sidebar-toggle svg {
+.sidebar:not(.is-collapsed) .sidebar-toggle-flecha {
     transform: rotate(180deg);
 }
 
 .sidebar.is-collapsed .marca {
     justify-content: center;
+    gap: 0;
     margin-right: 0;
     margin-left: 0;
 }
@@ -176,7 +191,7 @@ main {
     display: flex;
     align-items: center;
     gap: 12px;
-    margin: 0 8px 34px;
+    margin: 0 8px 14px;
     color: white;
     text-decoration: none;
 }
@@ -231,6 +246,40 @@ main {
 .sidebar-nav {
     display: grid;
     gap: 6px;
+}
+
+.sidebar-nav .sidebar-link > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (min-width: 801px) {
+    /* Las etiquetas se reservan sin deformarlas y aparecen al terminar el ancho. */
+    .sidebar .marca > span:last-child,
+    .sidebar .sidebar-link > span:not(.avatar),
+    .sidebar .boton-cerrar-sesion > span,
+    .sidebar .sidebar-toggle > span {
+        min-width: 0;
+        max-width: 200px;
+        overflow: hidden;
+        opacity: 1;
+        visibility: visible;
+        transition: max-width 0.24s cubic-bezier(.4, 0, .2, 1), opacity 0.12s ease 0.24s, visibility 0s;
+    }
+    .sidebar.is-collapsed .marca > span:last-child,
+    .sidebar.is-collapsed .sidebar-link > span:not(.avatar),
+    .sidebar.is-collapsed .boton-cerrar-sesion > span,
+    .sidebar.is-collapsed .sidebar-toggle > span {
+        display: block;
+        max-width: 0;
+        opacity: 0;
+        visibility: hidden;
+        transition: max-width 0.24s cubic-bezier(.4, 0, .2, 1), opacity 0.08s ease, visibility 0s linear 0.08s;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sidebar, .sidebar-toggle, .sidebar-toggle svg, .sidebar-toggle-flecha,
+    .sidebar .marca > span:last-child, .sidebar .sidebar-link > span:not(.avatar),
+    .sidebar .boton-cerrar-sesion > span, .sidebar .sidebar-toggle > span,
+    .sidebar .sidebar-link, .sidebar .boton-cerrar-sesion { transition: none; }
 }
 
 .sidebar-link,
