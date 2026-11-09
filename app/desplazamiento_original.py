@@ -72,7 +72,7 @@ def _publicar(path, datos):
     temporal.unlink()
 
 
-def _evidencia_registro(operacion):
+def _evidencia_registro(operacion, *, _final_esperado=None):
     presupuesto = inv.Presupuesto()
     principal = r.leer(r.REGISTRO)
     if not principal or principal['version'] != 2 or principal['estado'] == 'finalizada' or principal['operacion'] != operacion:
@@ -83,9 +83,11 @@ def _evidencia_registro(operacion):
     if raiz is None or not stat.S_ISDIR(raiz.st_mode) or info is None or not stat.S_ISDIR(info.st_mode):
         raise ValueError('Operación no disponible')
     inicio = r.leer(op / 'inicio.json')
+    fin = r.leer(op / 'finalizada.json')
     if (not inicio or inicio['estado'] != 'iniciada' or inicio['version'] != 2
             or r.invariantes(inicio) != r.invariantes(principal)
-            or r.leer(op / 'finalizada.json') is not None or r.leer(op / 'finalizada-v1.json') is not None):
+            or (fin is not None and (_final_esperado is None or not _iguales(fin, _final_esperado)))
+            or r.leer(op / 'finalizada-v1.json') is not None):
         raise ValueError('Evidencia inicial contradictoria')
     # No permitir que otra operación incompleta quede oculta por esta selección.
     with os.scandir(r.RAIZ) as entradas:

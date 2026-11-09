@@ -231,6 +231,10 @@ def _accion(operacion, confirmar):
         for base in (root / 'previo-activo-base',):
             cola._comprobar_auxiliares(base)
         plan_original = des._cargar_plan(root, evidencia)
+        des._publicar(r.RAIZ / operacion / 'inicio-recuperacion.json',
+                      {'version': 1, 'operacion': operacion,
+                       'inventario_sha256': evidencia['registro']['inventario']['sha256'],
+                       'secuencia': evidencia['registro']['secuencia']})
         archivo_plan = root / 'instalacion.json'
         plan = des._leer(archivo_plan)
         if plan is None:

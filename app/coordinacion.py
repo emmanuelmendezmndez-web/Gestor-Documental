@@ -158,6 +158,13 @@ def aplicar_recuperacion(operacion, confirmacion):
         return _accion(operacion, confirmacion)
 
 
+def finalizar_recuperacion(operacion, confirmacion):
+    """Verifica y finaliza con bloqueo exclusivo, sin reutilizar datos no comprobados."""
+    from app.cierre_recuperacion import _finalizar
+    with _BloqueoSistema(exclusivo=True):
+        return _finalizar(operacion, confirmacion)
+
+
 def inspeccionar_desplazamiento(operacion, confirmacion, componente):
     """Identifica un original bajo bloqueo exclusivo, sin moverlo."""
     from app.desplazamiento_original import _operar

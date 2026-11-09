@@ -21,6 +21,157 @@ from app import seleccion_originales as sel
 
 
 class EsquemaTest(unittest.TestCase):
+    def test_cierre_reanuda_y_permanece_valido_tras_uso(self):
+        self._base_local_recuperacion()
+        with patch.object(coord, 'DATA_DIR', self.root), patch.multiple(sel, DB_PATH=inv.DB_PATH, STORAGE_DIR=inv.STORAGE_DIR, SECRET_PATH=inv.SECRET_PATH), patch.dict(os.environ, {'GESTOR_SECRET_KEY': ''}):
+            self.assertEqual(coord.preparar_persistente()['estado'], 'preparación íntegra')
+            self.assertEqual(coord.aplicar_recuperacion(self.op.name, self.op.name)['estado'], 'instalación verificada; arranque bloqueado')
+            with self.assertRaises(RuntimeError): coord.BloqueoDatos(False)
+            with patch.object(r.os, 'replace', side_effect=PermissionError):
+                self.assertEqual(coord.finalizar_recuperacion(self.op.name, self.op.name)['estado'], 'bloqueada')
+            self.assertTrue((self.op / 'finalizada.json').exists())
+            self.assertNotEqual(r.leer(r.REGISTRO)['estado'], 'finalizada')
+            with self.assertRaises(RuntimeError): coord.BloqueoDatos(False)
+            informe = coord.finalizar_recuperacion(self.op.name, self.op.name)
+            self.assertEqual(informe['estado'], 'restauración finalizada', informe)
+            self.assertTrue(informe['listo_recuperacion'])
+            with coord.BloqueoDatos(False): pass
+            with patch.dict(os.environ, {'GESTOR_SECRET_KEY': 'otro-valor-ficticio'}):
+                with self.assertRaises(RuntimeError): coord.BloqueoDatos(False)
+            clave_apartada = self.root / 'clave-apartada-ficticia'
+            inv.SECRET_PATH.rename(clave_apartada)
+            try:
+                with self.assertRaises(RuntimeError): coord.BloqueoDatos(False)
+            finally:
+                clave_apartada.rename(inv.SECRET_PATH)
+            self.assertEqual(coord.finalizar_recuperacion(self.op.name, self.op.name)['estado'], 'restauración ya finalizada')
+            with sqlite3.connect(inv.DB_PATH) as db:
+                db.execute("INSERT INTO documentos VALUES(2,'documento.txt',8)")
+            db.close()
+            (inv.STORAGE_DIR / 'nuevo.txt').write_bytes(b'cambio legitimo ficticio')
+            with coord.BloqueoDatos(False): pass
+            marca = self.op / 'cierre-recuperacion.json'
+            guardada = marca.read_bytes(); marca.write_bytes(b'{')
+            with self.assertRaises(RuntimeError): coord.BloqueoDatos(False)
+            marca.write_bytes(guardada)
+            with coord.BloqueoDatos(False): pass
+            from app import preparacion_persistente as pp
+            constancia = self.root / pp._nombre(self.op.name) / 'constancia-preparacion.json'
+            guardada_constancia = constancia.read_bytes()
+            alterada = json.loads(guardada_constancia)
+            alterada['sqlite_transformada']['sha256'] = 'f' * 64
+            constancia.write_text(json.dumps(alterada), encoding='utf-8')
+            with self.assertRaises(RuntimeError): coord.BloqueoDatos(False)
+            constancia.write_bytes(guardada_constancia)
+            with coord.BloqueoDatos(False): pass
+            from app import desplazamiento_original as des
+            conservacion = self.root / des._nombre(self.op.name)
+            apartada = self.root / 'conservacion-apartada-ficticia'
+            conservacion.rename(apartada)
+            try:
+                with self.assertRaises(RuntimeError): coord.BloqueoDatos(False)
+            finally:
+                apartada.rename(conservacion)
+            with coord.BloqueoDatos(False): pass
+            nueva = self.root / '.siged-restauraciones' / 'operacion-ijklmnop'
+            nueva.mkdir()
+            import shutil
+            shutil.copyfile(self.op / 'inventario.jsonl', nueva / 'inventario.jsonl')
+            otra = dict(self.datos, operacion=nueva.name, directorio=str(nueva), estado='iniciada', paso='preparada')
+            r.escribir(otra)
+            with self.assertRaises(RuntimeError): coord.BloqueoDatos(False)
+
+    def test_cierre_rechaza_documento_alterado(self):
+        self._base_local_recuperacion()
+        with patch.object(coord, 'DATA_DIR', self.root), patch.multiple(sel, DB_PATH=inv.DB_PATH, STORAGE_DIR=inv.STORAGE_DIR, SECRET_PATH=inv.SECRET_PATH), patch.dict(os.environ, {'GESTOR_SECRET_KEY': ''}):
+            self.assertEqual(coord.preparar_persistente()['estado'], 'preparación íntegra')
+            self.assertEqual(coord.aplicar_recuperacion(self.op.name, self.op.name)['estado'], 'instalación verificada; arranque bloqueado')
+            (inv.STORAGE_DIR / 'documento.txt').write_bytes(b'alterado')
+            self.assertEqual(coord.finalizar_recuperacion(self.op.name, self.op.name)['estado'], 'bloqueada')
+            with self.assertRaises(RuntimeError): coord.BloqueoDatos(False)
+
+    def test_cierre_no_acepta_final_aislado(self):
+        self._base_local_recuperacion()
+        with patch.object(coord, 'DATA_DIR', self.root), patch.multiple(sel, DB_PATH=inv.DB_PATH, STORAGE_DIR=inv.STORAGE_DIR, SECRET_PATH=inv.SECRET_PATH), patch.dict(os.environ, {'GESTOR_SECRET_KEY': ''}):
+            self.assertEqual(coord.preparar_persistente()['estado'], 'preparación íntegra')
+            self.assertEqual(coord.aplicar_recuperacion(self.op.name, self.op.name)['estado'], 'instalación verificada; arranque bloqueado')
+            datos = r.leer(r.REGISTRO)
+            datos.update(estado='finalizada', paso='verificada')
+            r.escribir(datos)
+            with self.assertRaises(RuntimeError): coord.BloqueoDatos(False)
+
+    def test_cierre_no_acepta_final_sin_aplicacion(self):
+        self._base_local_recuperacion()
+        with patch.object(coord, 'DATA_DIR', self.root), patch.multiple(sel, DB_PATH=inv.DB_PATH, STORAGE_DIR=inv.STORAGE_DIR, SECRET_PATH=inv.SECRET_PATH), patch.dict(os.environ, {'GESTOR_SECRET_KEY': ''}):
+            self.assertEqual(coord.preparar_persistente()['estado'], 'preparación íntegra')
+            datos = r.leer(r.REGISTRO)
+            datos.update(estado='finalizada', paso='verificada')
+            r.escribir(datos)
+            with self.assertRaises(RuntimeError): coord.BloqueoDatos(False)
+
+    def test_cierre_permite_login_y_operacion_normal(self):
+        inv.DB_PATH.unlink()
+        env = os.environ.copy(); env['GESTOR_DATA_DIR'] = str(self.root); env['GESTOR_SECRET_KEY'] = ''
+        preparar = '''
+from app.database import inicializar_db, conectar
+from app.seguridad import hashear_password
+inicializar_db()
+with conectar() as db:
+    db.execute("INSERT INTO usuarios(usuario,nombre,password_hash,rol,departamento) VALUES(?,?,?,?,?)",
+               ('adminficticio','Administrador',hashear_password('ClaveFicticia123!'),'admin','Tesoreria'))
+'''
+        subprocess.run([sys.executable, '-c', preparar], env=env, check=True, timeout=60)
+        inv.SECRET_PATH.write_text('clave-local-ficticia-123456789', encoding='utf-8')
+        (self.op / 'inventario.jsonl').unlink()
+        self.datos['clave_origen'] = 'archivo'
+        self.datos['pasos'] = r.CAMBIOS[:]
+        self.datos['inventario'] = inv.publicar(self.op, self.previo)
+        r.escribir(self.datos)
+        with patch.object(coord, 'DATA_DIR', self.root), patch.multiple(sel, DB_PATH=inv.DB_PATH, STORAGE_DIR=inv.STORAGE_DIR, SECRET_PATH=inv.SECRET_PATH), patch.dict(os.environ, {'GESTOR_SECRET_KEY': ''}):
+            self.assertEqual(coord.preparar_persistente()['estado'], 'preparación íntegra')
+            self.assertEqual(coord.aplicar_recuperacion(self.op.name, self.op.name)['estado'], 'instalación verificada; arranque bloqueado')
+            resultado = coord.finalizar_recuperacion(self.op.name, self.op.name)
+            self.assertEqual(resultado['estado'], 'restauración finalizada', resultado)
+            comprobar = '''
+import re
+from fastapi.testclient import TestClient
+from app.main import app
+with TestClient(app, base_url='http://testserver') as cliente:
+    pagina = cliente.get('/login')
+    token = re.search(r'<meta name="csrf-token" content="([^"]+)"', pagina.text).group(1)
+    respuesta = cliente.post('/login', data={'usuario':'adminficticio','password':'ClaveFicticia123!','csrf_token':token}, headers={'Origin':'http://testserver'}, follow_redirects=False)
+    assert respuesta.status_code == 303, respuesta.status_code
+    pagina = cliente.get('/inicio')
+    assert pagina.status_code == 200, pagina.status_code
+    token = re.search(r'<meta name="csrf-token" content="([^"]+)"', pagina.text).group(1)
+    respuesta = cliente.post('/expedientes', data={'titulo':'Expediente ficticio','csrf_token':token}, headers={'Origin':'http://testserver'}, follow_redirects=False)
+    assert respuesta.status_code == 303, respuesta.status_code
+'''
+            proceso = subprocess.run([sys.executable, '-c', comprobar], env=env, capture_output=True, text=True, timeout=90)
+            self.assertEqual(proceso.returncode, 0, proceso.stderr)
+            with coord.BloqueoDatos(False): pass
+
+    def test_cierre_rechaza_sqlite_alterada_y_recuperacion_parcial(self):
+        from app import desplazamiento_original as des
+        self._base_local_recuperacion()
+        with patch.object(coord, 'DATA_DIR', self.root), patch.multiple(sel, DB_PATH=inv.DB_PATH, STORAGE_DIR=inv.STORAGE_DIR, SECRET_PATH=inv.SECRET_PATH), patch.dict(os.environ, {'GESTOR_SECRET_KEY': ''}):
+            self.assertEqual(coord.preparar_persistente()['estado'], 'preparación íntegra')
+            publicar = des._publicar
+            def corte(path, datos):
+                if path.name == 'confirmacion-instalar-base.json': raise KeyboardInterrupt
+                return publicar(path, datos)
+            with patch.object(des, '_publicar', side_effect=corte):
+                self.assertEqual(coord.aplicar_recuperacion(self.op.name, self.op.name)['estado'], 'bloqueada')
+            self.assertEqual(coord.finalizar_recuperacion(self.op.name, self.op.name)['estado'], 'bloqueada')
+            self.assertEqual(coord.aplicar_recuperacion(self.op.name, self.op.name)['estado'], 'instalación verificada; arranque bloqueado')
+            with patch.dict(os.environ, {'GESTOR_SECRET_KEY': 'valor-ficticio-no-acreditado'}):
+                self.assertEqual(coord.finalizar_recuperacion(self.op.name, self.op.name)['estado'], 'bloqueada')
+            with sqlite3.connect(inv.DB_PATH) as db:
+                db.execute("INSERT INTO documentos VALUES(2, 'documento.txt', 8)")
+            db.close()
+            self.assertEqual(coord.finalizar_recuperacion(self.op.name, self.op.name)['estado'], 'bloqueada')
+            with self.assertRaises(RuntimeError): coord.BloqueoDatos(False)
+
     def _base_local_recuperacion(self):
         self._base_para_preparacion()
         inv.SECRET_PATH.write_text('clave-ficticia', encoding='utf-8')
@@ -142,6 +293,7 @@ class EsquemaTest(unittest.TestCase):
         with patch.object(coord, 'DATA_DIR', self.root), patch.multiple(sel, DB_PATH=inv.DB_PATH, STORAGE_DIR=inv.STORAGE_DIR, SECRET_PATH=inv.SECRET_PATH):
             self.assertEqual(coord.preparar_persistente()['estado'], 'preparación íntegra')
             self.assertEqual(coord.aplicar_recuperacion(self.op.name, self.op.name)['estado'], 'bloqueada')
+            self.assertEqual(coord.finalizar_recuperacion(self.op.name, self.op.name)['estado'], 'bloqueada')
             root = self.root / pp._nombre(self.op.name)
             (root / 'storage' / 'documento.txt').unlink()
             self.assertEqual(coord.aplicar_recuperacion(self.op.name, self.op.name)['estado'], 'bloqueada')

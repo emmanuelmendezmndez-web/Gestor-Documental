@@ -47,20 +47,20 @@ def _comprobar(operacion, confirmacion):
 
 
 def main():
-    from app.coordinacion import BloqueoNoDisponible, comprobar_recuperacion, aplicar_recuperacion
+    from app.coordinacion import BloqueoNoDisponible, comprobar_recuperacion, aplicar_recuperacion, finalizar_recuperacion
     parser = argparse.ArgumentParser(description='Recuperación administrativa con arranque bloqueado')
-    parser.add_argument('accion', choices=('comprobar', 'aplicar'), nargs='?', default='comprobar')
+    parser.add_argument('accion', choices=('comprobar', 'aplicar', 'finalizar'), nargs='?', default='comprobar')
     parser.add_argument('--operacion', required=True)
     parser.add_argument('--confirmar-operacion', required=True)
     args = parser.parse_args()
-    accion = aplicar_recuperacion if args.accion == 'aplicar' else comprobar_recuperacion
+    accion = {'comprobar': comprobar_recuperacion, 'aplicar': aplicar_recuperacion, 'finalizar': finalizar_recuperacion}[args.accion]
     try:
         resultado = accion(args.operacion, args.confirmar_operacion)
     except BloqueoNoDisponible:
         resultado = {'estado': 'bloqueada', 'listo_recuperacion': False,
                      'motivo': 'No se pudo adquirir el bloqueo exclusivo; detenga SIGED y revise el acceso.'}
     print(json.dumps(resultado, ensure_ascii=False))
-    return 0 if resultado['estado'] == 'instalación verificada; arranque bloqueado' else 1
+    return 0 if resultado['estado'] in ('instalación verificada; arranque bloqueado', 'restauración finalizada', 'restauración ya finalizada') else 1
 
 
 if __name__ == '__main__':

@@ -119,6 +119,24 @@ def comprobar_estado():
                             raise ValueError("El plan contradice las presencias originales")
                         if principal is not None and principal["operacion"] == entrada.name and principal != fin:
                             raise ValueError("Registro principal no coincide con su constancia")
+                        # Un cierre de recuperación requiere varias evidencias coherentes;
+                        # no se vuelven a comparar activos modificables tras el arranque.
+                        conservacion = DATA_DIR / ('.siged-conservacion-' + entrada.name)
+                        info_conservacion = inspeccionar(conservacion)
+                        if info_conservacion is not None and not stat.S_ISDIR(info_conservacion.st_mode):
+                            raise ValueError('Conservación no disponible')
+                        preparada = DATA_DIR / ('.siged-preparacion-' + entrada.name)
+                        info_preparada = inspeccionar(preparada)
+                        if info_preparada is not None and not stat.S_ISDIR(info_preparada.st_mode):
+                            raise ValueError('Preparación no disponible')
+                        marcador = inspeccionar(directorio / 'cierre-recuperacion.json')
+                        if (marcador is not None or inspeccionar(directorio / 'inicio-recuperacion.json') is not None
+                                or info_preparada is not None
+                                or (info_conservacion is not None and
+                                    (inspeccionar(conservacion / 'instalacion.json') is not None
+                                     or inspeccionar(conservacion / 'cierre-verificado.json') is not None))):
+                            from app.cierre_recuperacion import validar_cierre_historico
+                            validar_cierre_historico(fin, verificar_clave_efectiva=(principal is None or principal['operacion'] == entrada.name))
                     else:
                         # v1 conserva lo que se registró; no fabrica inventarios.
                         conocido = legado or (principal if principal and principal["operacion"] == entrada.name else None)
