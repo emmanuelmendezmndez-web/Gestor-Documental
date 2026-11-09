@@ -6,12 +6,10 @@
 <section class="panel biblioteca-explorador">
     <div class="encabezado-biblioteca">
         <div><h2>Biblioteca</h2><p class="biblioteca-contador">{{ total }} documento{{ "" if total == 1 else "s" }} encontrado{{ "" if total == 1 else "s" }}</p></div>
-        <a href="/expedientes" class="boton-secundario boton-expedientes">
-            <svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true" focusable="false"><path d="M3.5 7.5h6l2 2h9v9.75H3.5zM3.5 10h17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>
-            <span>Expedientes</span>
-        </a>
     </div>
 
+    <details class="biblioteca-panel-filtros">
+    <summary data-clippy-tip="Abre Buscar y filtrar para combinar título, categoría, departamento y fechas.">Buscar y filtrar</summary>
     <form action="/" method="get" class="filtros-biblioteca" data-clippy-tip="Combina título, categoría, área y fechas para acotar los resultados de Biblioteca.">
         <div class="busqueda">
             <div>
@@ -102,6 +100,20 @@
             </div>
         </details>
     </form>
+    </details>
+
+    {% if hay_filtros or filtros['orden'] != 'reciente' %}
+    <div class="biblioteca-filtros-activos" aria-label="Filtros y orden activos">
+        <strong>Filtros activos:</strong>
+        {% for clave, etiqueta in [('buscar','Búsqueda'), ('categoria','Categoría'), ('departamento','Departamento'), ('oficio','Oficio'), ('autor','Autor'), ('desde','Desde'), ('hasta','Hasta')] %}
+            {% if filtros[clave] %}<span>{{ etiqueta }}: {{ filtros[clave] }}</span>{% endif %}
+        {% endfor %}
+        {% if filtros['orden'] != 'reciente' %}
+            {% for clave, nombre in ordenes %}{% if clave == filtros['orden'] %}<span>Orden: {{ nombre }}</span>{% endif %}{% endfor %}
+        {% endif %}
+        <a href="/">Limpiar filtros</a>
+    </div>
+    {% endif %}
 
     {% macro enlace_categoria(categoria) -%}
         /?{%- for clave, valor in filtros.items() if clave != 'categoria' and valor -%}

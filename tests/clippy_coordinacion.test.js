@@ -53,6 +53,20 @@ test('las ayudas distinguen el explorador y el formulario de expedientes', () =>
     nuevo.figura.click(); assert.match(nuevo.dichos[0], /nombre o asunto.*descripción.*folio/i);
     assert.doesNotMatch(nuevo.dichos[0], /en la ficha|vincular/i);
 });
+test('Clippy reconoce el control Buscar y filtrar al enfocarlo', () => {
+    const p = iniciar('/');
+    const control = {dataset:{clippyTip:'Abre Buscar y filtrar.'}, closest:()=>null};
+    const target = {matches: selector => selector.includes('summary[data-clippy-tip]'), closest:()=>control};
+    for (const fn of p.eventos.focusin) fn({type:'focusin', target});
+    assert.deepEqual(p.dichos, ['Abre Buscar y filtrar.']);
+});
+test('el consejo de Biblioteca menciona Expedientes solo si está permitido', () => {
+    const conAcceso = iniciar('/', {puedeVerExpedientes:true});
+    conAcceso.figura.click(); assert.match(conAcceso.dichos[0], /Buscar y filtrar.*Expedientes.*menú lateral/);
+    const sinAcceso = iniciar('/', {puedeVerExpedientes:false});
+    sinAcceso.figura.click(); assert.match(sinAcceso.dichos[0], /Buscar y filtrar/);
+    assert.doesNotMatch(sinAcceso.dichos[0], /Expedientes/);
+});
 test('la posición en reposo reserva espacio al expandirse en escritorio y móvil', () => {
     for (const ancho of [1200, 390]) {
         const control = {left:ancho-160, right:ancho, top:300, bottom:500};

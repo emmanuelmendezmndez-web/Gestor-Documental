@@ -60,11 +60,28 @@ class BusquedaClippyHTTPTest(unittest.TestCase):
         self.assertIn('Ficticio Compartido', biblioteca.text)
         self.assertNotIn('Ficticio Humano', biblioteca.text)
         self.assertNotIn('Ficticio Papelera', biblioteca.text)
+        self.assertIn('<details class="biblioteca-panel-filtros">', biblioteca.text)
+        self.assertIn('Categoría: Contratos', biblioteca.text)
+        self.assertIn('Desde: 2025-03-01', biblioteca.text)
         manipulada = self.client.get('/', params={**filtros, 'departamento': 'Recursos Humanos'})
         self.assertNotIn('Ficticio Humano', manipulada.text)
         with closing(sqlite3.connect(Path(self.fixture.temp.name) / 'gestor.db')) as db:
             ident = db.execute("SELECT id FROM documentos WHERE titulo='Ficticio Humano'").fetchone()[0]
         self.assertIn(self.client.get(f'/documentos/{ident}').status_code, (403, 404))
+
+    def test_panel_de_biblioteca_con_y_sin_filtros(self):
+        self.login('lectorcsrf')
+        inicial = self.client.get('/')
+        self.assertEqual(inicial.status_code, 200)
+        self.assertIn('>Buscar y filtrar</summary>', inicial.text)
+        self.assertNotIn('Filtros activos:', inicial.text)
+        self.assertIn('href="/expedientes" title="Expedientes"', inicial.text)
+        filtrada = self.client.get('/', params={'buscar':'Ficticio', 'categoria':'Contratos', 'orden':'titulo_asc'})
+        self.assertEqual(filtrada.status_code, 200)
+        self.assertIn('Búsqueda: Ficticio', filtrada.text)
+        self.assertIn('Categoría: Contratos', filtrada.text)
+        self.assertIn('Orden: Título (A-Z)', filtrada.text)
+        self.assertNotIn('Ficticio Humano', filtrada.text)
 
     def test_editor_no_obtiene_documentos_de_otra_area(self):
         self.login('editorcsrf')

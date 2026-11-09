@@ -15,11 +15,12 @@
     if (sidebar && sidebarToggle) {
         const vistaMovil = window.matchMedia("(max-width: 800px)");
         let temporizadorPlegado = null;
+        let enfoquePorPuntero = false;
 
         function actualizarBotonMenu(expandido) {
             sidebarToggle.setAttribute("aria-expanded", String(expandido));
-            sidebarToggle.setAttribute("aria-label", expandido ? "Ocultar menú lateral" : "Expandir barra lateral");
-            sidebarToggle.title = expandido ? "Ocultar menú" : "Expandir barra";
+            sidebarToggle.setAttribute("aria-label", expandido ? "Contraer barra lateral" : "Expandir barra lateral");
+            sidebarToggle.title = expandido ? "Contraer" : "Expandir";
         }
 
         function plegarAutomaticamente(demora = 10000) {
@@ -70,8 +71,14 @@
         sidebar.addEventListener("pointerleave", () => {
             if (!sidebar.classList.contains("is-collapsed")) plegarAutomaticamente(1400);
         });
-        sidebar.addEventListener("focusin", () => {
-            if (sidebar.classList.contains("is-collapsed")) cambiarMenu(true);
+        // El foco llega antes del clic; expandir ahí desplazaría el enlace bajo el puntero.
+        sidebar.addEventListener("pointerdown", () => { enfoquePorPuntero = true; }, true);
+        document.addEventListener("pointerup", () => { enfoquePorPuntero = false; }, true);
+        document.addEventListener("pointercancel", () => { enfoquePorPuntero = false; }, true);
+        sidebar.addEventListener("focusin", (evento) => {
+            if (sidebar.classList.contains("is-collapsed")) {
+                if (!enfoquePorPuntero && evento.target !== sidebarToggle) cambiarMenu(true);
+            }
             else plegarAutomaticamente();
         });
         sidebar.addEventListener("focusout", (evento) => {

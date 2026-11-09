@@ -65,6 +65,17 @@ class BibliotecaPresentacionTest(unittest.TestCase):
         self.assertIn('Categoría: </span>Contratos', html)
         self.assertIn('Fecha: </span>2025-01-01', html)
 
+    def test_panel_nativo_conserva_controles_y_muestra_filtros_activos(self):
+        _, _, html = self.renderizar()
+        self.assertIn('<details class="biblioteca-panel-filtros">', html)
+        self.assertIn('>Buscar y filtrar</summary>', html)
+        for nombre in ('buscar', 'categoria', 'orden', 'departamento', 'oficio', 'autor', 'desde', 'hasta'):
+            self.assertIn(f'name="{nombre}"', html)
+        self.assertIn('Búsqueda: obras &amp; agua', html)
+        self.assertIn('Categoría: Contratos', html)
+        self.assertIn('Orden: Título', html)
+        self.assertIn('href="/">Limpiar filtros</a>', html)
+
 
 if __name__ == '__main__':
     unittest.main()

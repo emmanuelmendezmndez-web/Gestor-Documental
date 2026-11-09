@@ -82,8 +82,15 @@ test('la ayuda de búsqueda desde Inicio indica dónde escribir y cómo precisar
     const p = iniciar({puedeVer:true, puedeVerExpedientes:true}, '/inicio'), c = p.controles;
     c['busqueda-global'].value = '¿Cómo busco un documento?'; c['abrir-busqueda-asistida'].listeners.click();
     assert.match(c['propuesta-contextual'].textContent, /barra superior y pulsa Buscar/);
-    assert.match(c['propuesta-contextual'].textContent, /filtros de Biblioteca/);
+    assert.match(c['propuesta-contextual'].textContent, /Buscar y filtrar/);
     assert.equal(JSON.stringify(p.memoria.consultar().filtros), '{}');
+});
+test('la ayuda explica los nuevos accesos de Biblioteca y Expedientes', () => {
+    for (const [pregunta, esperado] of [['Cómo uso la biblioteca', /Buscar y filtrar/], ['Cómo consulto expedientes', /menú lateral/]]) {
+        const p = iniciar({puedeVer:true, puedeVerExpedientes:true}, '/'), c = p.controles;
+        c['busqueda-global'].value = pregunta; c['abrir-busqueda-asistida'].listeners.click();
+        assert.match(c['propuesta-contextual'].textContent, esperado);
+    }
 });
 test('Con Clippy prepara búsquedas desde la barra y pide aclaración para intenciones ambiguas', () => {
     const p = iniciar({puedeVer:true, puedeVerExpedientes:true}, '/'), c = p.controles;

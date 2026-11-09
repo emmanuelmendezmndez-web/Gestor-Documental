@@ -21,6 +21,10 @@
                 </span>
                 <span><strong>SIGED</strong><small>Sistema Integral de Gestión Documental</small></span>
             </a>
+            <button type="button" class="sidebar-toggle" id="sidebar-toggle" aria-label="Expandir barra lateral" aria-expanded="false" aria-controls="sidebar-principal" title="Expandir">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 4v16"/><path class="sidebar-toggle-flecha" d="m13 9 3 3-3 3"/></svg>
+                <span aria-hidden="true">Contraer</span>
+            </button>
             <details class="sidebar-menu" open>
                 <summary>Menú principal</summary>
                 <nav class="sidebar-nav" aria-label="Navegación principal">
@@ -32,6 +36,12 @@
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 6.5h6l2 2h9v10.75H3.5zM3.5 9h17"/></svg>
                         <span>Biblioteca</span>
                     </a>
+                    {% if puede("ver_expedientes") %}
+                    <a class="sidebar-link" href="/expedientes" title="Expedientes" aria-label="Expedientes" {% if pagina in ("expedientes", "expediente_nuevo") %}aria-current="page"{% endif %}>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V5h6l2 2h7v2M3 10h18l-2 9H4zM7 4h11v3"/></svg>
+                        <span>Expedientes</span>
+                    </a>
+                    {% endif %}
                     {% if puede("subir") %}
                     <a class="sidebar-link" href="/subir" title="Subir documento" aria-label="Subir documento" {% if pagina == "subir" %}aria-current="page"{% endif %}>
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M4 15.5v4h16v-4"/></svg>
@@ -60,9 +70,6 @@
             </details>
 
             <div class="sidebar-cuenta">
-                <button type="button" class="sidebar-toggle" id="sidebar-toggle" aria-label="Expandir barra lateral" aria-expanded="false" title="Expandir barra">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>
-                </button>
                 <a class="sidebar-link cuenta-link" href="/cuenta" title="Mi cuenta" aria-label="Cuenta de {{ usuario['nombre'] }}" {% if pagina == "cuenta" %}aria-current="page"{% endif %}>
                     <span class="avatar" aria-hidden="true">
                         {% set iniciales_sidebar = usuario["nombre"].split() %}

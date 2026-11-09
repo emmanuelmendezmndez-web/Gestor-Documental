@@ -197,7 +197,8 @@
             if (ruta === "/inicio") {
                 ayudaDeEstaSeccion = "En Inicio puedes consultar indicadores, avisos y los documentos recientes.";
             } else if (ruta === "/") {
-                ayudaDeEstaSeccion = "En Biblioteca puedes filtrar documentos; usa Ctrl+K para buscar también expedientes.";
+                ayudaDeEstaSeccion = "En Biblioteca usa Buscar y filtrar para precisar documentos." +
+                    (config.puedeVerExpedientes ? " Expedientes tiene su propio acceso en el menú lateral." : "");
             } else if (ruta === "/subir") {
                 ayudaDeEstaSeccion = "En Subir documento, completa título y categoría, y selecciona un archivo permitido de hasta 20 MB.";
             } else if (ruta === "/expedientes") {
@@ -404,7 +405,7 @@
             }
 
             const detectarAccion = (evento) => {
-                if (evento.type === "focusin" && !evento.target.matches("input, select, textarea")) return;
+                if (evento.type === "focusin" && !evento.target.matches("input, select, textarea, summary[data-clippy-tip]")) return;
                 const control = evento.target.closest?.("[data-clippy-tip]");
                 if (control && !control.closest("#dialogo-confirmacion")) {
                     decirConsejo(control.dataset.clippyTip);
