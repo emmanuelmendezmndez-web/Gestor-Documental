@@ -201,7 +201,10 @@
             } else if (ruta === "/subir") {
                 ayudaDeEstaSeccion = "En Subir documento, completa título y categoría, y selecciona un archivo permitido de hasta 20 MB.";
             } else if (ruta === "/expedientes") {
-                ayudaDeEstaSeccion = config.puedeGestionarExpedientes ? "Al crear un expediente, SIGED asigna su folio automáticamente; después podrás vincular documentos." : "En Expedientes puedes consultar los asuntos y abrir sus fichas.";
+                ayudaDeEstaSeccion = "Abre una carpeta para consultar el expediente y sus documentos visibles." +
+                    (config.puedeGestionarExpedientes ? " Usa Nuevo expediente para crear uno." : "");
+            } else if (ruta === "/expedientes/nuevo") {
+                ayudaDeEstaSeccion = config.puedeGestionarExpedientes ? "Escribe el nombre o asunto y, si deseas, una descripción. Al crear el expediente, SIGED asigna el folio." : "Consulta el explorador de expedientes para abrir los asuntos disponibles.";
             } else if (ruta.startsWith("/expedientes/") && ruta.endsWith("/eliminar")) {
                 ayudaDeEstaSeccion = "Revisa el folio antes de confirmar: solo se elimina la ficha y sus vínculos; los originales permanecen en Biblioteca.";
             } else if (ruta.startsWith("/expedientes/")) {
@@ -271,21 +274,15 @@
             // Nunca se abre ni se lee el contenido de un archivo.
             const formularioDocumento = ruta === "/subir" ||
                 (ruta.startsWith("/documentos/") && ruta.endsWith("/editar"));
-            const formularioExpediente = ruta === "/expedientes";
+            const formularioExpediente = ruta === "/expedientes/nuevo";
             const formularioGestion = ruta === "/usuarios";
             const guias = {
                 "/subir": [
                     "Para registrar un documento, selecciona primero el archivo.",
                     "Completa título y categoría. Añade el número de oficio y la fecha si aparecen en el documento.",
                     "Revisa los datos y pulsa Subir documento. Después lo encontrarás en Biblioteca."
-                ],
-                "/expedientes": [
-                    "Escribe el nombre del asunto y crea el expediente; SIGED asignará el folio.",
-                    "Abre la ficha del expediente y usa Vincular documento existente.",
-                    "Busca oficios y actas del mismo asunto, selecciona los que correspondan y vincúlalos."
                 ]
             };
-            if (!config.puedeGestionarExpedientes) delete guias["/expedientes"];
             let pasoGuia = 0;
 
             let ultimoConsejo = 0;

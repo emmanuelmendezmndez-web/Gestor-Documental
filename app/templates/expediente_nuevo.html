@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block contenido %}
+<section class="panel">
+    <a href="/expedientes" class="enlace-volver">← Volver a expedientes</a>
+    <h2>Nuevo expediente</h2>
+    <p class="nota">Crea una ficha para reunir documentos relacionados con un asunto.</p>
+    <form action="/expedientes" method="post" class="formulario-expediente" data-clippy-tip="Al guardar, SIGED asignará un folio único. Después podrás abrir la ficha y vincular documentos existentes.">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="campo">
+            <label for="titulo-expediente">Nombre o asunto</label>
+            <input type="text" id="titulo-expediente" name="titulo" maxlength="200" data-clippy-read="Nombre del expediente" required>
+        </div>
+        <div class="campo">
+            <label for="descripcion-expediente">Descripción (opcional)</label>
+            <textarea id="descripcion-expediente" name="descripcion" maxlength="2000" rows="3"></textarea>
+        </div>
+        <button type="submit">Crear expediente</button>
+        <p class="nota">El sistema asignará un folio único automáticamente.</p>
+    </form>
+</section>
+{% endblock %}

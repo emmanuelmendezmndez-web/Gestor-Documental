@@ -130,6 +130,14 @@ test('ayuda respeta capacidades de lector, editor y administrador sin cambiar fi
         assert.equal(JSON.stringify(p.memoria.consultar()), anterior); assert.equal(p.destino(), undefined);
     }
 });
+test('la ayuda desde el formulario reconoce la pantalla de nuevo expediente', () => {
+    const p = iniciar({puedeVer:true, puedeVerExpedientes:true, puedeGestionarExpedientes:true}, '/expedientes/nuevo');
+    const c = p.controles;
+    c['busqueda-global'].value = 'Cómo crear un expediente';
+    c['abrir-busqueda-asistida'].listeners.click();
+    assert.match(c['propuesta-contextual'].textContent, /Nuevo expediente.*nombre o asunto.*descripción.*folio/i);
+    assert.equal(p.destino(), undefined);
+});
 
 test('intención ambigua exige elegir y prepara búsqueda sin ejecutarla', () => {
     const p = iniciar({puedeVer:true}, '/biblioteca'), c = p.controles;

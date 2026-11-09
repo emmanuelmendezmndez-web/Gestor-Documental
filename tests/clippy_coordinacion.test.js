@@ -42,6 +42,17 @@ test('la lectura espera a que termine la escritura y se mantiene la ayuda solici
     p.avanzar(3000); p.ejecutar(3000); assert.deepEqual(p.dichos, ['Búsqueda: ficticio']);
     p.figura.click(); assert.match(p.dichos.at(-1), /consultar/); assert.doesNotMatch(p.dichos.at(-1), /crear|vincular/i);
 });
+test('las ayudas distinguen el explorador y el formulario de expedientes', () => {
+    const lector = iniciar('/expedientes', {puedeGestionarExpedientes:false});
+    lector.figura.click();
+    assert.match(lector.dichos[0], /Abre una carpeta.*documentos visibles/);
+    assert.doesNotMatch(lector.dichos[0], /Nuevo expediente|crear/i);
+    const editor = iniciar('/expedientes', {puedeGestionarExpedientes:true});
+    editor.figura.click(); assert.match(editor.dichos[0], /Nuevo expediente/);
+    const nuevo = iniciar('/expedientes/nuevo', {puedeGestionarExpedientes:true});
+    nuevo.figura.click(); assert.match(nuevo.dichos[0], /nombre o asunto.*descripción.*folio/i);
+    assert.doesNotMatch(nuevo.dichos[0], /en la ficha|vincular/i);
+});
 test('la posición en reposo reserva espacio al expandirse en escritorio y móvil', () => {
     for (const ancho of [1200, 390]) {
         const control = {left:ancho-160, right:ancho, top:300, bottom:500};

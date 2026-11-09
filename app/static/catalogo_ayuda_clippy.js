@@ -3,14 +3,14 @@
     const orientacion = 'Consulta con una persona administradora para obtener orientación sobre esta función.';
     // Pantallas desde las que se admite consultar el catálogo. Es independiente
     // de las pantallas donde se realiza cada acción descrita en una ayuda.
-    const pantallasReconocidas = ['inicio', 'biblioteca', 'buscar', 'subir', 'expedientes', 'expediente', 'papelera', 'usuarios', 'cuenta', 'actividad'];
+    const pantallasReconocidas = ['inicio', 'biblioteca', 'buscar', 'subir', 'expedientes', 'expediente_nuevo', 'expediente', 'papelera', 'usuarios', 'cuenta', 'actividad'];
     // `pantallas` identifica el destino de la ayuda; no restringe dónde se pregunta.
     const catalogo = Object.freeze({
         biblioteca: {pantallas:['biblioteca'], capacidades:['ver'], respuesta:'Abre Biblioteca y combina título, categoría, área o fechas para precisar los resultados.'},
         busqueda: {pantallas:['buscar', 'biblioteca'], capacidades:['ver', 'ver_expedientes'], respuesta:'Escribe el título, folio o número de oficio en la barra superior y pulsa Buscar. También puedes usar los filtros de Biblioteca para precisar los resultados.'},
         subida: {pantallas:['subir'], capacidades:['ver', 'subir'], respuesta:'Abre Subir documento desde el menú, completa título y categoría y selecciona un archivo permitido de hasta 20 MB. Si no tienes área asignada, consulta a una persona administradora.'},
-        expedientes: {pantallas:['expedientes', 'expediente'], capacidades:['ver', 'ver_expedientes'], respuesta:'Abre Expedientes y elige Abrir para consultar la ficha de un asunto.'},
-        gestionar_expedientes: {pantallas:['expedientes'], capacidades:['ver', 'ver_expedientes', 'gestionar_expedientes'], respuesta:'En Expedientes escribe el nombre o asunto y pulsa Crear expediente; SIGED asigna el folio.'},
+        expedientes: {pantallas:['expedientes', 'expediente'], capacidades:['ver', 'ver_expedientes'], respuesta:'En Expedientes abre una carpeta para consultar el asunto y sus documentos visibles.'},
+        gestionar_expedientes: {pantallas:['expedientes', 'expediente_nuevo'], capacidades:['ver', 'ver_expedientes', 'gestionar_expedientes'], respuesta:'En Expedientes pulsa Nuevo expediente, escribe el nombre o asunto y, si deseas, una descripción. Al crearlo se asigna el folio.'},
         vincular_documentos: {pantallas:['expediente'], capacidades:['ver', 'ver_expedientes', 'gestionar_expedientes'], respuesta:'Abre la ficha del expediente, busca documentos, selecciona los que correspondan y pulsa Vincular selección al expediente.'},
         papelera: {pantallas:['papelera'], capacidades:['ver', 'papelera'], respuesta:'Abre Papelera desde el menú para consultar los documentos que ya no aparecen en Biblioteca.'},
         restaurar: {pantallas:['papelera'], capacidades:['ver', 'papelera', 'restaurar'], respuesta:'En Papelera selecciona los documentos y pulsa Restaurar selección para devolverlos a Biblioteca.'},

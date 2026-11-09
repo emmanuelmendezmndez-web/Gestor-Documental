@@ -20,6 +20,15 @@ test('lector consulta expedientes sin instrucciones de gestión', () => {
     assert.equal(consultar('gestionar_expedientes', c), general);
     assert.equal(consultar('vincular_documentos', contexto('expediente', c.capacidades)), general);
 });
+test('las ayudas de expedientes describen la navegación nueva y respetan capacidades', () => {
+    const lector = {ver:true, ver_expedientes:true, gestionar_expedientes:false};
+    const editor = {...lector, gestionar_expedientes:true};
+    assert.match(consultar('expedientes', contexto('expedientes', lector)), /abre una carpeta.*documentos visibles/i);
+    for (const pantalla of ['expedientes', 'expediente_nuevo']) {
+        assert.equal(consultar('gestionar_expedientes', contexto(pantalla, lector)), general);
+        assert.match(consultar('gestionar_expedientes', contexto(pantalla, editor)), /Nuevo expediente.*nombre o asunto.*descripción.*folio/i);
+    }
+});
 test('editor restaura pero no recibe instrucciones de eliminación definitiva', () => {
     const c = contexto('papelera', {ver:true, papelera:true, restaurar:true, eliminar:false});
     assert.match(consultar('restaurar', c), /Restaurar selección/);

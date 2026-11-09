@@ -52,11 +52,25 @@ def lista_expedientes(request: Request, aviso: str | None = None):
         name="expedientes.html",
         context={
             "titulo": "Gestor Documental",
-            "pagina": "biblioteca",
+            "pagina": "expedientes",
             "expedientes": expedientes,
             "mensaje": mensaje,
             "tipo": tipo,
         },
+    )
+
+
+@router.get(
+    "/expedientes/nuevo",
+    response_class=HTMLResponse,
+    dependencies=[Depends(requiere_permiso("gestionar_expedientes"))],
+)
+def nuevo_expediente(request: Request, aviso: str | None = None):
+    tipo, mensaje = AVISOS.get(aviso, (None, None))
+    return templates.TemplateResponse(
+        request=request,
+        name="expediente_nuevo.html",
+        context={"titulo": "Gestor Documental", "pagina": "expediente_nuevo", "mensaje": mensaje, "tipo": tipo},
     )
 
 
@@ -72,7 +86,7 @@ def crear_expediente(
     titulo = titulo.strip()
     descripcion = descripcion.strip()
     if not titulo or len(titulo) > 200 or len(descripcion) > 2000:
-        return RedirectResponse(url="/expedientes?aviso=expediente_campos", status_code=303)
+        return RedirectResponse(url="/expedientes/nuevo?aviso=expediente_campos", status_code=303)
 
     try:
         with conectar() as conexion:
@@ -117,7 +131,7 @@ def pagina_eliminar_expediente(request: Request, expediente_id: int):
         name="eliminar_expediente.html",
         context={
             "titulo": "Gestor Documental",
-            "pagina": "biblioteca",
+            "pagina": "expedientes",
             "expediente": expediente,
         },
     )
@@ -231,7 +245,7 @@ def ficha_expediente(
         name="expediente.html",
         context={
             "titulo": "Gestor Documental",
-            "pagina": "biblioteca",
+            "pagina": "expedientes",
             "expediente": expediente,
             "documentos": documentos_vinculados,
             "buscar": buscar,
