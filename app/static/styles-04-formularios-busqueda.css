@@ -1,0 +1,149 @@
+/* ---------- Formulario ---------- */
+
+.campo {
+    margin-bottom: 16px;
+}
+
+.campo label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 6px;
+}
+
+input[type="text"],
+input[type="email"],
+input[type="tel"],
+select,
+textarea {
+    width: 100%;
+    max-width: 480px;
+    padding: 10px;
+    border: 1px solid var(--color-borde);
+    border-radius: 6px;
+    font: inherit;
+}
+
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="tel"]:focus,
+select:focus,
+textarea:focus {
+    outline: 2px solid var(--color-primario);
+    outline-offset: 1px;
+}
+
+button {
+    background: var(--color-primario);
+    color: white;
+    border: 0;
+    padding: 10px 18px;
+    border-radius: 6px;
+    font: inherit;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+
+button:hover {
+    opacity: 0.9;
+}
+
+.nota {
+    color: var(--color-texto-suave);
+    font-size: 0.9rem;
+    margin: 6px 0 0;
+}
+
+/* ---------- Tabla ---------- */
+
+.tabla-scroll {
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th,
+td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+th {
+    background: var(--color-fondo);
+}
+
+/* ---------- Búsqueda y filtros ---------- */
+
+input[type="search"] {
+    padding: 10px;
+    border: 1px solid var(--color-borde);
+    border-radius: 6px;
+    font: inherit;
+}
+
+input[type="search"]:focus {
+    outline: 2px solid var(--color-primario);
+    outline-offset: 1px;
+}
+
+.busqueda {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 16px;
+    align-items: flex-end;
+    margin-bottom: 20px;
+}
+
+.busqueda label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 6px;
+}
+
+.busqueda input[type="search"],
+.busqueda select {
+    width: 260px;
+    max-width: 100%;
+}
+
+.acciones-busqueda {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.boton-secundario {
+    display: inline-block;
+    padding: 10px 18px;
+    border: 1px solid var(--color-borde);
+    border-radius: 6px;
+    background: #f1f5f9;
+    color: #475569;
+    font-weight: bold;
+    text-decoration: none;
+}
+
+.boton-secundario:hover {
+    background: #e2e8f0;
+}
+
+.boton-expedientes {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    border-color: #bfdbfe;
+    border-radius: 10px;
+    background: #f8fbff;
+    color: #1d4ed8;
+    transition: background-color 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+}
+
+.boton-expedientes:hover {
+    transform: translateY(-1px);
+    border-color: #93c5fd;
+    background: #eff6ff;
+}

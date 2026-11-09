@@ -52,6 +52,14 @@ test('la posición en reposo reserva espacio al expandirse en escritorio y móvi
         assert.ok(globo.right <= control.left || globo.left >= control.right || globo.bottom <= control.top || globo.top >= control.bottom, `bocadillo libre ${ancho}`);
     }
 });
+test('Clippy permanece junto al bocadillo aunque haya controles en el lateral', () => {
+    for (const ancho of [1200, 390]) {
+        const control = {left:ancho-160, right:ancho, top:300, bottom:500};
+        const p = iniciar('/inicio', {}, {ancho, alto:800, controles:[control]});
+        const {x} = p.movimientos.at(-1);
+        assert.ok(Math.abs(x + 124 - (ancho - 8)) < 0.01, `borde derecho ${ancho}`);
+    }
+});
 test('movimiento reducido detiene animaciones de reposo', () => {
     const p = iniciar('/inicio', {}, {movimientoReducido:true});
     p.agente._onQueueEmpty(); assert.equal(p.reposos(), 0);

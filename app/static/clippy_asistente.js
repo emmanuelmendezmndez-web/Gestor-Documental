@@ -92,8 +92,9 @@
                 // Reservar también el espacio que ocupará al volver a tamaño completo.
                 const minimoX = 8 + (124 - anchoFigura);
                 const minimoY = Math.min(170, Math.max(8, alto - 109)) + (93 - altoFigura);
-                const xs = [1, 0.8, 0.6, 0.4, 0.2, 0].map(fraccion =>
-                    minimoX + Math.max(0, window.innerWidth - anchoFigura - 8 - minimoX) * fraccion);
+                // El bocadillo está anclado al borde derecho: mantener también
+                // allí al personaje evita separarlos y cubrir el centro de la página.
+                const xs = [minimoX + Math.max(0, window.innerWidth - anchoFigura - 8 - minimoX)];
                 const ys = [0.5, 0.35, 0.65, 0.2, 0.8, 0.05, 0.95].map(fraccion =>
                     minimoY + Math.max(0, alto - altoFigura - 8 - minimoY) * fraccion);
                 const controles = Array.from(document.querySelectorAll(

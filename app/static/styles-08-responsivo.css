@@ -1,0 +1,228 @@
+@media (max-width: 1100px) {
+    .almacenamiento-resumen {
+        grid-template-columns: 1fr;
+    }
+
+    .almacenamiento-datos {
+        width: 100%;
+    }
+}
+
+@media (max-width: 800px) {
+    .app-shell {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        position: relative;
+        z-index: 3;
+        flex: none;
+        width: 100%;
+        height: auto;
+        padding: 14px 18px;
+        overflow: visible;
+    }
+
+    .sidebar-toggle {
+        display: none;
+    }
+
+    .sidebar.is-collapsed {
+        flex-basis: auto;
+        width: 100%;
+        padding: 14px 18px;
+    }
+
+    .sidebar.is-collapsed .marca {
+        justify-content: flex-start;
+        margin: 0 4px 12px;
+    }
+
+    .sidebar.is-collapsed .marca > span:last-child,
+    .sidebar.is-collapsed .sidebar-menu summary,
+    .sidebar.is-collapsed .sidebar-link > span:not(.avatar),
+    .sidebar.is-collapsed .usuario-info,
+    .sidebar.is-collapsed .boton-cerrar-sesion > span {
+        display: block;
+    }
+
+    .sidebar.is-collapsed .sidebar-menu summary {
+        display: list-item;
+    }
+
+    .sidebar.is-collapsed .sidebar-link,
+    .sidebar.is-collapsed .boton-cerrar-sesion {
+        justify-content: flex-start;
+        gap: 13px;
+        padding: 10px 12px;
+    }
+
+    .sidebar.is-collapsed .cuenta-link {
+        min-height: 58px;
+    }
+
+    .sidebar.is-collapsed .sidebar-cuenta form {
+        margin: 0;
+    }
+
+    .marca {
+        margin: 0 4px 12px;
+    }
+
+    .sidebar-menu summary {
+        display: list-item;
+        padding: 10px 12px;
+        border-radius: 8px;
+        color: #dce4ed;
+        cursor: pointer;
+        font-weight: 600;
+        list-style-position: inside;
+    }
+
+    .sidebar-menu[open] summary {
+        margin-bottom: 6px;
+        background: rgb(255 255 255 / 7%);
+    }
+
+    .sidebar-nav {
+        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+        gap: 4px;
+    }
+
+    .sidebar-cuenta {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px 16px;
+        margin-top: 12px;
+        padding-top: 10px;
+    }
+
+    .sidebar-cuenta form {
+        margin: 0;
+    }
+
+    .boton-cerrar-sesion {
+        width: auto;
+    }
+
+    .app-topbar {
+        position: static;
+        min-height: 48px;
+        flex-wrap: wrap;
+    }
+
+    .busqueda-global {
+        order: 3;
+        flex: 1 1 100%;
+    }
+
+    .app-main {
+        padding-top: 24px;
+    }
+
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .almacenamiento-resumen {
+        grid-template-columns: minmax(140px, 210px) minmax(180px, 1fr);
+    }
+
+    .dashboard-lateral {
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    }
+
+    .aviso-admin-card {
+        flex-direction: column;
+    }
+}
+
+@media (max-width: 480px) {
+    .app-topbar {
+        padding: 10px 16px;
+        font-size: 0.82rem;
+    }
+
+    .app-main,
+    .auth-main {
+        padding-right: 14px;
+        padding-left: 14px;
+    }
+
+    .panel {
+        padding: 20px;
+    }
+
+    .cuenta-perfil-cabecera {
+        align-items: flex-start;
+        gap: 13px;
+    }
+
+    .cuenta-avatar {
+        width: 62px;
+        height: 62px;
+        flex-basis: 62px;
+        font-size: 1.25rem;
+    }
+
+    .vista-previa-integrada {
+        padding: 12px;
+    }
+
+    .papelera-toolbar .barra-seleccion {
+        flex-basis: 100%;
+    }
+
+    .papelera-toolbar .form-vaciar-papelera,
+    .papelera-toolbar .form-vaciar-papelera button {
+        width: 100%;
+    }
+
+    .vista-previa-encabezado {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .visor-documento {
+        height: 60vh;
+        min-height: 320px;
+    }
+
+    .sidebar-nav {
+        grid-template-columns: 1fr;
+    }
+
+    .dashboard-encabezado,
+    .titulo-panel {
+        align-items: flex-start;
+    }
+
+    .dashboard-grid .panel {
+        padding: 18px;
+    }
+
+    .almacenamiento-resumen {
+        grid-template-columns: 1fr;
+    }
+
+    .almacenamiento-datos {
+        width: 100%;
+    }
+
+    .kpi-card {
+        padding: 15px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}

@@ -1,0 +1,39 @@
+/* ---------- Paneles y avisos ---------- */
+
+.panel {
+    background: white;
+    padding: 30px;
+    border-radius: 10px;
+    box-shadow: 0 3px 12px rgb(0 0 0 / 5%);
+    animation: panel-aparece 0.28s ease-out both;
+}
+
+.panel + .panel {
+    margin-top: 24px;
+}
+
+.estado {
+    display: inline-block;
+    background: var(--color-primario-suave);
+    color: var(--color-primario);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-weight: bold;
+}
+
+.aviso {
+    margin-bottom: 24px;
+    border-left: 5px solid;
+}
+
+.aviso.exito {
+    background: #e8f6ee;
+    border-color: #2e8b57;
+    color: #1d5a39;
+}
+
+.aviso.error {
+    background: #fdecec;
+    border-color: #c0392b;
+    color: #8a1f14;
+}
