@@ -21,6 +21,186 @@ from app import seleccion_originales as sel
 
 
 class EsquemaTest(unittest.TestCase):
+    def _base_local_recuperacion(self):
+        self._base_para_preparacion()
+        inv.SECRET_PATH.write_text('clave-ficticia', encoding='utf-8')
+        (self.op / 'inventario.jsonl').unlink()
+        self.datos['clave_origen'] = 'archivo'
+        self.datos['pasos'] = r.CAMBIOS[:]
+        self.datos['inventario'] = inv.publicar(self.op, self.previo)
+        r.REGISTRO.unlink()
+        (self.op / 'inicio.json').unlink()
+        r.escribir(self.datos)
+
+    def test_recuperacion_reanuda_tras_instalar(self):
+        from app import desplazamiento_original as des
+        from app import preparacion_persistente as pp
+        self._base_local_recuperacion()
+        anterior = inv.DB_PATH.read_bytes()
+        documento = (inv.STORAGE_DIR / 'documento.txt').read_bytes()
+        with patch.object(coord, 'DATA_DIR', self.root), patch.multiple(sel, DB_PATH=inv.DB_PATH, STORAGE_DIR=inv.STORAGE_DIR, SECRET_PATH=inv.SECRET_PATH), patch.dict(os.environ, {'GESTOR_SECRET_KEY': ''}):
+            self.assertEqual(coord.preparar_persistente()['estado'], 'preparación íntegra')
+            preparada = self.root / pp._nombre(self.op.name)
+            preparado_antes = {str(p.relative_to(preparada)): p.read_bytes() for p in preparada.rglob('*') if p.is_file()}
+            publicar = des._publicar
+            def interrumpir(path, datos):
+                if path.name == 'confirmacion-instalar-base.json': raise KeyboardInterrupt
+                return publicar(path, datos)
+            with patch.object(des, '_publicar', side_effect=interrumpir):
+                informe = coord.aplicar_recuperacion(self.op.name, self.op.name)
+            self.assertEqual(informe['estado'], 'bloqueada')
+            self.assertFalse(informe['listo_recuperacion'])
+            self.assertEqual(inv.DB_PATH.read_bytes(), (preparada / 'base-candidata').read_bytes())
+            with self.assertRaises(RuntimeError): coord.BloqueoDatos(False)
+            env = os.environ.copy(); env['GESTOR_DATA_DIR'] = str(self.root); env['GESTOR_SECRET_KEY'] = ''
+            proceso = subprocess.run([sys.executable, '-m', 'app.recuperacion_administrativa', 'aplicar', '--operacion', self.op.name,
+                                      '--confirmar-operacion', self.op.name], env=env, capture_output=True, text=True, timeout=100)
+            self.assertEqual(proceso.returncode, 0, proceso.stderr + proceso.stdout)
+            self.assertFalse(json.loads(proceso.stdout)['listo_recuperacion'])
+            root = self.root / des._nombre(self.op.name)
+            self.assertEqual((root / 'base').read_bytes(), anterior)
+            self.assertEqual((root / 'storage' / 'documento.txt').read_bytes(), documento)
+            self.assertEqual((root / 'clave').read_text(), 'clave-ficticia')
+            self.assertEqual((inv.STORAGE_DIR / 'documento.txt').read_bytes(), documento)
+            with sqlite3.connect(inv.DB_PATH) as db:
+                self.assertEqual(db.execute('SELECT estado FROM eliminaciones_pendientes').fetchone()[0], 'suspendida')
+            db.close()
+            preparado_despues = {str(p.relative_to(preparada)): p.read_bytes() for p in preparada.rglob('*') if p.is_file()}
+            self.assertEqual(preparado_antes, preparado_despues)
+            instalado = inv.DB_PATH.read_bytes()
+            self.assertEqual(coord.aplicar_recuperacion(self.op.name, self.op.name)['estado'], 'instalación verificada; arranque bloqueado')
+            self.assertEqual(inv.DB_PATH.read_bytes(), instalado)
+            with self.assertRaises(RuntimeError): coord.BloqueoDatos(False)
+
+    def test_recuperacion_conserva_estado_activo_distinto(self):
+        from app import desplazamiento_original as des
+        self._base_local_recuperacion()
+        original = inv.DB_PATH.read_bytes()
+        inv.DB_PATH.rename(self.op / 'anterior-base')
+        inv.DB_PATH.write_bytes(b'estado-activo-ficticio')
+        self.datos.update(estado='pendiente', paso='base-guardar')
+        r.escribir(self.datos)
+        with patch.object(coord, 'DATA_DIR', self.root), patch.multiple(sel, DB_PATH=inv.DB_PATH, STORAGE_DIR=inv.STORAGE_DIR, SECRET_PATH=inv.SECRET_PATH), patch.dict(os.environ, {'GESTOR_SECRET_KEY': ''}):
+            self.assertEqual(coord.preparar_persistente()['estado'], 'preparación íntegra')
+            publicar = des._publicar
+            def corte(path, datos):
+                if path.name == 'confirmacion-conservar-activo-base.json': raise KeyboardInterrupt
+                return publicar(path, datos)
+            with patch.object(des, '_publicar', side_effect=corte):
+                self.assertEqual(coord.aplicar_recuperacion(self.op.name, self.op.name)['estado'], 'bloqueada')
+            root = self.root / des._nombre(self.op.name)
+            self.assertFalse(inv.DB_PATH.exists())
+            self.assertEqual((root / 'previo-activo-base').read_bytes(), b'estado-activo-ficticio')
+            resultado = coord.aplicar_recuperacion(self.op.name, self.op.name)
+            self.assertEqual(resultado['estado'], 'instalación verificada; arranque bloqueado', resultado)
+            self.assertEqual((root / 'base').read_bytes(), original)
+            self.assertEqual((root / 'previo-activo-base').read_bytes(), b'estado-activo-ficticio')
+            self.assertFalse(resultado['listo_recuperacion'])
+
+    def test_recuperacion_corte_antes_del_primer_movimiento(self):
+        from app import desplazamiento_original as des
+        self._base_local_recuperacion()
+        original = inv.DB_PATH.read_bytes()
+        with patch.object(coord, 'DATA_DIR', self.root), patch.multiple(sel, DB_PATH=inv.DB_PATH, STORAGE_DIR=inv.STORAGE_DIR, SECRET_PATH=inv.SECRET_PATH), patch.dict(os.environ, {'GESTOR_SECRET_KEY': ''}):
+            self.assertEqual(coord.preparar_persistente()['estado'], 'preparación íntegra')
+            with coord._BloqueoSistema(exclusivo=False):
+                with self.assertRaises(coord.BloqueoNoDisponible):
+                    coord.aplicar_recuperacion(self.op.name, self.op.name)
+                env = os.environ.copy(); env['GESTOR_DATA_DIR'] = str(self.root)
+                proceso = subprocess.run([sys.executable, '-m', 'app.recuperacion_administrativa', 'aplicar',
+                                          '--operacion', self.op.name, '--confirmar-operacion', self.op.name],
+                                         env=env, capture_output=True, text=True, timeout=30)
+                self.assertNotEqual(proceso.returncode, 0)
+                self.assertEqual(json.loads(proceso.stdout)['estado'], 'bloqueada')
+            self.assertEqual(inv.DB_PATH.read_bytes(), original)
+            with patch.object(des, '_operar', side_effect=KeyboardInterrupt):
+                self.assertEqual(coord.aplicar_recuperacion(self.op.name, self.op.name)['estado'], 'bloqueada')
+            self.assertEqual(inv.DB_PATH.read_bytes(), original)
+            self.assertEqual(coord.aplicar_recuperacion(self.op.name, self.op.name)['estado'], 'instalación verificada; arranque bloqueado')
+            with self.assertRaises(RuntimeError): coord.BloqueoDatos(False)
+
+    def test_recuperacion_rechaza_etapa_manipulada(self):
+        from app import desplazamiento_original as des
+        self._base_local_recuperacion()
+        original = inv.DB_PATH.read_bytes()
+        with patch.object(coord, 'DATA_DIR', self.root), patch.multiple(sel, DB_PATH=inv.DB_PATH, STORAGE_DIR=inv.STORAGE_DIR, SECRET_PATH=inv.SECRET_PATH), patch.dict(os.environ, {'GESTOR_SECRET_KEY': ''}):
+            self.assertEqual(coord.preparar_persistente()['estado'], 'preparación íntegra')
+            with patch.object(des, '_operar', side_effect=KeyboardInterrupt):
+                self.assertEqual(coord.aplicar_recuperacion(self.op.name, self.op.name)['estado'], 'bloqueada')
+            root = self.root / des._nombre(self.op.name)
+            plan = des._leer(root / 'instalacion.json')
+            (root / plan['etapa'] / 'base').write_bytes(b'manipulacion ficticia')
+            self.assertEqual(coord.aplicar_recuperacion(self.op.name, self.op.name)['estado'], 'bloqueada')
+            self.assertEqual(inv.DB_PATH.read_bytes(), original)
+            self.assertFalse((root / 'base').exists())
+            with self.assertRaises(RuntimeError): coord.BloqueoDatos(False)
+
+    def test_recuperacion_rechaza_preparacion_y_clave_inciertas(self):
+        from app import preparacion_persistente as pp
+        self._base_para_preparacion()  # Procedencia de entorno no acreditada.
+        original = inv.DB_PATH.read_bytes()
+        with patch.object(coord, 'DATA_DIR', self.root), patch.multiple(sel, DB_PATH=inv.DB_PATH, STORAGE_DIR=inv.STORAGE_DIR, SECRET_PATH=inv.SECRET_PATH):
+            self.assertEqual(coord.preparar_persistente()['estado'], 'preparación íntegra')
+            self.assertEqual(coord.aplicar_recuperacion(self.op.name, self.op.name)['estado'], 'bloqueada')
+            root = self.root / pp._nombre(self.op.name)
+            (root / 'storage' / 'documento.txt').unlink()
+            self.assertEqual(coord.aplicar_recuperacion(self.op.name, self.op.name)['estado'], 'bloqueada')
+            self.assertEqual(inv.DB_PATH.read_bytes(), original)
+            self.assertEqual((inv.STORAGE_DIR / 'documento.txt').read_bytes(), b'anterior')
+
+    def test_recuperacion_cortes_en_cada_instalacion(self):
+        from app import desplazamiento_original as des
+        self._base_local_recuperacion()
+        publicar = des._publicar
+        with patch.object(coord, 'DATA_DIR', self.root), patch.multiple(sel, DB_PATH=inv.DB_PATH, STORAGE_DIR=inv.STORAGE_DIR, SECRET_PATH=inv.SECRET_PATH), patch.dict(os.environ, {'GESTOR_SECRET_KEY': ''}):
+            self.assertEqual(coord.preparar_persistente()['estado'], 'preparación íntegra')
+            for nombre in ('base', 'storage', 'clave'):
+                def corte(path, datos):
+                    if path.name == 'confirmacion-instalar-' + nombre + '.json': raise KeyboardInterrupt
+                    return publicar(path, datos)
+                with patch.object(des, '_publicar', side_effect=corte):
+                    resultado = coord.aplicar_recuperacion(self.op.name, self.op.name)
+                self.assertEqual(resultado['estado'], 'bloqueada')
+                self.assertFalse(resultado['listo_recuperacion'])
+                with self.assertRaises(RuntimeError): coord.BloqueoDatos(False)
+            self.assertEqual(coord.aplicar_recuperacion(self.op.name, self.op.name)['estado'], 'instalación verificada; arranque bloqueado')
+
+    def test_recuperacion_con_desplazamiento_previo(self):
+        from app import desplazamiento_original as des
+        self._base_local_recuperacion()
+        original = inv.DB_PATH.read_bytes()
+        with patch.object(coord, 'DATA_DIR', self.root), patch.multiple(sel, DB_PATH=inv.DB_PATH, STORAGE_DIR=inv.STORAGE_DIR, SECRET_PATH=inv.SECRET_PATH), patch.dict(os.environ, {'GESTOR_SECRET_KEY': ''}):
+            self.assertEqual(coord.preparar_persistente()['estado'], 'preparación íntegra')
+            self.assertEqual(coord.desplazar_original(self.op.name, self.op.name, 'base')['estado'], 'desplazado confirmado')
+            resultado = coord.aplicar_recuperacion(self.op.name, self.op.name)
+            self.assertEqual(resultado['estado'], 'instalación verificada; arranque bloqueado', resultado)
+            self.assertEqual((self.root / des._nombre(self.op.name) / 'base').read_bytes(), original)
+            self.assertFalse(resultado['listo_recuperacion'])
+
+    def test_recuperacion_espacio_y_movimiento_denegado(self):
+        from app import desplazamiento_original as des
+        from app import instalacion_recuperacion as instalacion
+        self._base_local_recuperacion()
+        original = inv.DB_PATH.read_bytes()
+        with patch.object(coord, 'DATA_DIR', self.root), patch.multiple(sel, DB_PATH=inv.DB_PATH, STORAGE_DIR=inv.STORAGE_DIR, SECRET_PATH=inv.SECRET_PATH), patch.dict(os.environ, {'GESTOR_SECRET_KEY': ''}):
+            self.assertEqual(coord.preparar_persistente()['estado'], 'preparación íntegra')
+            with patch.object(instalacion.shutil, 'disk_usage', return_value=type('Uso', (), {'free': 0})()):
+                self.assertEqual(coord.aplicar_recuperacion(self.op.name, self.op.name)['estado'], 'bloqueada')
+            self.assertEqual(inv.DB_PATH.read_bytes(), original)
+            with patch.object(instalacion, '_mover', side_effect=PermissionError):
+                self.assertEqual(coord.aplicar_recuperacion(self.op.name, self.op.name)['estado'], 'bloqueada')
+            root = self.root / des._nombre(self.op.name)
+            self.assertEqual((root / 'base').read_bytes(), original)
+            self.assertEqual(coord.aplicar_recuperacion(self.op.name, self.op.name)['estado'], 'instalación verificada; arranque bloqueado')
+
+    def test_recuperacion_limite_antes_de_leer_archivo(self):
+        from app import instalacion_recuperacion as instalacion
+        archivo = self.root / 'archivo-ficticio'
+        archivo.write_bytes(b'12345678')
+        with patch.dict(os.environ, {'GESTOR_VERIFICACION_MAX_BYTES': '1'}), patch.object(inv, 'huella', side_effect=AssertionError('no debe leer')):
+            with self.assertRaises(ValueError): instalacion._huella(archivo, 'base')
+        self.assertEqual(archivo.read_bytes(), b'12345678')
+
     def test_desplazamiento_desde_original_guardado(self):
         from app import desplazamiento_original as desplazamiento
         self._base_para_preparacion()
@@ -246,7 +426,7 @@ class EsquemaTest(unittest.TestCase):
                 informe = coord.comprobar_recuperacion(self.op.name, self.op.name)
             self.assertEqual(informe['estado'], 'bloqueada')
             self.assertFalse(informe['listo_recuperacion'])
-            self.assertIn('no implementada', informe['motivo'])
+            self.assertIn('no autoriza', informe['motivo'])
             despues = {str(p.relative_to(self.root)): p.read_bytes() for p in self.root.rglob('*') if p.is_file()}
             self.assertEqual(antes, despues)
             original_desplazado = self.root / 'base-desplazada-ficticia'

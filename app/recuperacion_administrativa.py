@@ -1,7 +1,7 @@
-"""Comprobación previa de recuperación; no modifica ni restaura datos activos.
+"""Comprobación y aplicación administrativa con arranque bloqueado.
 
-El bloqueo de arranque y el registro v2 permanecen intactos. Esta comprobación
-no constituye una autorización ni una promesa de que se pueda recuperar.
+La comprobación no modifica datos. La aplicación conserva las fuentes y usa
+intenciones y confirmaciones persistentes; ninguna acción habilita el arranque.
 """
 import argparse
 import json
@@ -40,22 +40,27 @@ def _comprobar(operacion, confirmacion):
     if informe.get('clave') != 'archivo histórico identificado; autenticidad no comprobada':
         resultado['motivo'] = 'No se ha identificado la clave local histórica.'
         return resultado
-    # No se mueve nada: el selector vigente solo reconoce los originales en las
-    # dos ubicaciones de restauración, no en una futura zona de cuarentena.
-    resultado['motivo'] = ('Recuperación aún no implementada: falta integrar el registro de desplazamientos '
-                           'y verificar las ACL necesarias para la cuenta del servicio.')
+    # La comprobación no autoriza ni aplica la instalación.
+    resultado['motivo'] = ('Comprobación previa: no autoriza la recuperación; la aplicación requiere '
+                           'su acción explícita y el arranque continúa bloqueado.')
     return resultado
 
 
 def main():
-    from app.coordinacion import comprobar_recuperacion
-    parser = argparse.ArgumentParser(description='Comprobación previa de recuperación; no restaura datos')
+    from app.coordinacion import BloqueoNoDisponible, comprobar_recuperacion, aplicar_recuperacion
+    parser = argparse.ArgumentParser(description='Recuperación administrativa con arranque bloqueado')
+    parser.add_argument('accion', choices=('comprobar', 'aplicar'), nargs='?', default='comprobar')
     parser.add_argument('--operacion', required=True)
     parser.add_argument('--confirmar-operacion', required=True)
     args = parser.parse_args()
-    resultado = comprobar_recuperacion(args.operacion, args.confirmar_operacion)
+    accion = aplicar_recuperacion if args.accion == 'aplicar' else comprobar_recuperacion
+    try:
+        resultado = accion(args.operacion, args.confirmar_operacion)
+    except BloqueoNoDisponible:
+        resultado = {'estado': 'bloqueada', 'listo_recuperacion': False,
+                     'motivo': 'No se pudo adquirir el bloqueo exclusivo; detenga SIGED y revise el acceso.'}
     print(json.dumps(resultado, ensure_ascii=False))
-    return 1
+    return 0 if resultado['estado'] == 'instalación verificada; arranque bloqueado' else 1
 
 
 if __name__ == '__main__':

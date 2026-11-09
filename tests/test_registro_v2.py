@@ -14,4 +14,4 @@ class RegistroV2AisladoTest(unittest.TestCase):
             env = os.environ.copy()
             env.update(GESTOR_DATA_DIR=temporal, PYTHONPATH=str(raiz))
             subprocess.run([sys.executable, str(raiz / "tests" / "registro_v2_casos.py")],
-                           env=env, cwd=raiz, check=True, timeout=120)
+                           env=env, cwd=raiz, check=True, timeout=420)

@@ -151,6 +151,13 @@ def comprobar_recuperacion(operacion, confirmacion):
         return _comprobar(operacion, confirmacion)
 
 
+def aplicar_recuperacion(operacion, confirmacion):
+    """Aplica o reanuda bajo bloqueo exclusivo sin habilitar el arranque."""
+    from app.instalacion_recuperacion import _accion
+    with _BloqueoSistema(exclusivo=True):
+        return _accion(operacion, confirmacion)
+
+
 def inspeccionar_desplazamiento(operacion, confirmacion, componente):
     """Identifica un original bajo bloqueo exclusivo, sin moverlo."""
     from app.desplazamiento_original import _operar

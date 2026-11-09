@@ -220,6 +220,16 @@ def _comprobar_estado(root, evidencia, plan):
     return estados
 
 
+def _crear_plan_inicial(operacion, evidencia, seleccionado):
+    """Publica todas las intenciones antes de efectuar ningún movimiento."""
+    with directorio_privado(r.DATA_DIR, nombre=_nombre(operacion), conservar=True) as temporal:
+        root = Path(temporal)
+        plan = {'version': 1, 'registro': evidencia['registro'], 'origenes': seleccionado['componentes'],
+                'componentes': {n: evidencia['entradas'][n] for n in _COMPONENTES}}
+        _publicar(root / 'intenciones.json', plan)
+    return root
+
+
 def _operar(operacion, confirmar, componente, mover):
     resultado = {'estado': 'no verificable', 'listo_recuperacion': False}
     if (not isinstance(operacion, str) or not re.fullmatch(r'operacion-[a-z0-9_]{8}', operacion)
@@ -241,11 +251,7 @@ def _operar(operacion, confirmar, componente, mover):
                 estado = ('originalmente ausente' if seleccionado['componentes'][componente] == 'originalmente ausente' else 'en origen')
                 resultado.update(estado=estado, componente=componente)
                 return resultado
-            with directorio_privado(r.DATA_DIR, nombre=_nombre(operacion), conservar=True) as temporal:
-                root = Path(temporal)
-                plan = {'version': 1, 'registro': evidencia['registro'], 'origenes': seleccionado['componentes'],
-                        'componentes': {n: evidencia['entradas'][n] for n in _COMPONENTES}}
-                _publicar(root / 'intenciones.json', plan)
+            root = _crear_plan_inicial(operacion, evidencia, seleccionado)
         elif not stat.S_ISDIR(info.st_mode):
             raise ValueError('Conservación no disponible')
         evidencia = _evidencia_registro(operacion)
