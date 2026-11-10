@@ -1,14 +1,14 @@
 """Directorios privados NTFS; no modifica ACL de rutas preexistentes."""
-from contextlib import contextmanager
 import ctypes
-from ctypes import wintypes as w
 import os
-from pathlib import Path
+import re
 import shutil
+import stat
 import subprocess
 import uuid
-import re
-import stat
+from contextlib import contextmanager
+from ctypes import wintypes as w
+from pathlib import Path
 
 _SCRIPT = r'''
 $ErrorActionPreference = 'Stop'
@@ -67,7 +67,10 @@ def _volumen_acl(parent):
 def directorio_privado(parent, *, nombre=None, conservar=False):
     parent = Path(parent).resolve(strict=True)
     _volumen_acl(parent)
-    if nombre is not None and not re.fullmatch(r'\.siged-(?:preparacion|conservacion)-operacion-[a-z0-9_]{8}', nombre):
+    if nombre is not None and not re.fullmatch(
+        r'(?:\.siged-(?:preparacion|conservacion)-operacion-[a-z0-9_]{8}|\.siged-mensajeria)',
+        nombre,
+    ):
         raise ValueError('Nombre de preparación inválido')
     path = parent / (nombre or ('.siged-verificacion-' + uuid.uuid4().hex))
     if os.path.lexists(path):
@@ -76,7 +79,7 @@ def directorio_privado(parent, *, nombre=None, conservar=False):
     env['SIGED_TEMP_PRIVADO'] = str(path)
     powershell = Path(os.environ['SystemRoot']) / 'System32/WindowsPowerShell/v1.0/powershell.exe'
     try:
-        result = subprocess.run([str(powershell), '-NoProfile', '-NonInteractive', '-Command', _SCRIPT], env=env, capture_output=True, timeout=30)
+        result = subprocess.run([str(powershell), '-NoProfile', '-NonInteractive', '-Command', _SCRIPT], env=env, capture_output=True, timeout=30, check=False)
         if result.returncode:
             raise OSError('No se pudo establecer o verificar la ACL privada')
         info = path.lstat()
@@ -130,7 +133,7 @@ def _verificar_acl(path, segundos, max_entradas, solo_raiz):
     env['SIGED_ACL_SOLO_RAIZ'] = '1' if solo_raiz else '0'
     powershell = Path(os.environ['SystemRoot']) / 'System32/WindowsPowerShell/v1.0/powershell.exe'
     try:
-        resultado = subprocess.run([str(powershell), '-NoProfile', '-NonInteractive', '-Command', _SCRIPT_VERIFICAR], env=env, capture_output=True, timeout=segundos)
+        resultado = subprocess.run([str(powershell), '-NoProfile', '-NonInteractive', '-Command', _SCRIPT_VERIFICAR], env=env, capture_output=True, timeout=segundos, check=False)
     except subprocess.TimeoutExpired as exc:
         raise OSError('Comprobación ACL incompleta') from exc
     if resultado.returncode:

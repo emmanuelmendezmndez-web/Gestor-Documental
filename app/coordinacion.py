@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 
 from app.configuracion import DATA_DIR
 from app.registro_restauracion import comprobar_estado
@@ -93,10 +92,10 @@ class _BloqueoSistema:
 
 
 class BloqueoDatos(_BloqueoSistema):
-    def __init__(self, exclusivo: bool):
+    def __init__(self, exclusivo: bool, *, con_generacion=False):
         super().__init__(exclusivo)
         try:
-            comprobar_estado()
+            self.generacion = comprobar_estado(con_generacion=con_generacion)
         except BaseException:
             self.cerrar()
             raise

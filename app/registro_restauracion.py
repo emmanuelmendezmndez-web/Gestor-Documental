@@ -1,13 +1,19 @@
 """Esquemas v1/v2 y evidencias históricas; consultar bajo bloqueo de datos."""
+import hashlib
 import json
 import os
-from pathlib import Path
 import re
 import stat
 import tempfile
+from pathlib import Path
 
-from app.configuracion import DATA_DIR, BACKUP_DIR
-from app.inventario_restauracion import inspeccionar, json_estricto, verificar, Presupuesto
+from app.configuracion import BACKUP_DIR, DATA_DIR
+from app.inventario_restauracion import (
+    Presupuesto,
+    inspeccionar,
+    json_estricto,
+    verificar,
+)
 
 REGISTRO = DATA_DIR / ".siged-restauracion.json"
 RAIZ = DATA_DIR / ".siged-restauraciones"
@@ -83,7 +89,7 @@ def invariantes(datos):
     return {k: v for k, v in datos.items() if k not in {"estado", "paso", "secuencia"}}
 
 
-def comprobar_estado():
+def comprobar_estado(*, con_generacion=False):
     """No compara datos activos con inventarios históricos tras uso legítimo de SIGED."""
     try:
         principal = leer(REGISTRO)
@@ -91,6 +97,7 @@ def comprobar_estado():
             raise ValueError("Operación incompleta")
         raiz = inspeccionar(RAIZ)
         encontrados = set()
+        evidencias = {}
         presupuesto = Presupuesto()
         if raiz is not None:
             if not stat.S_ISDIR(raiz.st_mode):
@@ -137,6 +144,8 @@ def comprobar_estado():
                                      or inspeccionar(conservacion / 'cierre-verificado.json') is not None))):
                             from app.cierre_recuperacion import validar_cierre_historico
                             validar_cierre_historico(fin, verificar_clave_efectiva=(principal is None or principal['operacion'] == entrada.name))
+                        if con_generacion:
+                            evidencias[entrada.name] = fin
                     else:
                         # v1 conserva lo que se registró; no fabrica inventarios.
                         conocido = legado or (principal if principal and principal["operacion"] == entrada.name else None)
@@ -146,8 +155,13 @@ def comprobar_estado():
                             raise ValueError("Operación antigua incierta")
                         if principal and principal["operacion"] == entrada.name and principal != conocido:
                             raise ValueError("Constancia antigua contradictoria")
+                        if con_generacion:
+                            evidencias[entrada.name] = conocido
         if principal is not None and principal["operacion"] not in encontrados:
             raise ValueError("Falta el directorio de la operación")
+        if con_generacion:
+            contenido = json.dumps([principal, evidencias], sort_keys=True, separators=(",", ":"))
+            return hashlib.sha256(contenido.encode("utf-8")).hexdigest()
     except (OSError, ValueError, TypeError, UnicodeError, RecursionError) as error:
         raise RuntimeError(AVISO) from error
 

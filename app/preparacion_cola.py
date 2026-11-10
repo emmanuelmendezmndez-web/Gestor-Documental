@@ -1,11 +1,12 @@
 """Ensayo transaccional efímero: no publica una fuente de recuperación."""
-from contextlib import closing
 import hashlib
 import json
 import os
 import sqlite3
+from contextlib import closing
 
 from app import inventario_restauracion as inv
+from app.mensajeria.identidad_documental import verificar_disparadores_para_recuperacion
 
 _MENSAJE = 'Tarea suspendida al restaurar; requiere revisión'
 _ESTADOS = {'pendiente', 'suspendida', 'completada', 'cancelada'}
@@ -64,8 +65,7 @@ def transformar_copia(anterior, candidata, presupuesto):
         conexion.execute('PRAGMA trusted_schema=OFF')
         conexion.execute('BEGIN IMMEDIATE')
         try:
-            if conexion.execute("SELECT 1 FROM sqlite_master WHERE type='trigger' LIMIT 1").fetchone():
-                raise ValueError('Triggers requieren revisión')
+            verificar_disparadores_para_recuperacion(conexion)
             esperado, total, pendientes = _resumen(conexion, presupuesto, True)
             cambio = conexion.execute("UPDATE eliminaciones_pendientes SET estado='suspendida', ultimo_error=? WHERE estado='pendiente'", (_MENSAJE,))
             if cambio.rowcount != pendientes:
