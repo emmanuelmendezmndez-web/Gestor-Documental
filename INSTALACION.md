@@ -71,6 +71,31 @@ Para la preparación de producción HTTPS con Caddy consulte [DESPLIEGUE_HTTPS.m
 No habilite acceso institucional a la aplicación hasta completar esa configuración
 y sus comprobaciones.
 
+### Pruebas temporales desde la red Wi-Fi
+
+Para probar la instancia habitual de SIGED desde un teléfono en la misma red,
+cierre primero el servidor que esté usando el puerto 8000 y ejecute
+`Iniciar SIGED LAN (pruebas).bat`. El lanzador solicita confirmación y escucha
+en **todas las interfaces** mediante HTTP, sin confiar en cabeceras de proxy.
+Usa los datos habituales o los configurados en `GESTOR_DATA_DIR`; no crea
+otra instalación. `GESTOR_HTTPS_ONLY` debe estar ausente o valer `0`; si
+tiene otro valor, el lanzador se detiene y no modifica la variable.
+
+En PowerShell ejecute `ipconfig` y busque la **Dirección IPv4** del adaptador
+Wi-Fi activo; desde el teléfono conectado a la misma red abra
+`http://<IPv4>:8000` (por ejemplo, `http://192.168.1.25:8000`, solo como
+ejemplo). Use la misma dirección durante la sesión para mantener coherentes el
+origen y la cookie. Para terminar, pulse Ctrl+C en la ventana del servidor.
+
+**HTTP no cifra contraseñas, cookies ni documentos**, y la cookie de sesión no
+lleva el atributo `Secure` en este modo. Úselo únicamente para pruebas breves
+en una red de confianza, sin datos sensibles; no sustituye HTTPS ni es apto para
+despliegue institucional. Los permisos y la validación CSRF/origen de SIGED
+siguen vigentes. El acceso también depende del aislamiento entre dispositivos
+de la red y de las reglas del firewall existentes; el lanzador no las modifica.
+Para volver al modo protegido, detenga esta instancia y use el arranque de
+producción con Caddy descrito en [DESPLIEGUE_HTTPS.md](DESPLIEGUE_HTTPS.md).
+
 ## Pruebas y respaldo
 
 Para ejecutar la suite, instale el grupo `pruebas` y use:
