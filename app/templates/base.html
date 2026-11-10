@@ -6,7 +6,7 @@
     <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{% block titulo %}SIGED | Panel de Control{% endblock %}</title>
     <link rel="icon" type="image/png" href="{{ url_for('static', path='img/siged-isotipo.png') }}?v=1">
-    <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}?v={% if pagina == 'biblioteca' %}31{% else %}27{% endif %}&busqueda=3">
+    <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}?v={% if pagina == 'biblioteca' %}33{% else %}29{% endif %}&busqueda=3">
     {% if usuario %}
     <link rel="stylesheet" href="{{ url_for('static', path='clippy/clippy.css') }}?v=8">
     {% endif %}
@@ -29,40 +29,40 @@
                 <summary>Menú principal</summary>
                 <nav class="sidebar-nav" aria-label="Navegación principal">
                     <a class="sidebar-link" href="/inicio" title="Inicio" aria-label="Inicio" {% if pagina == "inicio" %}aria-current="page"{% endif %}>
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3.5 10.5 8.5-7 8.5 7M5.5 9v11h13V9M9 20v-6h6v6"/></svg>
+                        <svg class="nav-icono-inicio" viewBox="0 0 24 24" aria-hidden="true"><path d="m3.5 10.5 8.5-7 8.5 7M5.5 9v11h13V9M9 20v-6h6v6"/></svg>
                         <span>Inicio</span>
                     </a>
                     <a class="sidebar-link" href="/" title="Biblioteca" aria-label="Biblioteca" {% if pagina == "biblioteca" %}aria-current="page"{% endif %}>
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 6.5h6l2 2h9v10.75H3.5zM3.5 9h17"/></svg>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6c-2.3-2-5-2.3-8-1.4v13c3-.9 5.7-.5 8 1.4m0-13c2.3-2 5-2.3 8-1.4v13c-3-.9-5.7-.5-8 1.4m0-13v13"/><path d="M6.5 8c1.4 0 2.7.3 3.8.9M6.5 11c1.4 0 2.7.3 3.8.9"/><path class="nav-icono-pagina" d="M12 6q3-1.6 7-1v12.5q-4-.7-7 1.5z"/></svg>
                         <span>Biblioteca</span>
                     </a>
                     {% if puede("ver_expedientes") %}
                     <a class="sidebar-link" href="/expedientes" title="Expedientes" aria-label="Expedientes" {% if pagina in ("expedientes", "expediente_nuevo") %}aria-current="page"{% endif %}>
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V5h6l2 2h7v2M3 10h18l-2 9H4zM7 4h11v3"/></svg>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path class="nav-icono-carpeta" d="M4 8V5h6l2 2h7v2M7 4h11v3"/><path d="M3 10h18l-2 9H4z"/></svg>
                         <span>Expedientes</span>
                     </a>
                     {% endif %}
                     {% if puede("subir") %}
                     <a class="sidebar-link" href="/subir" title="Subir documento" aria-label="Subir documento" {% if pagina == "subir" %}aria-current="page"{% endif %}>
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M4 15.5v4h16v-4"/></svg>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17.5H6a4 4 0 0 1-.4-8A6 6 0 0 1 17 8a4.5 4.5 0 0 1 1 9.5h-1"/><path class="nav-icono-subir" d="M12 20v-8m-3 3 3-3 3 3"/></svg>
                         <span>Subir documento</span>
                     </a>
                     {% endif %}
                     {% if puede("usuarios") %}
                     <a class="sidebar-link" href="/usuarios" title="Usuarios" aria-label="Usuarios" {% if pagina == "usuarios" %}aria-current="page"{% endif %}>
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.25"/><path d="M3.5 19c.5-3.1 2.4-4.75 5.5-4.75s5 1.65 5.5 4.75M16 5.2a3.25 3.25 0 0 1 0 6.2M17 14.5c2.1.55 3.25 2.05 3.5 4.5"/></svg>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><g class="nav-icono-persona"><circle cx="9" cy="8" r="3.25"/><path d="M3.5 19c.5-3.1 2.4-4.75 5.5-4.75s5 1.65 5.5 4.75"/></g><path class="nav-icono-persona-secundaria" d="M16 5.2a3.25 3.25 0 0 1 0 6.2M17 14.5c2.1.55 3.25 2.05 3.5 4.5"/></svg>
                         <span>Usuarios</span>
                     </a>
                     {% endif %}
                     {% if puede("eliminar") or puede("restaurar") %}
                     <a class="sidebar-link" href="/papelera" title="Papelera" aria-label="Papelera" {% if pagina == "papelera" %}aria-current="page"{% endif %}>
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-9 0 1 13h10l1-13M10 11v5m4-5v5"/></svg>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path class="nav-icono-tapa" d="M4 7h16M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13M10 11v5m4-5v5"/></svg>
                         <span>Papelera</span>
                     </a>
                     {% endif %}
                     {% if puede("actividad") %}
                     <a class="sidebar-link" href="/actividad" title="Actividad" aria-label="Actividad" {% if pagina == "actividad" %}aria-current="page"{% endif %}>
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l2.2-6 4.1 12 2.2-6H21"/></svg>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path class="nav-icono-actividad" d="M3 12h4l2.2-6 4.1 12 2.2-6H21"/></svg>
                         <span>Actividad</span>
                     </a>
                     {% endif %}
@@ -80,7 +80,7 @@
                 </a>
                 <form action="/salir" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button type="submit" class="boton-cerrar-sesion" title="Cerrar sesión" aria-label="Cerrar sesión">
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H5v16h5m4-4 4-4-4-4m4 4H9"/></svg>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H5v16h5"/><path class="nav-icono-salir" d="m14 16 4-4-4-4m4 4H9"/></svg>
                         <span>Cerrar sesión</span>
                     </button>
                 </form>

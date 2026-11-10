@@ -553,3 +553,55 @@ footer {
     padding: 24px;
     color: var(--color-texto-suave);
 }
+
+/* La página solo aparece durante el movimiento; el libro permanece reconocible en reposo. */
+.sidebar .nav-icono-pagina { opacity: 0; transform-box: view-box; transform-origin: 50% 50%; }
+
+/* Una sola reacción por entrada del cursor o foco; sin modificar el espacio del menú. */
+@media (prefers-reduced-motion: no-preference) {
+    :is(.sidebar-link, .boton-cerrar-sesion):focus-visible {
+        --nav-inicio: siged-nav-inicio;
+        --nav-pagina: siged-nav-pagina;
+        --nav-carpeta: siged-nav-carpeta;
+        --nav-subir: siged-nav-subir;
+        --nav-persona: siged-nav-persona;
+        --nav-persona-secundaria: siged-nav-persona-secundaria;
+        --nav-tapa: siged-nav-tapa;
+        --nav-actividad: siged-nav-actividad;
+        --nav-salir: siged-nav-salir;
+    }
+
+    @media (hover: hover) {
+        :is(.sidebar-link, .boton-cerrar-sesion):hover {
+            --nav-inicio: siged-nav-inicio;
+            --nav-pagina: siged-nav-pagina;
+            --nav-carpeta: siged-nav-carpeta;
+            --nav-subir: siged-nav-subir;
+            --nav-persona: siged-nav-persona;
+            --nav-persona-secundaria: siged-nav-persona-secundaria;
+            --nav-tapa: siged-nav-tapa;
+            --nav-actividad: siged-nav-actividad;
+            --nav-salir: siged-nav-salir;
+        }
+    }
+
+    .sidebar .nav-icono-inicio { animation: var(--nav-inicio, none) 580ms ease-out; }
+    .sidebar .nav-icono-pagina { animation: var(--nav-pagina, none) 680ms ease-in-out; }
+    .sidebar .nav-icono-carpeta { transform-box: fill-box; transform-origin: left bottom; animation: var(--nav-carpeta, none) 580ms ease-in-out; }
+    .sidebar .nav-icono-subir { animation: var(--nav-subir, none) 580ms ease-out; }
+    .sidebar .nav-icono-persona { animation: var(--nav-persona, none) 580ms ease-in-out; }
+    .sidebar .nav-icono-persona-secundaria { animation: var(--nav-persona-secundaria, none) 580ms ease-in-out; }
+    .sidebar .nav-icono-tapa { transform-box: fill-box; transform-origin: left bottom; animation: var(--nav-tapa, none) 580ms ease-in-out; }
+    .sidebar .nav-icono-actividad { animation: var(--nav-actividad, none) 580ms ease-in-out; }
+    .sidebar .nav-icono-salir { animation: var(--nav-salir, none) 580ms ease-out; }
+}
+
+@keyframes siged-nav-inicio { 40% { transform: translateY(-3px); } 70% { transform: translateY(1px); } }
+@keyframes siged-nav-pagina { 0% { opacity: 0; transform: rotateY(0deg); } 15% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; transform: rotateY(180deg); } }
+@keyframes siged-nav-carpeta { 50% { transform: translateY(-2px) rotate(-8deg); } }
+@keyframes siged-nav-subir { 50% { transform: translateY(-3px); } }
+@keyframes siged-nav-persona { 50% { transform: translateX(-1.8px); } }
+@keyframes siged-nav-persona-secundaria { 50% { transform: translateX(1.8px); } }
+@keyframes siged-nav-tapa { 50% { transform: translateY(-3px) rotate(-10deg); } }
+@keyframes siged-nav-actividad { 50% { opacity: .35; } }
+@keyframes siged-nav-salir { 50% { transform: translateX(3px); } }

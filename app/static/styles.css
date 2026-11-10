@@ -1,6 +1,6 @@
 /* Orden de cascada: mantener los módulos en esta secuencia. */
 @import url("styles-01-variables.css");
-@import url("styles-02-base-estructura.css");
+@import url("styles-02-base-estructura.css?v=3");
 @import url("styles-03-paneles.css");
 @import url("styles-04-formularios-busqueda.css");
 @import url("styles-05-documentos-acciones.css");
