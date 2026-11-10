@@ -30,6 +30,15 @@ def aplicacion(secure=True):
 
 
 class PreparacionHTTPSTest(unittest.TestCase):
+    def test_arranque_lan_explicito_sin_omitir_https_ni_confiar_en_proxies(self):
+        lan = (RAIZ / 'Iniciar SIGED LAN (pruebas).bat').read_text(encoding='utf-8')
+        self.assertIn('--host 0.0.0.0 --port 8000 --no-proxy-headers', lan)
+        self.assertIn('if defined GESTOR_HTTPS_ONLY', lan)
+        self.assertNotIn('set "GESTOR_HTTPS_ONLY=', lan)
+        self.assertIn('choice /c SN', lan)
+        self.assertIn('HTTP sin cifrar', lan)
+        self.assertIn('CSRF y permisos siguen activos', lan)
+
     def test_arranques_son_locales_y_confianza_esta_acotada(self):
         dev = (RAIZ / 'Iniciar SIGED.bat').read_text(encoding='utf-8')
         prod = (RAIZ / 'Iniciar SIGED produccion.bat').read_text(encoding='utf-8')
