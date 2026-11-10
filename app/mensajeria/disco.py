@@ -77,9 +77,13 @@ def _identidad(info):
 
 @contextmanager
 def zona():
+    with directorio_fijado(directorio_configurado() / "temporales") as contenedor:
+        yield contenedor
+
+
+@contextmanager
+def directorio_fijado(contenedor):
     """Conserva abiertos los directorios sin compartir su borrado o traslado."""
-    raiz = directorio_configurado()
-    contenedor = raiz / "temporales"
     k = _kernel()
     with ExitStack() as pila:
         for ruta in (*reversed(contenedor.parents), contenedor):

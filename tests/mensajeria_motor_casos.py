@@ -106,7 +106,9 @@ class MotorCasos(unittest.TestCase):
         with bd._conectar_infraestructura() as db:
             mensaje = db.execute("SELECT texto, length(texto), vence_utc-confirmado_utc FROM mensajes").fetchone()
             self.assertEqual(tuple(mensaje), (texto, 300, 10800))
-            evento = db.execute("SELECT * FROM eventos").fetchone()
+            evento = db.execute(
+                "SELECT id,mensaje_id,destinatario_ref,tipo,creado_utc,entregado FROM eventos",
+            ).fetchone()
             self.assertEqual(tuple(evento)[1:], (mensaje_id, self.b, "mensaje_confirmado", self.instante, 0))
         self.assertEqual(motor.cuota(self.a)["envios"], 1)
         self.assertEqual(motor.cuota(self.b)["envios"], 0)
@@ -170,9 +172,11 @@ class MotorCasos(unittest.TestCase):
         self.assertEqual(self._conteos(), (1, 1, 1, 1, 1))
         self.assertEqual(motor.cuota(self.a)["envios"], 1)
 
-    def test_descriptor_documental_sin_acceso_a_biblioteca(self):
-        with self.assertRaisesRegex(motor.ErrorMotor, "adjunto_no_disponible"):
-            self._enviar(adjunto=motor.Adjunto("documento", uuid4().hex))
+    def test_descriptor_documental_con_modo_explicito(self):
+        with self.assertRaisesRegex(motor.ErrorMotor, "documento_no_disponible"):
+            motor.enviar(self.a, self.b, "Ficticio", uuid4().hex,
+                         motor.Adjunto("documento", uuid4().hex, modalidad="visualizar"),
+                         verificar_adjunto=verificar)
         self.assertEqual(self._conteos(), (0, 0, 0, 0, 0))
         ruta = STORAGE_DIR / "referencia-ficticia.txt"
         ruta.write_bytes(b"ficticio")
@@ -182,7 +186,8 @@ class MotorCasos(unittest.TestCase):
                 "VALUES ('ficticio', 'referencia-ficticia.txt', 'referencia-ficticia.txt', 'Oficios', 8)"
             )
             referencia = db.execute("SELECT mensajeria_ref FROM documentos").fetchone()[0]
-        self._enviar(adjunto=motor.Adjunto("documento", referencia))
+        motor.enviar(self.a, self.b, "Ficticio", uuid4().hex,
+                     motor.Adjunto("documento", referencia, modalidad="visualizar"))
         fila = motor.mensajes(self.b, motor.conversacion(self.a, self.b))[0]
         self.assertEqual(fila["tipo_adjunto"], "documento")
         self.assertEqual(fila["vence_utc"] - fila["confirmado_utc"], 7 * 86400)

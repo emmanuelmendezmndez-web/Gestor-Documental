@@ -26,12 +26,22 @@ REFERENCIAS_USUARIOS = """
     SELECT usuario_ref FROM operaciones UNION
     SELECT destinatario_ref FROM eventos
 """
-REFERENCIAS_DOCUMENTOS = "SELECT DISTINCT documento_ref FROM mensajes WHERE tipo_adjunto='documento'"
+# Las referencias de Biblioteca verifican su identidad y disponibilidad por
+# operación. Las anteriores carecen de ese contrato y conservan el diagnóstico estricto.
+REFERENCIAS_DOCUMENTOS = """
+    SELECT DISTINCT m.documento_ref FROM mensajes m
+    WHERE m.tipo_adjunto='documento' AND NOT EXISTS (
+        SELECT 1 FROM referencias_biblioteca b WHERE b.mensaje_id=m.id
+    )
+"""
 
 
 @contextmanager
-def _bases():
-    with BloqueoDatos(exclusivo=False, con_generacion=True) as bloqueo, _conectar_infraestructura() as privada:
+def _bases(*, lectura=False):
+    with (
+        BloqueoDatos(exclusivo=False, con_generacion=True) as bloqueo,
+        _conectar_infraestructura(lectura=lectura) as privada,
+    ):
         info = inspeccionar(DB_PATH)
         if info is None or not stat.S_ISREG(info.st_mode) or not info.st_ino:
             raise ValueError("generacion_desconocida")
@@ -41,8 +51,12 @@ def _bases():
         with conectar_documental() as principal:
             # Orden fijo de las reservas. El bloqueo cooperativo excluye sustituciones
             # oficiales de la base mientras ambas instantáneas estén abiertas.
-            principal.execute("BEGIN IMMEDIATE")
-            privada.execute("BEGIN IMMEDIATE")
+            if lectura:
+                principal.execute("PRAGMA busy_timeout = 1000")
+                principal.execute("BEGIN")
+            else:
+                principal.execute("BEGIN IMMEDIATE")
+                privada.execute("BEGIN IMMEDIATE")
             yield principal, privada, generacion
             privada.commit()
 
@@ -55,6 +69,11 @@ def _vinculo(privada):
     return privada.execute(
         "SELECT instalacion_id, generacion_id FROM vinculo_identidad WHERE id=1"
     ).fetchone()
+
+
+def _vinculo_vigente(principal, privada, generacion):
+    previo = _vinculo(privada)
+    return previo is not None and tuple(previo) == (instalacion(principal), generacion)
 
 
 def _incidencias(principal, usuarios, documentos):

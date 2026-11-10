@@ -8,6 +8,7 @@ import subprocess
 import uuid
 from contextlib import contextmanager
 from ctypes import wintypes as w
+from functools import lru_cache
 from pathlib import Path
 
 _SCRIPT = r'''
@@ -100,6 +101,9 @@ $allowed = @($sid.Value, 'S-1-5-18', 'S-1-5-32-544') | Select-Object -Unique
 $maximo = [int]$env:SIGED_MAX_ENTRADAS_ACL
 $vistos = 1
 $stack = New-Object 'System.Collections.Generic.Stack[string]'
+if ($env:SIGED_ACL_ARCHIVO_VERIFICADO) {
+  $stack.Push([System.IO.Path]::Combine($p, $env:SIGED_ACL_ARCHIVO_VERIFICADO))
+}
 $stack.Push($p)
 while ($stack.Count -gt 0) {
   $item = $stack.Pop()
@@ -124,13 +128,14 @@ while ($stack.Count -gt 0) {
 '''
 
 
-def _verificar_acl(path, segundos, max_entradas, solo_raiz):
+def _verificar_acl(path, segundos, max_entradas, solo_raiz, archivo=""):
     path = Path(path)
     _volumen_acl(path.parent)
     env = os.environ.copy()
     env['SIGED_TEMP_PRIVADO'] = str(path)
     env['SIGED_MAX_ENTRADAS_ACL'] = str(max_entradas)
     env['SIGED_ACL_SOLO_RAIZ'] = '1' if solo_raiz else '0'
+    env['SIGED_ACL_ARCHIVO_VERIFICADO'] = archivo
     powershell = Path(os.environ['SystemRoot']) / 'System32/WindowsPowerShell/v1.0/powershell.exe'
     try:
         resultado = subprocess.run([str(powershell), '-NoProfile', '-NonInteractive', '-Command', _SCRIPT_VERIFICAR], env=env, capture_output=True, timeout=segundos, check=False)
@@ -143,6 +148,45 @@ def _verificar_acl(path, segundos, max_entradas, solo_raiz):
 def verificar_acl_privada(path, segundos, max_entradas=300000):
     """Comprueba ACL del árbol existente sin seguir puntos de reanálisis."""
     _verificar_acl(path, segundos, max_entradas, False)
+
+
+def verificar_acl_base_privada(path, nombre, segundos):
+    """Verifica raíz y archivo SQLite sin recorrer objetos ajenos a la lectura."""
+    if not re.fullmatch(r"[a-z0-9_]+\.sqlite3", nombre):
+        raise ValueError("Nombre de base privada inválido")
+    path = Path(path)
+    huellas = _huella_acl(path), _huella_acl(path / nombre)
+    _confirmar_acl_base(path, nombre, segundos, huellas)
+
+
+@lru_cache(maxsize=1)
+def _api_descriptor_acl():
+    api = ctypes.WinDLL("advapi32", use_last_error=True).GetFileSecurityW
+    api.argtypes = [w.LPCWSTR, w.DWORD, w.LPVOID, w.DWORD, ctypes.POINTER(w.DWORD)]
+    api.restype = w.BOOL
+    return api
+
+
+def _huella_acl(path):
+    info = path.lstat()
+    if not info.st_ino or getattr(info, "st_file_attributes", 0) & 0x400:
+        raise OSError("Identidad del objeto protegido no verificable")
+    api = _api_descriptor_acl()
+    # OWNER | GROUP | DACL. NTFS acota el descriptor a 64 KiB.
+    descriptor = ctypes.create_string_buffer(65536)
+    usados = w.DWORD()
+    if not api(str(path), 7, descriptor, len(descriptor), ctypes.byref(usados)) or not 0 < usados.value <= len(descriptor):
+        raise OSError("Descriptor ACL no verificable")
+    return info.st_dev, info.st_ino, descriptor.raw[:usados.value]
+
+
+@lru_cache(maxsize=4)
+def _confirmar_acl_base(path, nombre, segundos, huellas):
+    # Solo se reutiliza el resultado con identidad y descriptor idénticos
+    # dentro del mismo proceso SIGED, que opera con una sola cuenta.
+    _verificar_acl(path, segundos, 2, True, nombre)
+    if huellas != (_huella_acl(path), _huella_acl(path / nombre)):
+        raise OSError("ACL cambió durante la comprobación")
 
 
 def verificar_acl_raiz_conservacion(path, segundos, max_entradas=300000):

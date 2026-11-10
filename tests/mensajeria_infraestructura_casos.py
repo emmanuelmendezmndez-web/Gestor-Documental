@@ -32,7 +32,7 @@ class MensajeriaInfraestructuraCasos(unittest.TestCase):
         with bd._conectar_infraestructura() as db:
             self.assertEqual(db.execute("PRAGMA foreign_keys").fetchone()[0], 1)
             self.assertEqual(db.execute("PRAGMA busy_timeout").fetchone()[0], 30000)
-            self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 4)
+            self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 6)
             self.assertEqual(db.execute("PRAGMA application_id").fetchone()[0], bd.APPLICATION_ID)
             self.assertEqual(db.execute("SELECT estado FROM contexto").fetchone()[0], "no_verificada")
 
@@ -111,7 +111,7 @@ _migrar(Corte())
             db.execute("INSERT INTO conversaciones VALUES (?, ?, ?)", ("legado", "a" * 32, "b" * 32))
             db.commit()
             bd._migrar(db)
-            self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 4)
+            self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 6)
             self.assertEqual(db.execute("SELECT id FROM conversaciones").fetchone()[0], "legado")
             self.assertIsNone(db.execute("SELECT id FROM vinculo_identidad").fetchone())
 
@@ -133,6 +133,7 @@ _migrar(Corte())
             bd._migrar(db)
             self.assertEqual(db.execute("SELECT mensaje_id, resultado_id, huella FROM operaciones").fetchone(),
                              ("m", "m", None))
+            self.assertIsNone(db.execute("SELECT modalidad FROM referencias_biblioteca").fetchone())
             db.execute("DELETE FROM mensajes WHERE id='m'")
             self.assertEqual(db.execute("SELECT mensaje_id, resultado_id FROM operaciones").fetchone(), (None, "m"))
             self.assertIsNone(db.execute("PRAGMA foreign_key_check").fetchone())
@@ -145,6 +146,33 @@ _migrar(Corte())
             db.commit()
             with self.assertRaises(ValueError):
                 bd._migrar(db)
+
+    def test_migracion_v4_preserva_reserva_externa(self):
+        with closing(sqlite3.connect(":memory:")) as db:
+            db.execute("PRAGMA foreign_keys=ON")
+            bd._migrar(db)
+            db.execute("DROP TABLE referencias_biblioteca")
+            db.execute("DROP TABLE sesiones_ws")
+            db.execute("DROP TABLE eventos")
+            for sql in bd.ESTRUCTURA:
+                if sql.startswith(("CREATE TABLE eventos ", "CREATE INDEX idx_eventos_destinatario ")):
+                    db.execute(sql)
+            db.execute("PRAGMA user_version=4")
+            db.execute(
+                "INSERT INTO eventos(destinatario_ref,tipo,creado_utc) VALUES (?, 'mensaje_confirmado',100)",
+                ("a" * 32,),
+            )
+            db.execute(
+                "INSERT INTO archivos_externos(token,remitente,destinatario,clave,generacion,"
+                "limite_utc,inactivo_utc,estado) VALUES (?,?,?,?,?,500,200,'recibiendo')",
+                ("a" * 32, "b" * 32, "c" * 32, "d" * 32, "e" * 64),
+            )
+            db.commit()
+            bd._migrar(db)
+            self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 6)
+            self.assertEqual(db.execute("SELECT estado,limite_utc FROM archivos_externos").fetchone(),
+                             ("recibiendo", 500))
+            self.assertEqual(db.execute("SELECT creado_utc,length(cursor) FROM eventos").fetchone(), (100, 32))
 
     def test_relaciones_y_adjunto_obligatorio(self):
         with sqlite3.connect(":memory:") as db:

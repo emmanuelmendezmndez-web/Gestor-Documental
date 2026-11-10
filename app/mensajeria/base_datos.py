@@ -4,15 +4,20 @@ import os
 import re
 import sqlite3
 import stat
+import time
 from contextlib import closing, contextmanager
 from pathlib import Path
 
 from app.coordinacion import BloqueoDatos
 from app.mensajeria.configuracion import directorio_configurado
 from app.mensajeria.identidad import exigir_identidad_verificada
-from app.temporal_privado import directorio_privado, verificar_acl_privada
+from app.temporal_privado import (
+    directorio_privado,
+    verificar_acl_base_privada,
+    verificar_acl_privada,
+)
 
-VERSION = 4
+VERSION = 6
 APPLICATION_ID = 0x53474D31
 NOMBRE_BASE = "mensajeria.sqlite3"
 LIMITE_ARCHIVO = 20 * 1024 * 1024
@@ -197,13 +202,47 @@ ESTRUCTURA_V4 = (
     "CREATE INDEX idx_archivos_limpieza ON archivos_externos(estado, vence_utc, limite_utc, reintento_utc)",
 )
 
+ESTRUCTURA_V5 = (
+    """CREATE TABLE referencias_biblioteca (
+        mensaje_id TEXT PRIMARY KEY NOT NULL REFERENCES mensajes(id) ON DELETE CASCADE,
+        modalidad TEXT NOT NULL CHECK (modalidad IN ('visualizar', 'visualizar_y_descargar'))
+    )""",
+)
+
+ESTRUCTURA_V6 = (
+    """CREATE TABLE eventos (
+        id INTEGER PRIMARY KEY,
+        mensaje_id TEXT REFERENCES mensajes(id) ON DELETE SET NULL,
+        destinatario_ref TEXT NOT NULL,
+        tipo TEXT NOT NULL,
+        creado_utc INTEGER NOT NULL,
+        entregado INTEGER NOT NULL DEFAULT 0 CHECK (entregado IN (0, 1)),
+        cursor TEXT NOT NULL UNIQUE DEFAULT (lower(hex(randomblob(16))))
+            CHECK (length(cursor)=32 AND cursor NOT GLOB '*[^0-9a-f]*')
+    )""",
+    "CREATE INDEX idx_eventos_destinatario ON eventos(destinatario_ref, id)",
+    "CREATE INDEX idx_eventos_retencion ON eventos(creado_utc, id)",
+    """CREATE TABLE sesiones_ws (
+        id TEXT PRIMARY KEY NOT NULL CHECK (length(id)=32 AND id NOT GLOB '*[^0-9a-f]*'),
+        usuario_ref TEXT NOT NULL,
+        version_sesion INTEGER NOT NULL,
+        generacion TEXT NOT NULL,
+        emitida_utc INTEGER NOT NULL,
+        vence_utc INTEGER NOT NULL CHECK (vence_utc > emitida_utc),
+        revocada INTEGER NOT NULL DEFAULT 0 CHECK (revocada IN (0, 1))
+    )""",
+    "CREATE INDEX idx_sesiones_ws_vence ON sesiones_ws(vence_utc)",
+)
+
 
 def _base_segura(path: Path) -> None:
-    if os.path.lexists(path):
+    try:
         datos = path.lstat()
-        if (not stat.S_ISREG(datos.st_mode) or getattr(datos, "st_file_attributes", 0) & 0x400
-                or datos.st_nlink != 1):
-            raise ValueError("La base de mensajería no es un archivo regular privado")
+    except FileNotFoundError:
+        return
+    if (not stat.S_ISREG(datos.st_mode) or getattr(datos, "st_file_attributes", 0) & 0x400
+            or datos.st_nlink != 1):
+        raise ValueError("La base de mensajería no es un archivo regular privado")
 
 
 def _validar_esquema(conexion: sqlite3.Connection, version: int) -> None:
@@ -217,6 +256,12 @@ def _validar_esquema(conexion: sqlite3.Connection, version: int) -> None:
         sentencias.extend(ESTRUCTURA_V3)
     if version >= 4:
         sentencias.extend(ESTRUCTURA_V4)
+    if version >= 5:
+        sentencias.extend(ESTRUCTURA_V5)
+    if version >= 6:
+        sentencias = [sql for sql in sentencias
+                      if not sql.startswith(("CREATE TABLE eventos ", "CREATE INDEX idx_eventos_destinatario "))]
+        sentencias.extend(ESTRUCTURA_V6)
     for sentencia in sentencias:
         coincidencia = re.match(r"CREATE (TABLE|TRIGGER|INDEX) (\w+)", sentencia)
         if coincidencia:
@@ -243,19 +288,29 @@ def _validar_esquema(conexion: sqlite3.Connection, version: int) -> None:
 
 
 @contextmanager
-def _conectar_infraestructura():
+def _conectar_infraestructura(*, lectura=False):
     """Acceso interno para verificaciones de infraestructura, no autorización."""
     raiz = directorio_configurado()
-    verificar_acl_privada(raiz, 30)
+    if lectura:
+        verificar_acl_base_privada(raiz, NOMBRE_BASE, 6)
+        for sufijo in ("-journal", "-wal", "-shm"):
+            _base_segura(raiz / (NOMBRE_BASE + sufijo))
+    else:
+        verificar_acl_privada(raiz, 30)
     ruta = raiz / NOMBRE_BASE
     _base_segura(ruta)
     if not ruta.is_file():
         raise FileNotFoundError("La base de mensajería no está inicializada")
-    with closing(sqlite3.connect(ruta.resolve().as_uri() + "?mode=rw", uri=True, timeout=30)) as db:
+    modo, espera = ("ro", 1) if lectura else ("rw", 30)
+    with closing(sqlite3.connect(ruta.resolve().as_uri() + "?mode=" + modo, uri=True, timeout=espera)) as db:
         db.row_factory = sqlite3.Row
-        db.execute("PRAGMA busy_timeout = 30000")
+        db.execute(f"PRAGMA busy_timeout = {espera * 1000}")
         db.execute("PRAGMA foreign_keys = ON")
         try:
+            if lectura:
+                fin = time.monotonic() + 3
+                db.set_progress_handler(lambda: int(time.monotonic() >= fin), 1000)
+                db.execute("BEGIN")
             if db.execute("PRAGMA user_version").fetchone()[0] != VERSION:
                 raise ValueError("Versión de mensajería desconocida")
             _validar_esquema(db, VERSION)
@@ -312,6 +367,23 @@ def _migrar(db: sqlite3.Connection) -> None:
             _validar_esquema(db, 3)
             for sentencia in ESTRUCTURA_V4:
                 db.execute(sentencia)
+            version = 4
+        if version == 4:
+            _validar_esquema(db, 4)
+            for sentencia in ESTRUCTURA_V5:
+                db.execute(sentencia)
+            version = 5
+        if version == 5:
+            _validar_esquema(db, 5)
+            db.execute("ALTER TABLE eventos RENAME TO eventos_v5")
+            db.execute("DROP INDEX idx_eventos_destinatario")
+            for sentencia in ESTRUCTURA_V6:
+                db.execute(sentencia)
+            db.execute(
+                "INSERT INTO eventos(id,mensaje_id,destinatario_ref,tipo,creado_utc,entregado) "
+                "SELECT id,mensaje_id,destinatario_ref,tipo,creado_utc,entregado FROM eventos_v5"
+            )
+            db.execute("DROP TABLE eventos_v5")
             db.execute(f"PRAGMA user_version = {VERSION}")
             version = VERSION
         if version != VERSION:

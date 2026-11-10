@@ -10,12 +10,15 @@ from datetime import UTC, datetime, timedelta, timezone
 from uuid import uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from app.mensajeria import eventos
 from app.mensajeria.base_datos import LIMITE_ARCHIVO
-from app.mensajeria.reconciliacion import _bases, _evaluar, _incidencias
+from app.mensajeria.reconciliacion import _bases, _vinculo_vigente
 
 RETENCION = 15 * 86400
 CUOTA_DIARIA = 50
 VIGENCIA_ARCHIVO = 3 * 3600
+VIGENCIA_DOCUMENTO = 7 * 86400
+MODALIDADES_DOCUMENTO = ("visualizar", "visualizar_y_descargar")
 
 
 class ErrorMotor(ValueError):
@@ -28,6 +31,7 @@ class Adjunto:
     referencia: str
     nombre_original: str | None = None
     tamano_bytes: int | None = None
+    modalidad: str | None = None
 
 
 @dataclass(frozen=True)
@@ -58,10 +62,12 @@ def _adjunto_valido(adjunto):
     if not isinstance(adjunto, Adjunto):
         raise ErrorMotor("adjunto_obligatorio")
     _referencia(adjunto.referencia)
-    if adjunto.tipo == "documento" and adjunto.nombre_original is None and adjunto.tamano_bytes is None:
+    if (adjunto.tipo == "documento" and adjunto.modalidad in MODALIDADES_DOCUMENTO
+            and adjunto.nombre_original is None and adjunto.tamano_bytes is None):
         return
     if (adjunto.tipo == "externo" and _texto_valido(adjunto.nombre_original, 260)
-            and type(adjunto.tamano_bytes) is int and 1 <= adjunto.tamano_bytes <= LIMITE_ARCHIVO):
+            and type(adjunto.tamano_bytes) is int and 1 <= adjunto.tamano_bytes <= LIMITE_ARCHIVO
+            and adjunto.modalidad is None):
         return
     raise ErrorMotor("adjunto_invalido")
 
@@ -108,7 +114,7 @@ def _transaccion(*usuarios):
     for usuario in usuarios:
         _referencia(usuario)
     with _bases() as (principal, db, generacion):
-        if _evaluar(principal, db, generacion)["estado"] != "identidad_coherente":
+        if not _vinculo_vigente(principal, db, generacion):
             raise ErrorMotor("identidad_no_reconciliada")
         for usuario in usuarios:
             if principal.execute(
@@ -149,6 +155,8 @@ def conversacion(actor, otro, *, crear=False):
 def _huella(destinatario, texto, adjunto):
     campos = [destinatario, texto, adjunto.tipo, adjunto.referencia,
               adjunto.nombre_original, adjunto.tamano_bytes]
+    if adjunto.tipo == "documento":
+        campos.append(adjunto.modalidad)
     return hashlib.sha256(json.dumps(campos, separators=(",", ":")).encode("ascii")).hexdigest()
 
 
@@ -178,8 +186,6 @@ def _persistir(principal, db, solicitud, pareja, clave, huella, texto, ahora, di
     adjunto = solicitud.adjunto
     documento = adjunto.referencia if adjunto.tipo == "documento" else None
     archivo = adjunto.referencia if adjunto.tipo == "externo" else None
-    if documento is not None and any(_incidencias(principal, (), (documento,)).values()):
-        raise ErrorMotor("adjunto_no_disponible")
     if archivo is not None and db.execute(
         "SELECT 1 FROM mensajes WHERE archivo_token=? UNION ALL "
         "SELECT 1 FROM limpieza WHERE archivo_token=?", (archivo, archivo),
@@ -188,7 +194,7 @@ def _persistir(principal, db, solicitud, pareja, clave, huella, texto, ahora, di
     _consumir_cuota(db, solicitud.remitente, dia)
     conversacion_id = _conversacion(db, pareja, crear=True)
     mensaje = uuid4().hex
-    vence = ahora + (VIGENCIA_ARCHIVO if archivo else 604800)
+    vence = ahora + (VIGENCIA_ARCHIVO if archivo else VIGENCIA_DOCUMENTO)
     db.execute(
         "INSERT INTO mensajes VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (mensaje, conversacion_id, solicitud.remitente, solicitud.destinatario, texto,
@@ -198,19 +204,17 @@ def _persistir(principal, db, solicitud, pareja, clave, huella, texto, ahora, di
         "INSERT INTO operaciones VALUES (?, ?, 'confirmada', ?, ?, ?)",
         (solicitud.remitente, clave, mensaje, mensaje, huella),
     )
-    db.execute(
-        "INSERT INTO eventos(mensaje_id, destinatario_ref, tipo, creado_utc) "
-        "VALUES (?, ?, 'mensaje_confirmado', ?)", (mensaje, solicitud.destinatario, ahora),
-    )
+    eventos.registrar(db, solicitud.destinatario, "mensaje_confirmado", ahora, mensaje)
     return mensaje
 
 
 def enviar(remitente, destinatario, texto, clave, adjunto, *, verificar_adjunto=None):
-    """Los archivos externos requieren la preparación privada de Mensajería."""
+    """Despacha únicamente a los verificadores internos de cada tipo de adjunto."""
     if isinstance(adjunto, Adjunto) and adjunto.tipo == "externo":
         from app.mensajeria.adjuntos import confirmar
         return confirmar(remitente, destinatario, texto, clave, adjunto)
-    return _enviar_con_adaptador(remitente, destinatario, texto, clave, adjunto, verificar_adjunto)
+    from app.mensajeria.biblioteca import confirmar
+    return confirmar(remitente, destinatario, texto, clave, adjunto)
 
 
 def _datos_envio(remitente, destinatario, texto, clave, adjunto):
@@ -224,6 +228,8 @@ def _datos_envio(remitente, destinatario, texto, clave, adjunto):
 
 def _enviar_con_adaptador(remitente, destinatario, texto, clave, adjunto, verificar_adjunto):
     pareja, huella = _datos_envio(remitente, destinatario, texto, clave, adjunto)
+    if adjunto.tipo != "externo":
+        raise ErrorMotor("adjunto_invalido")
     with _transaccion(*pareja) as (_, db, generacion, _, _):
         previa = _repeticion(db, remitente, clave, huella)
         if previa is not None:
@@ -273,13 +279,21 @@ def conversaciones(actor, *, archivadas=False):
 
 
 def archivar(actor, conversacion_id, *, archivada=True):
-    with _transaccion(actor) as (_, db, _, _, _):
+    with _transaccion(actor) as (_, db, _, ahora, _):
         _comprobar_participante(db, actor, conversacion_id)
-        db.execute(
-            "INSERT INTO estado_participante(conversacion_id, usuario_ref, archivada) VALUES (?, ?, ?) "
-            "ON CONFLICT(conversacion_id, usuario_ref) DO UPDATE SET archivada=excluded.archivada",
-            (conversacion_id, actor, int(archivada)),
-        )
+        if archivada:
+            cambio = db.execute(
+                "INSERT INTO estado_participante(conversacion_id, usuario_ref, archivada) VALUES (?, ?, 1) "
+                "ON CONFLICT(conversacion_id, usuario_ref) DO UPDATE SET archivada=1 WHERE archivada=0",
+                (conversacion_id, actor),
+            )
+        else:
+            cambio = db.execute(
+                "UPDATE estado_participante SET archivada=0 WHERE conversacion_id=? AND usuario_ref=? AND archivada=1",
+                (conversacion_id, actor),
+            )
+        if cambio.rowcount:
+            eventos.registrar(db, actor, "bandeja_actualizada", ahora)
 
 
 def mensajes(actor, conversacion_id, *, antes_de=None, limite=50):
@@ -326,7 +340,8 @@ def marcar_leido(actor, mensaje_id):
             (mensaje_id, actor, ahora - RETENCION),
         ).fetchone() is None:
             raise ErrorMotor("mensaje_no_disponible")
-        db.execute("INSERT OR IGNORE INTO lecturas VALUES (?, ?)", (mensaje_id, ahora))
+        if db.execute("INSERT OR IGNORE INTO lecturas VALUES (?, ?)", (mensaje_id, ahora)).rowcount:
+            eventos.registrar(db, actor, "mensaje_leido", ahora, mensaje_id)
 
 
 def depurar_historial(*, limite=200):
@@ -350,4 +365,5 @@ def depurar_historial(*, limite=200):
                 )
             db.execute("DELETE FROM eventos WHERE mensaje_id=?", (fila["id"],))
             db.execute("DELETE FROM mensajes WHERE id=?", (fila["id"],))
+        eventos.depurar(db, ahora, limite)
         return len(filas)

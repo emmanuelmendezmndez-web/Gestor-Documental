@@ -1,11 +1,19 @@
 """Rutas de SIGED."""
 
-from fastapi import APIRouter, Form, Request
+from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
+
 from app.actividad import registrar
 from app.mensajes import AVISOS
 from app.plantillas import templates
-from app.seguridad import autenticar, buscar_usuario, demasiados_intentos, limpiar_fallos, registrar_fallo, usuario_actual
+from app.seguridad import (
+    autenticar,
+    buscar_usuario,
+    demasiados_intentos,
+    limpiar_fallos,
+    registrar_fallo,
+    usuario_actual,
+)
 
 router = APIRouter()
 
@@ -69,6 +77,13 @@ def iniciar_sesion(
     request.session["usuario_id"] = fila["id"]
     request.session["version"] = fila["version_sesion"]
     request.session["saludo_clippy_pendiente"] = True
+    if getattr(request.app.state, "sesiones_ws_mensajeria", False):
+        from app.mensajeria.sesiones_ws import CAMPO
+        from app.mensajeria.sesiones_ws import registrar as registrar_ws
+
+        marca = registrar_ws(fila)
+        if marca is not None:
+            request.session[CAMPO] = marca
 
     registrar(
         request,
@@ -81,6 +96,13 @@ def iniciar_sesion(
 @router.post("/salir")
 def cerrar_sesion(request: Request):
     usuario = usuario_actual(request)
+    if "mensajeria_ws" in request.session:
+        from app.mensajeria.sesiones_ws import ERRORES_DATOS, revocar
+
+        try:
+            revocar(request.session)
+        except ERRORES_DATOS:
+            raise HTTPException(status_code=503, detail="No se pudo cerrar la sesión. Intenta nuevamente.") from None
     if usuario:
         registrar(request, "cierre_sesion", usuario=usuario)
 

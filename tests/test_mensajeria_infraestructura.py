@@ -6,6 +6,7 @@ import sys
 import sysconfig
 import tempfile
 import unittest
+from importlib.util import find_spec
 from pathlib import Path
 
 
@@ -21,6 +22,13 @@ class InfraestructuraMensajeriaAisladaTest(unittest.TestCase):
 
     def test_adjuntos(self):
         self._ejecutar("mensajeria_adjuntos_casos.py", plazo=1200)
+
+    def test_biblioteca(self):
+        self._ejecutar("mensajeria_biblioteca_casos.py", plazo=1200)
+
+    @unittest.skipUnless(find_spec("websockets"), "Requiere el grupo opcional mensajeria-ws")
+    def test_websocket(self):
+        self._ejecutar("mensajeria_websocket_casos.py", plazo=1200)
 
     def _ejecutar(self, casos, *seleccion, plazo=600):
         raiz = Path(__file__).resolve().parents[1]
