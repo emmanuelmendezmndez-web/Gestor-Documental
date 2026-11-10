@@ -5,6 +5,7 @@ from app.coordinacion import BloqueoDatos
 _bloqueo_servidor = BloqueoDatos(exclusivo=False)
 atexit.register(_bloqueo_servidor.cerrar)
 
+import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -59,7 +60,19 @@ async def lifespan(app: FastAPI):
             "No hay usuarios registrados. Crea el primero con: python -m app.crear_usuario"
         )
 
-    yield
+    if not os.environ.get("GESTOR_MENSAJERIA_DIR", "").strip():
+        yield
+        return
+
+    from app.mensajeria.limpieza_adjuntos import vigilar
+
+    detener = asyncio.Event()
+    limpieza = asyncio.create_task(vigilar(detener))
+    try:
+        yield
+    finally:
+        detener.set()
+        await limpieza
 
 
 app = FastAPI(title="Gestor Documental", lifespan=lifespan, dependencies=[Depends(validar_csrf)])

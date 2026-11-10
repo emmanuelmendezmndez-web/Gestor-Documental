@@ -32,7 +32,7 @@ class MensajeriaInfraestructuraCasos(unittest.TestCase):
         with bd._conectar_infraestructura() as db:
             self.assertEqual(db.execute("PRAGMA foreign_keys").fetchone()[0], 1)
             self.assertEqual(db.execute("PRAGMA busy_timeout").fetchone()[0], 30000)
-            self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 2)
+            self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 4)
             self.assertEqual(db.execute("PRAGMA application_id").fetchone()[0], bd.APPLICATION_ID)
             self.assertEqual(db.execute("SELECT estado FROM contexto").fetchone()[0], "no_verificada")
 
@@ -111,9 +111,31 @@ _migrar(Corte())
             db.execute("INSERT INTO conversaciones VALUES (?, ?, ?)", ("legado", "a" * 32, "b" * 32))
             db.commit()
             bd._migrar(db)
-            self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 2)
+            self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 4)
             self.assertEqual(db.execute("SELECT id FROM conversaciones").fetchone()[0], "legado")
             self.assertIsNone(db.execute("SELECT id FROM vinculo_identidad").fetchone())
+
+    def test_migracion_v2_conserva_operacion_confirmada(self):
+        with closing(sqlite3.connect(":memory:")) as db:
+            db.execute("PRAGMA foreign_keys=ON")
+            for sql in (*bd.ESTRUCTURA, *bd.ESTRUCTURA_V2):
+                db.execute(sql)
+            db.execute(f"PRAGMA application_id = {bd.APPLICATION_ID}")
+            db.execute("PRAGMA user_version = 2")
+            a, b = "a" * 32, "b" * 32
+            db.execute("INSERT INTO conversaciones VALUES ('c', ?, ?)", (a, b))
+            db.execute(
+                "INSERT INTO mensajes VALUES ('m', 'c', ?, ?, 'ficticio', 100, 200, "
+                "'documento', ?, NULL, NULL, NULL)", (a, b, "d" * 32),
+            )
+            db.execute("INSERT INTO operaciones VALUES (?, 'legada', 'confirmada', 'm')", (a,))
+            db.commit()
+            bd._migrar(db)
+            self.assertEqual(db.execute("SELECT mensaje_id, resultado_id, huella FROM operaciones").fetchone(),
+                             ("m", "m", None))
+            db.execute("DELETE FROM mensajes WHERE id='m'")
+            self.assertEqual(db.execute("SELECT mensaje_id, resultado_id FROM operaciones").fetchone(), (None, "m"))
+            self.assertIsNone(db.execute("PRAGMA foreign_key_check").fetchone())
 
     def test_falta_de_indice_o_disparador_rechaza_esquema(self):
         with sqlite3.connect(":memory:") as db:
@@ -152,7 +174,7 @@ _migrar(Corte())
             with self.assertRaises(sqlite3.IntegrityError):
                 db.execute("INSERT INTO cuotas VALUES ('a', '2026-01-01', 51)")
             with self.assertRaises(sqlite3.IntegrityError):
-                db.execute("INSERT INTO operaciones VALUES ('a', 'clave', 'confirmada', NULL)")
+                db.execute("INSERT INTO operaciones(usuario_ref, clave, estado) VALUES ('a', 'clave', 'confirmada')")
 
     def test_identidad_no_se_puede_habilitar(self):
         with self.assertRaises(IdentidadNoVerificada):

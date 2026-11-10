@@ -12,7 +12,7 @@ from app.mensajeria.configuracion import directorio_configurado
 from app.mensajeria.identidad import exigir_identidad_verificada
 from app.temporal_privado import directorio_privado, verificar_acl_privada
 
-VERSION = 2
+VERSION = 4
 APPLICATION_ID = 0x53474D31
 NOMBRE_BASE = "mensajeria.sqlite3"
 LIMITE_ARCHIVO = 20 * 1024 * 1024
@@ -144,6 +144,59 @@ ESTRUCTURA_V2 = (
     )""",
 )
 
+ESTRUCTURA_V3 = (
+    """CREATE TABLE operaciones (
+        usuario_ref TEXT NOT NULL,
+        clave TEXT NOT NULL,
+        estado TEXT NOT NULL CHECK (estado IN ('pendiente', 'confirmada', 'rechazada')),
+        mensaje_id TEXT REFERENCES mensajes(id) ON DELETE SET NULL,
+        resultado_id TEXT,
+        huella TEXT CHECK (length(huella) = 64 AND huella NOT GLOB '*[^0-9a-f]*'),
+        PRIMARY KEY (usuario_ref, clave),
+        CHECK ((estado = 'confirmada' AND resultado_id IS NOT NULL
+            AND (mensaje_id IS NULL OR mensaje_id = resultado_id))
+            OR (estado != 'confirmada' AND mensaje_id IS NULL AND resultado_id IS NULL AND huella IS NULL))
+    )""",
+    """CREATE TABLE lecturas (
+        mensaje_id TEXT PRIMARY KEY NOT NULL REFERENCES mensajes(id) ON DELETE CASCADE,
+        leido_utc INTEGER NOT NULL
+    )""",
+    """CREATE TABLE reloj_motor (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        ultimo_utc INTEGER NOT NULL CHECK (typeof(ultimo_utc) = 'integer'),
+        zona TEXT
+    )""",
+    "CREATE INDEX idx_mensajes_confirmados ON mensajes(confirmado_utc, id)",
+)
+
+ESTRUCTURA_V4 = (
+    """CREATE TABLE archivos_externos (
+        token TEXT PRIMARY KEY NOT NULL CHECK (length(token)=32 AND token NOT GLOB '*[^0-9a-f]*'),
+        remitente TEXT NOT NULL,
+        destinatario TEXT NOT NULL,
+        clave TEXT NOT NULL,
+        generacion TEXT NOT NULL,
+        limite_utc INTEGER NOT NULL,
+        inactivo_utc INTEGER NOT NULL,
+        estado TEXT NOT NULL CHECK (estado IN ('recibiendo', 'preparado', 'confirmado', 'retirado')),
+        identidad TEXT,
+        tamano INTEGER CHECK (tamano BETWEEN 1 AND 20971520),
+        huella TEXT,
+        mensaje_id TEXT UNIQUE,
+        vence_utc INTEGER,
+        reintento_utc INTEGER NOT NULL DEFAULT 0,
+        error TEXT,
+        UNIQUE(remitente, clave),
+        CHECK ((estado='recibiendo' AND tamano IS NULL AND huella IS NULL)
+            OR (estado='retirado' AND tamano IS NULL AND huella IS NOT NULL AND identidad IS NULL)
+            OR (estado IN ('preparado', 'confirmado') AND tamano IS NOT NULL
+                AND huella IS NOT NULL AND identidad IS NOT NULL)),
+        CHECK ((estado IN ('confirmado', 'retirado') AND mensaje_id IS NOT NULL AND vence_utc IS NOT NULL)
+            OR (estado IN ('recibiendo', 'preparado') AND mensaje_id IS NULL AND vence_utc IS NULL))
+    )""",
+    "CREATE INDEX idx_archivos_limpieza ON archivos_externos(estado, vence_utc, limite_utc, reintento_utc)",
+)
+
 
 def _base_segura(path: Path) -> None:
     if os.path.lexists(path):
@@ -157,7 +210,14 @@ def _validar_esquema(conexion: sqlite3.Connection, version: int) -> None:
     if conexion.execute("PRAGMA application_id").fetchone()[0] != APPLICATION_ID:
         raise ValueError("La base no pertenece a mensajería de SIGED")
     esperados = {}
-    for sentencia in (*ESTRUCTURA, *(ESTRUCTURA_V2 if version == 2 else ())):
+    sentencias = list(ESTRUCTURA)
+    if version >= 2:
+        sentencias.extend(ESTRUCTURA_V2)
+    if version >= 3:
+        sentencias.extend(ESTRUCTURA_V3)
+    if version >= 4:
+        sentencias.extend(ESTRUCTURA_V4)
+    for sentencia in sentencias:
         coincidencia = re.match(r"CREATE (TABLE|TRIGGER|INDEX) (\w+)", sentencia)
         if coincidencia:
             esperados[(coincidencia.group(1).lower(), coincidencia.group(2))] = " ".join(
@@ -233,8 +293,28 @@ def _migrar(db: sqlite3.Connection) -> None:
             _validar_esquema(db, 1)
             for sentencia in ESTRUCTURA_V2:
                 db.execute(sentencia)
+            version = 2
+        if version == 2:
+            _validar_esquema(db, 2)
+            db.execute("ALTER TABLE operaciones RENAME TO operaciones_v2")
+            for sentencia in ESTRUCTURA_V3:
+                db.execute(sentencia)
+            db.execute(
+                "INSERT INTO operaciones(usuario_ref, clave, estado, mensaje_id, resultado_id) "
+                "SELECT usuario_ref, clave, estado, mensaje_id, mensaje_id FROM operaciones_v2"
+            )
+            db.execute("DROP TABLE operaciones_v2")
+            db.execute(
+                "INSERT INTO reloj_motor SELECT 1, MAX(confirmado_utc), NULL FROM mensajes HAVING COUNT(*) > 0"
+            )
+            version = 3
+        if version == 3:
+            _validar_esquema(db, 3)
+            for sentencia in ESTRUCTURA_V4:
+                db.execute(sentencia)
             db.execute(f"PRAGMA user_version = {VERSION}")
-        elif version != VERSION:
+            version = VERSION
+        if version != VERSION:
             raise ValueError("Versión de mensajería desconocida")
         _validar_esquema(db, VERSION)
         db.commit()
