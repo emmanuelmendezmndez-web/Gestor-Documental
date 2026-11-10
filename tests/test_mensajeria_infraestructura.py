@@ -26,6 +26,9 @@ class InfraestructuraMensajeriaAisladaTest(unittest.TestCase):
     def test_biblioteca(self):
         self._ejecutar("mensajeria_biblioteca_casos.py", plazo=1200)
 
+    def test_http(self):
+        self._ejecutar("mensajeria_http_casos.py", plazo=1200)
+
     @unittest.skipUnless(find_spec("websockets"), "Requiere el grupo opcional mensajeria-ws")
     def test_websocket(self):
         self._ejecutar("mensajeria_websocket_casos.py", plazo=1200)

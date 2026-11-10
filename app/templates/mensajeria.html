@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% from "_iconos.html" import icono_archivo %}
+{% block titulo %}SIGED | Mensajes{% endblock %}
+{% block contenido %}
+<div class="mensajeria" id="mensajeria">
+    <aside class="mensajeria-bandeja" aria-labelledby="mensajeria-bandeja-titulo">
+        <header class="mensajeria-bandeja-cabecera">
+            <div class="mensajeria-linea">
+                <h1 id="mensajeria-bandeja-titulo" tabindex="-1">Conversaciones</h1>
+                <button type="button" class="mensajeria-secundario mensajeria-icono-boton" id="mensajeria-nuevo" aria-label="Nueva conversación" title="Nueva conversación" aria-haspopup="dialog">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v12H9l-5 4zM12 7v6M9 10h6"/></svg>
+                </button>
+            </div>
+            <label class="sr-only" for="mensajeria-buscar">Buscar conversaciones cargadas</label>
+            <div class="mensajeria-buscador">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="5.5"/><path d="m15 15 4 4"/></svg>
+                <input type="search" id="mensajeria-buscar" placeholder="Buscar conversaciones" autocomplete="off" maxlength="120">
+            </div>
+            <div class="mensajeria-bandeja-filtros" aria-label="Bandejas">
+                <button type="button" data-bandeja="activas" aria-pressed="true">Activas</button>
+                <button type="button" data-bandeja="archivadas" aria-pressed="false">Archivadas</button>
+            </div>
+        </header>
+        <div class="mensajeria-bandeja-listado">
+            <p class="mensajeria-estado" id="mensajeria-estado-lista" role="status">Cargando conversaciones…</p>
+            <ul class="mensajeria-conversaciones" id="mensajeria-conversaciones"></ul>
+            <button type="button" class="mensajeria-secundario mensajeria-mas" id="mensajeria-mas-chats" hidden>Ver más conversaciones</button>
+            <button type="button" class="mensajeria-secundario mensajeria-mas" id="mensajeria-reintentar-lista" hidden>Volver a cargar</button>
+        </div>
+    </aside>
+    <section class="mensajeria-bienvenida" aria-labelledby="mensajeria-bienvenida-titulo">
+        <img src="{{ url_for('static', path='img/mensajeria-bienvenida.svg') }}" alt="" width="300" height="174">
+        <h2 id="mensajeria-bienvenida-titulo">Comunicación documental en un solo lugar</h2>
+        <p>Selecciona una conversación para intercambiar mensajes y compartir documentos de forma segura dentro de SIGED.</p>
+        <p class="mensajeria-permisos">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 5 3 8 7 10 4-2 7-5 7-10V6zM9 12l2 2 4-4"/></svg>
+            Acceso controlado según los permisos de SIGED
+        </p>
+    </section>
+    <section class="mensajeria-chat" aria-labelledby="mensajeria-chat-titulo" hidden>
+        <header class="mensajeria-chat-cabecera">
+            <button type="button" class="mensajeria-secundario mensajeria-icono-boton mensajeria-volver" id="mensajeria-volver" aria-label="Volver a conversaciones" title="Volver a conversaciones">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5m6-6-6 6 6 6"/></svg>
+            </button>
+            <span class="mensajeria-avatar" id="mensajeria-chat-avatar" aria-hidden="true"></span>
+            <div class="mensajeria-chat-identidad"><h2 id="mensajeria-chat-titulo" tabindex="-1"></h2><p id="mensajeria-chat-area" hidden></p></div>
+            <details class="mensajeria-chat-acciones" id="mensajeria-acciones" hidden>
+                <summary aria-label="Acciones de conversación" title="Acciones de conversación">⋯</summary>
+                <div>
+                    <button type="button" id="mensajeria-leer" hidden>Marcar como leídos</button>
+                    <button type="button" id="mensajeria-archivar">Archivar conversación</button>
+                </div>
+            </details>
+        </header>
+        <div class="mensajeria-historial" id="mensajeria-historial" tabindex="0" role="region" aria-label="Historial de mensajes">
+            <button type="button" class="mensajeria-secundario mensajeria-mas" id="mensajeria-mas-mensajes" hidden>Ver mensajes anteriores</button>
+            <p class="mensajeria-estado" id="mensajeria-estado-historial" role="status"></p>
+            <button type="button" class="mensajeria-secundario mensajeria-mas" id="mensajeria-reintentar-historial" hidden>Volver a cargar</button>
+            <ol class="mensajeria-mensajes" id="mensajeria-mensajes"></ol>
+        </div>
+        <form class="mensajeria-compositor" id="mensajeria-compositor" autocomplete="off">
+            <div id="mensajeria-aviso" class="panel aviso" role="status" hidden></div>
+            <div id="mensajeria-adjunto-elegido" hidden></div>
+            <div class="mensajeria-transferencia" id="mensajeria-transferencia" hidden>
+                <span id="mensajeria-fase-envio" role="status"></span>
+                <progress id="mensajeria-progreso" aria-label="Progreso de subida" max="100" hidden></progress>
+            </div>
+            <label class="sr-only" for="mensajeria-texto">Mensaje</label>
+            <textarea id="mensajeria-texto" rows="2" placeholder="Escribe un mensaje" aria-describedby="mensajeria-caracteres mensajeria-reglas mensajeria-aviso"></textarea>
+            <div class="mensajeria-compositor-datos"><span id="mensajeria-reglas">Un adjunto por mensaje</span><span id="mensajeria-caracteres">0 / 300</span></div>
+            <div class="mensajeria-compositor-acciones">
+                <input id="mensajeria-archivo" type="file" accept=".pdf,.docx,.xlsx,.pptx,.txt,.png,.jpg,.jpeg" hidden>
+                <button type="button" class="mensajeria-secundario mensajeria-adjuntar" id="mensajeria-adjuntar" aria-label="Adjuntar archivo de hasta 20 MiB" title="Adjuntar archivo">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 13 5-5a2 2 0 0 1 3 3l-7 7a4 4 0 0 1-6-6l8-8a5 5 0 0 1 7 7l-8 8"/></svg><span>Archivo</span>
+                </button>
+                <button type="button" class="mensajeria-secundario mensajeria-adjuntar" id="mensajeria-biblioteca" aria-haspopup="dialog" title="Seleccionar de Biblioteca">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6c-2-2-5-2-8-1v13c3-1 6-1 8 1 2-2 5-2 8-1V5c-3-1-6-1-8 1zm0 0v13"/></svg><span>Biblioteca</span>
+                </button>
+                <span class="mensajeria-cuota" id="mensajeria-cuota"></span>
+                <button type="button" class="mensajeria-secundario" id="mensajeria-descartar" hidden>Descartar reintento</button>
+                <button type="submit" class="mensajeria-enviar" id="mensajeria-enviar" disabled>Enviar</button>
+            </div>
+        </form>
+    </section>
+    <dialog class="mensajeria-selector" id="mensajeria-selector" aria-labelledby="mensajeria-selector-titulo">
+        <header class="mensajeria-linea">
+            <h2 id="mensajeria-selector-titulo"></h2>
+            <form method="dialog"><button class="mensajeria-secundario mensajeria-icono-boton" aria-label="Cerrar selección">×</button></form>
+        </header>
+        <form id="mensajeria-buscar-selector" class="mensajeria-linea">
+            <label class="sr-only" for="mensajeria-filtro-selector">Buscar en el selector</label>
+            <input type="search" id="mensajeria-filtro-selector" maxlength="120" autocomplete="off" autofocus>
+            <button class="mensajeria-secundario">Buscar</button>
+        </form>
+        <p class="mensajeria-estado" id="mensajeria-estado-selector" role="status"></p>
+        <ul class="mensajeria-opciones" id="mensajeria-opciones"></ul>
+        <button type="button" class="mensajeria-secundario mensajeria-mas" id="mensajeria-mas-opciones" hidden>Ver más</button>
+        <p class="mensajeria-nota-selector" id="mensajeria-nota-selector" hidden>La opción de solo visualizar estará disponible cuando se habilite la vista previa segura.</p>
+    </dialog>
+    {% for formato in ("pdf", "docx", "xlsx", "pptx", "txt", "png", "jpg", "jpeg", "archivo") %}
+    <template id="mensajeria-formato-{{ formato }}">{{ icono_archivo(formato, 30) }}</template>
+    {% endfor %}
+</div>
+{% endblock %}

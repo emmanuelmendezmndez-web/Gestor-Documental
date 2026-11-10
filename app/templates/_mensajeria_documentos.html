@@ -1,0 +1,8 @@
+<ul id="mensajeria-documentos" data-siguiente="{{ siguiente or '' }}" data-descarga="{{ 'si' if descarga else 'no' }}">
+    {% for documento in documentos %}
+    <li data-referencia="{{ documento['mensajeria_ref'] }}">
+        <strong>{{ documento['titulo'] }}</strong>
+        <span>{{ documento['nombre_archivo'] }}</span>
+    </li>
+    {% endfor %}
+</ul>

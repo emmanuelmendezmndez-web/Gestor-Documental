@@ -115,6 +115,8 @@ def _copiar(flujo, comprobar, inactividad, *, escribir=None):
         inicio = time.monotonic()
         try:
             bloque = flujo.read(formatos.BLOQUE)
+        except motor.ErrorMotor:
+            raise
         except Exception:  # noqa: BLE001 - Una fuente interna puede lanzar errores con datos privados.
             raise motor.ErrorMotor("carga_interrumpida") from None
         if time.monotonic() - inicio >= inactividad:
@@ -250,7 +252,7 @@ def preparar(remitente, destinatario, clave, nombre, flujo):
         if nueva:
             try:
                 tamano = _recibir(zona, fila, nombre, extension, flujo, limites, comprobar)
-            except (Exception, KeyboardInterrupt):
+            except BaseException:
                 # Acorta la espera solo para nuestra intención aún sin publicar.
                 from app.mensajeria.limpieza_adjuntos import abortar
                 abortar(zona, fila["token"])
@@ -312,15 +314,25 @@ def confirmar(remitente, destinatario, texto, clave, adjunto):
             return mensaje
 
 
-def _autorizado(db, actor, mensaje, ahora):
+def confirmar_preparado(actor, destinatario, texto, clave, nombre, tamano):
+    """Resuelve el token físico desde la operación propia, nunca desde el cliente."""
+    with motor._transaccion(actor, destinatario) as (_, db, _, _, _):
+        fila = _fila(db, actor, clave)
+        if fila is None or fila["destinatario"] != destinatario:
+            raise motor.ErrorMotor("preparacion_no_disponible")
+    return motor.enviar(actor, destinatario, texto, clave, motor.Adjunto("externo", fila["token"], nombre, tamano))
+
+
+def _autorizado(db, actor, mensaje, ahora, conversacion):
     fila = db.execute(
         """SELECT a.*, m.nombre_original, m.tamano_bytes FROM mensajes m
            JOIN archivos_externos a ON a.token=m.archivo_token AND a.mensaje_id=m.id
            AND a.remitente=m.remitente_ref AND a.destinatario=m.destinatario_ref
            AND a.vence_utc=m.vence_utc
            WHERE m.id=? AND ? IN (m.remitente_ref, m.destinatario_ref)
-           AND a.estado='confirmado' AND m.vence_utc>?""",
-        (mensaje, actor, ahora),
+           AND a.estado='confirmado' AND m.vence_utc>?
+           AND (? IS NULL OR m.conversacion_id=?)""",
+        (mensaje, actor, ahora, conversacion, conversacion),
     ).fetchone()
     if fila is None:
         raise motor.ErrorMotor("adjunto_no_disponible")
@@ -328,24 +340,38 @@ def _autorizado(db, actor, mensaje, ahora):
 
 
 @contextmanager
-def abrir_descarga(actor, mensaje):
-    """Devuelve un flujo binario privado y cabeceras para una futura respuesta adjunta."""
+def _abrir_adjunto(actor, mensaje, conversacion):
     motor._referencia(mensaje)
     with ExitStack() as pila:
         with _seguridad():
             zona = pila.enter_context(disco.zona())
             with motor._transaccion(actor) as (_, db, generacion, ahora, _):
-                fila = _autorizado(db, actor, mensaje, ahora)
+                fila = _autorizado(db, actor, mensaje, ahora, conversacion)
             archivo = _verificar_archivo(zona, fila, fila["nombre_original"], fila["tamano_bytes"], pila)
             with motor._transaccion(actor) as (_, db, actual, ahora, _):
-                if actual != generacion or tuple(_autorizado(db, actor, mensaje, ahora)) != tuple(fila):
+                if actual != generacion or tuple(_autorizado(db, actor, mensaje, ahora, conversacion)) != tuple(fila):
                     raise motor.ErrorMotor("adjunto_no_disponible")
-            nombre = quote(fila["nombre_original"], safe="")
-            cabeceras = {
-                "Content-Type": "application/octet-stream",
-                "Content-Disposition": f"attachment; filename*=UTF-8''{nombre}",
-                "Content-Length": str(fila["tamano_bytes"]),
-                "Cache-Control": "private, no-store",
-                "X-Content-Type-Options": "nosniff",
-            }
-        yield archivo, cabeceras
+        yield archivo, fila
+
+
+def tarjeta(actor, mensaje, conversacion):
+    with _abrir_adjunto(actor, mensaje, conversacion) as (_, fila):
+        nombre = fila["nombre_original"]
+        extension = formatos.extension(nombre)
+        return {"origen": "externo", "estado": "disponible", "nombre_original": nombre,
+                "formato": "jpg" if extension == ".jpeg" else extension[1:], "extension": extension,
+                "tamano_bytes": fila["tamano_bytes"], "vence_utc": fila["vence_utc"], "acciones": ["descargar"]}
+
+
+@contextmanager
+def abrir_descarga(actor, mensaje, *, conversacion=None):
+    """Devuelve el original abierto y cabeceras seguras."""
+    with _abrir_adjunto(actor, mensaje, conversacion) as (archivo, fila):
+        nombre = quote(fila["nombre_original"], safe="")
+        yield archivo, {
+            "Content-Type": "application/octet-stream",
+            "Content-Disposition": f"attachment; filename*=UTF-8''{nombre}",
+            "Content-Length": str(fila["tamano_bytes"]),
+            "Cache-Control": "private, no-store",
+            "X-Content-Type-Options": "nosniff",
+        }

@@ -9,6 +9,9 @@
     <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}?v={% if pagina == 'biblioteca' %}33{% else %}29{% endif %}&busqueda=3">
     {% if usuario %}
     <link rel="stylesheet" href="{{ url_for('static', path='clippy/clippy.css') }}?v=8">
+    {% if request.app.state.mensajeria_interfaz %}
+    <link rel="stylesheet" href="{{ url_for('static', path='styles-13-mensajeria.css') }}">
+    {% endif %}
     {% endif %}
 </head>
 <body>
@@ -40,6 +43,12 @@
                     <a class="sidebar-link" href="/expedientes" title="Expedientes" aria-label="Expedientes" {% if pagina in ("expedientes", "expediente_nuevo") %}aria-current="page"{% endif %}>
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path class="nav-icono-carpeta" d="M4 8V5h6l2 2h7v2M7 4h11v3"/><path d="M3 10h18l-2 9H4z"/></svg>
                         <span>Expedientes</span>
+                    </a>
+                    {% endif %}
+                    {% if request.app.state.mensajeria_interfaz %}
+                    <a class="sidebar-link mensajeria-enlace" href="/mensajeria" title="Mensajería" aria-label="Mensajería" {% if pagina == "mensajeria" %}aria-current="page"{% endif %}>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v12H9l-5 4zM8 8h8M8 12h5"/></svg>
+                        <span>Mensajería</span><small class="mensajeria-contador" data-mensajeria-no-leidos aria-hidden="true" hidden></small>
                     </a>
                     {% endif %}
                     {% if puede("subir") %}
@@ -93,7 +102,7 @@
                     <nav class="migas-pan" aria-label="Migas de pan">
                         <a href="/inicio">SIGED</a>
                         <span aria-hidden="true">/</span>
-                        <span aria-current="page">{% if pagina == "inicio" %}Panel de control{% elif pagina == "biblioteca" %}Biblioteca{% elif pagina == "expedientes" %}Expedientes{% elif pagina == "expediente_nuevo" %}Nuevo expediente{% elif pagina == "buscar" %}Búsqueda global{% elif pagina == "subir" %}Subir documento{% elif pagina == "usuarios" %}Usuarios{% elif pagina == "papelera" %}Papelera{% elif pagina == "actividad" %}Actividad{% elif pagina == "cuenta" %}Mi cuenta{% else %}Panel de control{% endif %}</span>
+                        <span aria-current="page">{% if pagina == "inicio" %}Panel de control{% elif pagina == "mensajeria" %}Mensajes{% elif pagina == "biblioteca" %}Biblioteca{% elif pagina == "expedientes" %}Expedientes{% elif pagina == "expediente_nuevo" %}Nuevo expediente{% elif pagina == "buscar" %}Búsqueda global{% elif pagina == "subir" %}Subir documento{% elif pagina == "usuarios" %}Usuarios{% elif pagina == "papelera" %}Papelera{% elif pagina == "actividad" %}Actividad{% elif pagina == "cuenta" %}Mi cuenta{% else %}Panel de control{% endif %}</span>
                     </nav>
                     <span class="topbar-descripcion">Plataforma digital de archivos y control documental institucional</span>
                 </div>
@@ -107,6 +116,18 @@
                     </button>
                     <button type="button" class="boton-busqueda-asistida" id="abrir-busqueda-asistida" aria-haspopup="dialog" aria-label="Buscar con Clippy" title="Buscar con Clippy">✨ <span>Con Clippy</span></button>
                 </form>
+                {% if request.app.state.mensajeria_interfaz %}
+                <details class="mensajeria-campana" id="mensajeria-campana">
+                    <summary aria-label="Notificaciones" title="Notificaciones">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 17h14l-2-3V9a5 5 0 0 0-10 0v5zM10 20h4"/></svg>
+                    </summary>
+                    <section class="mensajeria-notificaciones" aria-labelledby="mensajeria-notificaciones-titulo">
+                        <h2 id="mensajeria-notificaciones-titulo">Notificaciones</h2>
+                        <p>Las notificaciones aparecerán aquí cuando estén disponibles.</p>
+                        <a href="/mensajeria">Ir a Mensajería</a>
+                    </section>
+                </details>
+                {% endif %}
                 <span class="rol-topbar">{{ usuario["rol_nombre"] }}</span>
             </div>
     {% else %}
@@ -221,6 +242,9 @@
             <script src="{{ url_for('static', path='clippy/jquery.min.js') }}"></script>
             <script src="{{ url_for('static', path='clippy/clippy.min.js') }}"></script>
             <script src="{{ url_for('static', path='clippy_asistente.js') }}?v=6"></script>
+            {% if request.app.state.mensajeria_interfaz %}
+            <script type="module" src="{{ url_for('static', path='mensajeria.js') }}"></script>
+            {% endif %}
             <footer>Todos los derechos reservados &copy; 2026</footer>
         </div>
     </div>

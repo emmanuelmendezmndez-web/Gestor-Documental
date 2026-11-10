@@ -5,6 +5,7 @@ import json
 import os
 import re
 from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta, timezone
 from uuid import uuid4
@@ -19,6 +20,7 @@ CUOTA_DIARIA = 50
 VIGENCIA_ARCHIVO = 3 * 3600
 VIGENCIA_DOCUMENTO = 7 * 86400
 MODALIDADES_DOCUMENTO = ("visualizar", "visualizar_y_descargar")
+_AUTORIZACION = ContextVar("autorizacion_mensajeria", default=None)
 
 
 class ErrorMotor(ValueError):
@@ -92,7 +94,7 @@ def _zona():
         raise ErrorMotor("zona_horaria_no_disponible") from None
 
 
-def _reloj(db):
+def _reloj(db, *, actualizar=True):
     nombre, zona = _zona()
     ahora = _ahora()
     previo = db.execute("SELECT ultimo_utc, zona FROM reloj_motor WHERE id=1").fetchone()
@@ -101,27 +103,42 @@ def _reloj(db):
             raise ErrorMotor("zona_horaria_incompatible")
         if ahora < previo["ultimo_utc"]:
             raise ErrorMotor("reloj_retrocedio")
-    db.execute(
-        "INSERT INTO reloj_motor VALUES (1, ?, ?) ON CONFLICT(id) "
-        "DO UPDATE SET ultimo_utc=excluded.ultimo_utc, zona=excluded.zona",
-        (ahora, nombre),
-    )
+    if actualizar:
+        db.execute(
+            "INSERT INTO reloj_motor VALUES (1, ?, ?) ON CONFLICT(id) "
+            "DO UPDATE SET ultimo_utc=excluded.ultimo_utc, zona=excluded.zona",
+            (ahora, nombre),
+        )
     return ahora, datetime.fromtimestamp(ahora, zona).date().isoformat()
+
+
+@contextmanager
+def con_autorizacion(comprobar, *, lectura):
+    """El transporte puede exigir autorización también en el punto de commit."""
+    token = _AUTORIZACION.set((comprobar, lectura))
+    try:
+        yield
+    finally:
+        _AUTORIZACION.reset(token)
 
 
 @contextmanager
 def _transaccion(*usuarios):
     for usuario in usuarios:
         _referencia(usuario)
-    with _bases() as (principal, db, generacion):
+    autorizacion = _AUTORIZACION.get()
+    lectura = autorizacion is not None and autorizacion[1]
+    with (_bases(lectura=True) if lectura else _bases()) as (principal, db, generacion):
         if not _vinculo_vigente(principal, db, generacion):
             raise ErrorMotor("identidad_no_reconciliada")
+        if autorizacion is not None:
+            autorizacion[0](principal, db, generacion, _ahora())
         for usuario in usuarios:
             if principal.execute(
                 "SELECT 1 FROM usuarios WHERE mensajeria_ref=? AND activo=1", (usuario,),
             ).fetchone() is None:
                 raise ErrorMotor("usuario_no_disponible")
-        ahora, dia = _reloj(db)
+        ahora, dia = _reloj(db, actualizar=not lectura)
         yield principal, db, generacion, ahora, dia
 
 
@@ -252,10 +269,12 @@ def _enviar_con_adaptador(remitente, destinatario, texto, clave, adjunto, verifi
 
 def cuota(actor):
     with _transaccion(actor) as (_, db, _, _, dia):
-        fila = db.execute(
-            "SELECT envios FROM cuotas WHERE usuario_ref=? AND dia_local=?", (actor, dia),
-        ).fetchone()
-        return {"dia": dia, "envios": fila[0] if fila else 0, "limite": CUOTA_DIARIA}
+        return _cuota(db, actor, dia)
+
+
+def _cuota(db, actor, dia):
+    fila = db.execute("SELECT envios FROM cuotas WHERE usuario_ref=? AND dia_local=?", (actor, dia)).fetchone()
+    return {"dia": dia, "envios": fila[0] if fila else 0, "limite": CUOTA_DIARIA}
 
 
 def _comprobar_participante(db, actor, conversacion_id):
@@ -332,12 +351,13 @@ def mensajes(actor, conversacion_id, *, antes_de=None, limite=50):
         return resultado
 
 
-def marcar_leido(actor, mensaje_id):
+def marcar_leido(actor, mensaje_id, *, conversacion_id=None):
     _referencia(mensaje_id)
     with _transaccion(actor) as (_, db, _, ahora, _):
         if db.execute(
-            "SELECT 1 FROM mensajes WHERE id=? AND destinatario_ref=? AND confirmado_utc>?",
-            (mensaje_id, actor, ahora - RETENCION),
+            "SELECT 1 FROM mensajes WHERE id=? AND destinatario_ref=? AND confirmado_utc>? "
+            "AND (? IS NULL OR conversacion_id=?)",
+            (mensaje_id, actor, ahora - RETENCION, conversacion_id, conversacion_id),
         ).fetchone() is None:
             raise ErrorMotor("mensaje_no_disponible")
         if db.execute("INSERT OR IGNORE INTO lecturas VALUES (?, ?)", (mensaje_id, ahora)).rowcount:

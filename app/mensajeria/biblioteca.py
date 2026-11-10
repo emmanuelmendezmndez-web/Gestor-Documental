@@ -29,11 +29,11 @@ def _sin_detalles():
         raise motor.ErrorMotor(NO_DISPONIBLE) from None
 
 
-def _consultar(principal, referencia, participantes):
+def _alcance(principal, participantes):
     """Aplica los mismos permisos y el filtro de área que las rutas documentales."""
     puede_descargar = True
     filtros = []
-    parametros = [referencia]
+    parametros = []
     for participante in participantes:
         usuario = principal.execute(
             "SELECT rol, departamento FROM usuarios WHERE mensajeria_ref=? AND activo=1", (participante,),
@@ -45,10 +45,15 @@ def _consultar(principal, referencia, participantes):
         filtros.append(filtro)
         parametros.extend(area)
         puede_descargar &= "descargar" in permisos
+    return "".join(filtros), parametros, puede_descargar
+
+
+def _consultar(principal, referencia, participantes):
+    alcance, parametros, puede_descargar = _alcance(principal, participantes)
     documento = principal.execute(
         "SELECT nombre_archivo, nombre_guardado, mensajeria_original, tamano_bytes, version "
-        "FROM documentos WHERE mensajeria_ref=? AND eliminado_en IS NULL" + "".join(filtros),
-        parametros,
+        "FROM documentos WHERE mensajeria_ref=? AND eliminado_en IS NULL" + alcance,
+        (referencia, *parametros),
     ).fetchone()
     if documento is None:
         raise motor.ErrorMotor(NO_DISPONIBLE)
@@ -136,7 +141,7 @@ def _formato(archivo, documento):
 
 
 @contextmanager
-def _acceso(actor, conversacion, mensaje, accion=None):
+def _acceso(actor, conversacion, mensaje, accion=None, *, informar_estado_sesion=False):
     with ExitStack() as pila:
         try:
             motor._referencia(conversacion)
@@ -156,6 +161,10 @@ def _acceso(actor, conversacion, mensaje, accion=None):
                 if (generacion != actual or estado != _estado(principal, db, actor, conversacion, mensaje, ahora)
                         or fisica != _identidad_abierta(ruta, archivo, documento["tamano_bytes"])):
                     raise motor.ErrorMotor(NO_DISPONIBLE)
+        except motor.ErrorMotor as error:
+            if informar_estado_sesion and str(error) in {"sesion_no_valida", "identidad_no_reconciliada"}:
+                raise
+            raise motor.ErrorMotor(NO_DISPONIBLE) from None
         except (OSError, RuntimeError, ValueError, sqlite3.Error):
             raise motor.ErrorMotor(NO_DISPONIBLE) from None
         yield archivo, {
@@ -165,12 +174,14 @@ def _acceso(actor, conversacion, mensaje, accion=None):
         }
 
 
-def tarjeta(actor, conversacion, mensaje):
+def tarjeta(actor, conversacion, mensaje, *, informar_estado_sesion=False):
     """Proyección autorizada para un mensaje. Su contenido no debe cachearse."""
     try:
-        with _acceso(actor, conversacion, mensaje) as (_, metadatos):
+        with _acceso(actor, conversacion, mensaje, informar_estado_sesion=informar_estado_sesion) as (_, metadatos):
             return metadatos
-    except motor.ErrorMotor:
+    except motor.ErrorMotor as error:
+        if str(error) != NO_DISPONIBLE:
+            raise
         return {"estado": "no_disponible"}
 
 
@@ -182,8 +193,9 @@ def abrir_visualizacion(actor, conversacion, mensaje):
 
 
 @contextmanager
-def abrir_descarga(actor, conversacion, mensaje):
-    with _acceso(actor, conversacion, mensaje, "descargar") as (archivo, metadatos):
+def abrir_descarga(actor, conversacion, mensaje, *, informar_estado_sesion=False):
+    with _acceso(actor, conversacion, mensaje, "descargar",
+                 informar_estado_sesion=informar_estado_sesion) as (archivo, metadatos):
         nombre = quote(metadatos["nombre_original"], safe="")
         yield archivo, {
             "Content-Type": "application/octet-stream",

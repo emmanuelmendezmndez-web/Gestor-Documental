@@ -2,6 +2,7 @@
 
 import re
 import sqlite3
+from contextlib import contextmanager
 from dataclasses import dataclass
 from secrets import token_hex
 
@@ -117,6 +118,25 @@ def _identidad(principal, db, datos, generacion, ahora):
         (datos.usuario_id, registro[0], datos.version),
     ).fetchone()
     return Identidad(registro[0], generacion) if usuario is not None else None
+
+
+@contextmanager
+def autorizar_http(datos, *, lectura):
+    if datos is None:
+        raise motor.ErrorMotor("sesion_no_valida")
+    with _bases(lectura=True) as (principal, db, generacion):
+        if not _vinculo_vigente(principal, db, generacion):
+            raise motor.ErrorMotor("identidad_no_reconciliada")
+        identidad = _identidad(principal, db, datos, generacion, motor._ahora())
+        if identidad is None:
+            raise motor.ErrorMotor("sesion_no_valida")
+
+    def comprobar(principal, db, generacion, ahora):
+        if _identidad(principal, db, datos, generacion, ahora) != identidad:
+            raise motor.ErrorMotor("sesion_no_valida")
+
+    with motor.con_autorizacion(comprobar, lectura=lectura):
+        yield identidad.usuario_ref
 
 
 def consultar_lote(solicitudes, secreto):

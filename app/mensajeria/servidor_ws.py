@@ -13,7 +13,11 @@ def main():
     parser.add_argument("--origen", action="append", required=True)
     parser.add_argument("--puerto", type=int, default=8000)
     parser.add_argument("--proxy-loopback", action="store_true")
+    parser.add_argument("--http-api", action="store_true", help="Monta también la API experimental de Fase 7A")
+    parser.add_argument("--interfaz", action="store_true", help="Monta la interfaz experimental de Fase 7B")
     args = parser.parse_args()
+    if args.interfaz and not args.http_api:
+        parser.error("--interfaz requiere --http-api")
     if not all(os.environ.get(k, "").strip() for k in ("GESTOR_DATA_DIR", "GESTOR_MENSAJERIA_DIR")):
         parser.error("Configura los directorios explícitos del entorno de prueba")
     if find_spec("websockets") is None:
@@ -30,6 +34,14 @@ def main():
         parser.error("El modo de proxy requiere GESTOR_HTTPS_ONLY")
     try:
         instalar(app, origenes=args.origen, secreto=obtener_clave_secreta(), https_only=COOKIE_HTTPS_ONLY)
+        if args.http_api:
+            from app.mensajeria.api_http import instalar as instalar_http
+
+            instalar_http(app, origenes=args.origen, https_only=COOKIE_HTTPS_ONLY)
+        if args.interfaz:
+            from app.mensajeria.interfaz import instalar as instalar_interfaz
+
+            instalar_interfaz(app, origenes=args.origen, https_only=COOKIE_HTTPS_ONLY)
     except ValueError as error:
         parser.error(str(error))
     uvicorn.run(
