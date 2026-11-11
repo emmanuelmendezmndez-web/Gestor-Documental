@@ -14,6 +14,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.responses import JSONResponse, StreamingResponse
 
 from app.csrf import validar_csrf
+from app.diagnostico_io import detalle_error
 from app.inventario_restauracion import pares_unicos
 from app.mensajeria import (
     adjuntos,
@@ -103,8 +104,7 @@ def _error(error):
                     "adjunto_invalido"}:
         estado = 400
     else:
-        # Los mensajes de excepción pueden contener rutas. Solo se registra la clase.
-        logger.warning("Operación HTTP de Mensajería indisponible (%s)", type(error).__name__)
+        logger.warning("Operación HTTP de Mensajería indisponible (%s)", detalle_error(error))
         codigo, estado = "servicio_no_disponible", 503
     return _Privada({"error": codigo}, status_code=estado)
 

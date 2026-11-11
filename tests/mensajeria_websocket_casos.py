@@ -273,9 +273,9 @@ class WebSocketCasos(unittest.TestCase):
     def test_acl_base_se_revalida_si_cambia_el_descriptor(self):
         ruta = RAIZ / ".siged-mensajeria"
         comprobar = temporal_privado.verificar_acl_base_privada
-        temporal_privado._confirmar_acl_base.cache_clear()
+        temporal_privado._acl_base_verificadas.clear()
         with patch.object(temporal_privado, "_verificar_acl", wraps=temporal_privado._verificar_acl) as control:
-            comprobar(ruta, bd.NOMBRE_BASE, 6)
+            comprobar(ruta, bd.NOMBRE_BASE, 30)
             comprobar(ruta, bd.NOMBRE_BASE, 6)
             self.assertEqual(control.call_count, 1)
         volumen, archivo, descriptor = temporal_privado._huella_acl(ruta)

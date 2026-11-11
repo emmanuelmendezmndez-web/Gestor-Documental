@@ -1,5 +1,6 @@
 """Directorios privados NTFS; no modifica ACL de rutas preexistentes."""
 import ctypes
+import errno
 import os
 import re
 import shutil
@@ -10,6 +11,7 @@ from contextlib import contextmanager
 from ctypes import wintypes as w
 from functools import lru_cache
 from pathlib import Path
+from threading import Lock
 
 _SCRIPT = r'''
 $ErrorActionPreference = 'Stop'
@@ -140,9 +142,9 @@ def _verificar_acl(path, segundos, max_entradas, solo_raiz, archivo=""):
     try:
         resultado = subprocess.run([str(powershell), '-NoProfile', '-NonInteractive', '-Command', _SCRIPT_VERIFICAR], env=env, capture_output=True, timeout=segundos, check=False)
     except subprocess.TimeoutExpired as exc:
-        raise OSError('Comprobación ACL incompleta') from exc
+        raise OSError(errno.ETIMEDOUT, 'Comprobación ACL incompleta') from exc
     if resultado.returncode:
-        raise OSError('ACL privada no verificable')
+        raise OSError('ACL privada no verificable') from subprocess.CalledProcessError(resultado.returncode, 'verificar_acl')
 
 
 def verificar_acl_privada(path, segundos, max_entradas=300000):
@@ -150,13 +152,26 @@ def verificar_acl_privada(path, segundos, max_entradas=300000):
     _verificar_acl(path, segundos, max_entradas, False)
 
 
+_bloqueo_acl_base = Lock()
+_acl_base_verificadas = {}
+
+
 def verificar_acl_base_privada(path, nombre, segundos):
     """Verifica raíz y archivo SQLite sin recorrer objetos ajenos a la lectura."""
     if not re.fullmatch(r"[a-z0-9_]+\.sqlite3", nombre):
         raise ValueError("Nombre de base privada inválido")
     path = Path(path)
-    huellas = _huella_acl(path), _huella_acl(path / nombre)
-    _confirmar_acl_base(path, nombre, segundos, huellas)
+    with _bloqueo_acl_base:
+        huellas = _huella_acl(path), _huella_acl(path / nombre)
+        clave = (path, nombre, huellas)
+        if clave in _acl_base_verificadas:
+            return
+        _verificar_acl(path, segundos, 2, True, nombre)
+        if huellas != (_huella_acl(path), _huella_acl(path / nombre)):
+            raise OSError("ACL cambió durante la comprobación")
+        if len(_acl_base_verificadas) >= 4:
+            del _acl_base_verificadas[next(iter(_acl_base_verificadas))]
+        _acl_base_verificadas[clave] = True
 
 
 @lru_cache(maxsize=1)
@@ -175,18 +190,11 @@ def _huella_acl(path):
     # OWNER | GROUP | DACL. NTFS acota el descriptor a 64 KiB.
     descriptor = ctypes.create_string_buffer(65536)
     usados = w.DWORD()
-    if not api(str(path), 7, descriptor, len(descriptor), ctypes.byref(usados)) or not 0 < usados.value <= len(descriptor):
+    if not api(str(path), 7, descriptor, len(descriptor), ctypes.byref(usados)):
+        raise ctypes.WinError(ctypes.get_last_error())
+    if not 0 < usados.value <= len(descriptor):
         raise OSError("Descriptor ACL no verificable")
     return info.st_dev, info.st_ino, descriptor.raw[:usados.value]
-
-
-@lru_cache(maxsize=4)
-def _confirmar_acl_base(path, nombre, segundos, huellas):
-    # Solo se reutiliza el resultado con identidad y descriptor idénticos
-    # dentro del mismo proceso SIGED, que opera con una sola cuenta.
-    _verificar_acl(path, segundos, 2, True, nombre)
-    if huellas != (_huella_acl(path), _huella_acl(path / nombre)):
-        raise OSError("ACL cambió durante la comprobación")
 
 
 def verificar_acl_raiz_conservacion(path, segundos, max_entradas=300000):

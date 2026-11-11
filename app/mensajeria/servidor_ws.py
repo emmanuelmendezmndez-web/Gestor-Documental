@@ -7,6 +7,31 @@ from importlib.util import find_spec
 import uvicorn
 
 
+def montar(app, origenes, *, https_only, http_api=True, interfaz=True):
+    from app.mensajeria.websocket import instalar
+    from app.seguridad import obtener_clave_secreta
+
+    instalar(app, origenes=origenes, secreto=obtener_clave_secreta(), https_only=https_only)
+    if http_api:
+        from app.mensajeria.api_http import instalar as instalar_http
+
+        instalar_http(app, origenes=origenes, https_only=https_only)
+    if interfaz:
+        from app.mensajeria.interfaz import instalar as instalar_interfaz
+
+        instalar_interfaz(app, origenes=origenes, https_only=https_only)
+
+
+def transporte():
+    from app.mensajeria.websocket import MAX_TRAMA
+
+    # SansIO de Uvicorn 0.54 no aplica ws_max_queue. Mantener el límite efectivo de dos.
+    return {
+        "ws": "websockets", "ws_max_size": MAX_TRAMA, "ws_max_queue": 2, "ws_per_message_deflate": False,
+        "ws_ping_interval": 20, "ws_ping_timeout": 20,
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--habilitar", action="store_true", required=True)
@@ -27,28 +52,17 @@ def main():
     if DATA_DIR == BASE_DIR or not 1 <= args.puerto <= 65535:
         parser.error("Se requiere un directorio de datos separado y un puerto válido")
     from app.main import COOKIE_HTTPS_ONLY, app
-    from app.mensajeria.websocket import MAX_TRAMA, instalar
-    from app.seguridad import obtener_clave_secreta
 
     if args.proxy_loopback and not COOKIE_HTTPS_ONLY:
         parser.error("El modo de proxy requiere GESTOR_HTTPS_ONLY")
     try:
-        instalar(app, origenes=args.origen, secreto=obtener_clave_secreta(), https_only=COOKIE_HTTPS_ONLY)
-        if args.http_api:
-            from app.mensajeria.api_http import instalar as instalar_http
-
-            instalar_http(app, origenes=args.origen, https_only=COOKIE_HTTPS_ONLY)
-        if args.interfaz:
-            from app.mensajeria.interfaz import instalar as instalar_interfaz
-
-            instalar_interfaz(app, origenes=args.origen, https_only=COOKIE_HTTPS_ONLY)
+        montar(app, args.origen, https_only=COOKIE_HTTPS_ONLY, http_api=args.http_api, interfaz=args.interfaz)
     except ValueError as error:
         parser.error(str(error))
     uvicorn.run(
         app, host="127.0.0.1", port=args.puerto, workers=1,
         proxy_headers=args.proxy_loopback, forwarded_allow_ips="127.0.0.1",
-        ws="websockets", ws_max_size=MAX_TRAMA, ws_max_queue=2, ws_per_message_deflate=False,
-        ws_ping_interval=20, ws_ping_timeout=20, log_level="warning", access_log=False,
+        log_level="warning", access_log=False, **transporte(),
     )
 
 

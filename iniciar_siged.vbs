@@ -7,8 +7,8 @@ Set sistemaArchivos = CreateObject("Scripting.FileSystemObject")
 carpetaProyecto = sistemaArchivos.GetParentFolderName(WScript.ScriptFullName)
 archivoBat = sistemaArchivos.BuildPath(carpetaProyecto, "Iniciar SIGED.bat")
 
-' Ejecuta el lanzador existente sin mostrar la ventana de comandos.
-shell.Run """" & archivoBat & """", 0, False
+' Muestra el estado de arranque y conserva Ctrl+C como opción de cierre.
+shell.Run """" & archivoBat & """", 1, False
 
 Set sistemaArchivos = Nothing
 Set shell = Nothing

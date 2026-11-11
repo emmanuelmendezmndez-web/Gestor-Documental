@@ -4,6 +4,8 @@ import asyncio
 import logging
 from contextlib import contextmanager
 
+from app.diagnostico_io import detalle_error
+
 logger = logging.getLogger("gestor.websocket")
 
 
@@ -65,7 +67,7 @@ class AdministradorConexiones:
                     if len(resultados) != len(futuros):
                         raise FuenteNoDisponible
                 except Exception as error:  # noqa: BLE001 - No expone detalles privados de la fuente.
-                    logger.warning("Fuente de señales no disponible (%s)", type(error).__name__)
+                    logger.warning("Fuente de señales no disponible (%s)", detalle_error(error))
                     for futuro in futuros:
                         if not futuro.done():
                             futuro.set_exception(FuenteNoDisponible())

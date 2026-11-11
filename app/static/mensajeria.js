@@ -1,5 +1,5 @@
 import {
-    API, LIMITE, buscarDocumentos, caracteres, enviar, formato, mensajeError, pedir, referencia, textoValido,
+    API, LIMITE, buscarDocumentos, caracteres, claveEnvio, enviar, formato, mensajeError, pedir, referencia, textoValido,
 } from "./mensajeria_transporte.mjs";
 import { conectarMensajeria, sesionInvalida } from "./mensajeria_tiempo_real.mjs";
 
@@ -161,6 +161,36 @@ function iniciarMensajeria(raiz, mostrarAvisos) {
     let venceTarjeta;
     let paginasChats = 1;
     let paginandoChats, paginandoMensajes;
+    let lecturaProgramada = false;
+    const exposicion = new IntersectionObserver(programarLectura, { threshold: [0, 0.5] });
+
+    function programarLectura() {
+        if (lecturaProgramada || marcando || !activo?.id) return;
+        lecturaProgramada = true;
+        requestAnimationFrame(() => {
+            lecturaProgramada = false;
+            marcarLectura(true);
+        });
+    }
+
+    function limpiarVisibles() {
+        exposicion.disconnect();
+        visibles.clear();
+    }
+
+    function textoVisible(fila) {
+        if (document.hidden || !document.hasFocus() || dialogo.open || !fila.texto.isConnected) return false;
+        const mensaje = fila.texto.getBoundingClientRect();
+        const zona = historial.getBoundingClientRect();
+        const viewport = window.visualViewport;
+        const arriba = viewport?.offsetTop ?? 0;
+        const izquierda = viewport?.offsetLeft ?? 0;
+        const alto = Math.min(mensaje.bottom, zona.bottom, arriba + (viewport?.height ?? innerHeight))
+            - Math.max(mensaje.top, zona.top, arriba);
+        const ancho = Math.min(mensaje.right, zona.right, izquierda + (viewport?.width ?? innerWidth))
+            - Math.max(mensaje.left, zona.left, izquierda);
+        return mensaje.height > 0 && alto >= mensaje.height / 2 && ancho > 0;
+    }
 
     desplegable(acciones);
 
@@ -185,7 +215,7 @@ function iniciarMensajeria(raiz, mostrarAvisos) {
             filasChat.clear();
             lista.replaceChildren();
             mensajes.replaceChildren();
-            visibles.clear();
+            limpiarVisibles();
             el("estado-lista").textContent = mensajeError(error);
             el("mas-chats").hidden = true;
             el("reintentar-lista").hidden = true;
@@ -336,7 +366,7 @@ function iniciarMensajeria(raiz, mostrarAvisos) {
         if (!conservar) limpiarCompositor();
         activo = chat;
         cursorMensajes = null;
-        visibles.clear();
+        limpiarVisibles();
         mensajes.replaceChildren();
         el("estado-historial").textContent = "";
         el("mas-mensajes").hidden = true;
@@ -364,7 +394,7 @@ function iniciarMensajeria(raiz, mostrarAvisos) {
         activo = null;
         peticionChat?.abort();
         window.clearTimeout(venceTarjeta);
-        visibles.clear();
+        limpiarVisibles();
         mensajes.replaceChildren();
         limpiarCompositor();
         delete raiz.dataset.abierta;
@@ -380,12 +410,14 @@ function iniciarMensajeria(raiz, mostrarAvisos) {
         item.dataset.mensaje = mensaje.id;
         const cuerpo = crear("div", "mensajeria-burbuja");
         cuerpo.append(crear("span", "sr-only", saliente ? "Enviado" : "Recibido"));
-        cuerpo.append(crear("p", "mensajeria-texto", mensaje.texto));
+        const textoMensaje = crear("p", "mensajeria-texto", mensaje.texto);
+        cuerpo.append(textoMensaje);
         const tarjeta = crear("div", "mensajeria-tarjeta", "Comprobando adjunto…");
         cuerpo.append(tarjeta, hora(mensaje.confirmado_utc));
         item.append(cuerpo);
-        const datos = { mensaje, item, tarjeta, vence: null };
+        const datos = { mensaje, item, tarjeta, texto: textoMensaje, vence: null };
         visibles.set(mensaje.id, datos);
+        if (!saliente && !mensaje.leido_utc) exposicion.observe(textoMensaje);
         return datos;
     }
 
@@ -448,6 +480,7 @@ function iniciarMensajeria(raiz, mostrarAvisos) {
             const venceMensaje = fila.mensaje.historial_vence_utc * 1000;
             if (venceMensaje <= ahora) {
                 fila.item.remove();
+                exposicion.unobserve(fila.texto);
                 visibles.delete(id);
                 continue;
             }
@@ -527,6 +560,7 @@ function iniciarMensajeria(raiz, mostrarAvisos) {
                     // Una respuesta iniciada antes del POST puede llegar después de su confirmación.
                     mensaje.leido_utc ||= previa.mensaje.leido_utc;
                     previa.mensaje = mensaje;
+                    if (mensaje.leido_utc) exposicion.unobserve(previa.texto);
                     if (!previa.vence) filas.push(previa);
                     continue;
                 }
@@ -546,6 +580,7 @@ function iniciarMensajeria(raiz, mostrarAvisos) {
             if (mas) historial.scrollTop += historial.scrollHeight - previamente;
             else if (!actualizar || abajo) historial.scrollTop = historial.scrollHeight;
             const posicion = historial.scrollTop;
+            programarLectura();
             await comprobarTarjetas(filas, chat, signal);
             if (signal.aborted && !peticion.signal.aborted && !sincronizacion?.signal.aborted) throw signal.reason;
             if (!signal.aborted && !mas && (!actualizar || abajo) && historial.scrollTop >= posicion - 4) {
@@ -555,7 +590,7 @@ function iniciarMensajeria(raiz, mostrarAvisos) {
         } catch (error) {
             if (peticion.signal.aborted || sincronizacion?.signal.aborted) return false;
             if (error.estado === 404 && sincronizacion) {
-                visibles.clear();
+                limpiarVisibles();
                 mensajes.replaceChildren();
                 cursorMensajes = null;
                 el("mas-mensajes").hidden = true;
@@ -668,7 +703,7 @@ function iniciarMensajeria(raiz, mostrarAvisos) {
         evento.preventDefault();
         if (el("enviar").disabled) return;
         const destinatario = activo.otro.referencia;
-        operacion ||= { destinatario, texto: texto.value, adjunto, clave: crypto.randomUUID().replaceAll("-", "") };
+        operacion ||= { destinatario, texto: texto.value, adjunto, clave: claveEnvio() };
         enviando = true;
         anunciar("");
         controles();
@@ -731,21 +766,31 @@ function iniciarMensajeria(raiz, mostrarAvisos) {
         }
     }
 
-    async function marcarLectura() {
-        if (!activo?.id || el("leer").disabled) return;
+    async function marcarLectura(automatica = false) {
+        if (!activo?.id || marcando || falloSesion || (!automatica && el("leer").disabled)) return;
         const chat = activo;
+        const pendientes = [...visibles.values()].filter(fila =>
+            !fila.mensaje.enviado && !fila.mensaje.leido_utc && (!automatica || textoVisible(fila)));
+        if (!pendientes.length) return;
+        let confirmado = false;
         marcando = true;
         controles();
         try {
-            for (const fila of [...visibles.values()]) {
+            for (const fila of pendientes) {
                 const mensaje = fila.mensaje;
                 if (activo !== chat) break;
-                if (!mensaje.enviado && !mensaje.leido_utc) {
-                    const datos = await pedir("/conversaciones/" + chat.id + "/mensajes/" + mensaje.id + "/lectura", { post: true });
-                    if (datos) {
+                if (!mensaje.leido_utc && (!automatica || textoVisible(fila))) {
+                    const datos = await pedir("/conversaciones/" + chat.id + "/mensajes/" + mensaje.id + "/lectura", {
+                        post: true, signal: AbortSignal.timeout(20000),
+                    });
+                    if (datos.leido) {
+                        confirmado = true;
                         mensaje.leido_utc = true;
                         const actual = activo === chat && visibles.get(mensaje.id);
-                        if (actual) actual.mensaje.leido_utc ||= true;
+                        if (actual) {
+                            actual.mensaje.leido_utc ||= true;
+                            exposicion.unobserve(actual.texto);
+                        }
                     }
                 }
             }
@@ -753,12 +798,13 @@ function iniciarMensajeria(raiz, mostrarAvisos) {
             if (activo === chat) anunciar(fallo(error), true);
         } finally {
             marcando = false;
-            if (activo === chat) {
+            if (!automatica && activo === chat) {
                 acciones.open = false;
                 acciones.querySelector("summary").focus();
             }
             controles();
-            canal.invalidar(true);
+            if (confirmado) canal.invalidar(true);
+            if (confirmado || activo !== chat) programarLectura();
         }
     }
 
@@ -853,7 +899,10 @@ function iniciarMensajeria(raiz, mostrarAvisos) {
         }
     });
     el("mas-opciones").addEventListener("click", () => cargarOpciones(true));
-    dialogo.addEventListener("close", () => peticionSelector?.abort());
+    dialogo.addEventListener("close", () => {
+        peticionSelector?.abort();
+        programarLectura();
+    });
     el("buscar").addEventListener("input", pintarBandeja);
     for (const pestaña of raiz.querySelectorAll("[data-bandeja]")) {
         pestaña.addEventListener("click", () => {
@@ -875,7 +924,7 @@ function iniciarMensajeria(raiz, mostrarAvisos) {
     });
     el("reintentar-historial").addEventListener("click", () => cargarHistorial(false, true));
     el("archivar").addEventListener("click", cambiarArchivo);
-    el("leer").addEventListener("click", marcarLectura);
+    el("leer").addEventListener("click", () => marcarLectura());
     texto.addEventListener("input", () => { operacion = null; controles(); });
     el("adjuntar").addEventListener("click", () => el("archivo").click());
     el("archivo").addEventListener("change", () => {
@@ -918,8 +967,11 @@ function iniciarMensajeria(raiz, mostrarAvisos) {
     document.addEventListener("visibilitychange", () => {
         if (!document.hidden && activo?.id) {
             for (const fila of visibles.values()) tarjetaPorComprobar(fila, activo.id);
+            programarLectura();
         }
     });
+    window.addEventListener("focus", programarLectura);
+    window.visualViewport?.addEventListener("resize", programarLectura);
     campana.addEventListener("toggle", () => { if (campana.open) canal.invalidar(); });
     function ajustarVista() {
         const menu = document.querySelector(".sidebar-menu");

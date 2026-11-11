@@ -4,6 +4,8 @@ export const referencia = valor => typeof valor === "string" && /^[0-9a-f]{32}$/
 export const caracteres = texto => Array.from(texto).length;
 export const textoValido = texto => Boolean(texto.trim()) && caracteres(texto) <= 300 && !texto.includes("\0");
 export const formato = nombre => nombre.split(".").at(-1).toLowerCase();
+export const claveEnvio = () => Array.from(crypto.getRandomValues(new Uint8Array(16)),
+    byte => byte.toString(16).padStart(2, "0")).join("");
 
 export class ErrorHTTP extends Error {
     constructor(estado, codigo) {

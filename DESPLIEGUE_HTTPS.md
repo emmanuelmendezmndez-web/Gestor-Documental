@@ -10,6 +10,12 @@ Navegador LAN --HTTPS--> Caddy --HTTP en 127.0.0.1--> Uvicorn:8000
 
 ## Desarrollo local
 
+El procedimiento vigente de demostración está en [Mensajería BETA](MENSAJERIA_BETA.md).
+
+El arranque institucional unificado preparado en la
+[Fase 7C.3](MENSAJERIA_FASE7C3.md) utiliza `app.arranque` sin los
+argumentos de beta, una vez validada la instalación HTTPS.
+
 `Iniciar SIGED.bat` inicia HTTP solo en `127.0.0.1:8000`, sin confiar en
 encabezados reenviados y con `GESTOR_HTTPS_ONLY=0` para esa ejecución. No use
 esta modalidad para credenciales o documentos institucionales desde la red.

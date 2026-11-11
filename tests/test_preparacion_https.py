@@ -32,21 +32,17 @@ def aplicacion(secure=True):
 class PreparacionHTTPSTest(unittest.TestCase):
     def test_arranque_lan_explicito_sin_omitir_https_ni_confiar_en_proxies(self):
         lan = (RAIZ / 'Iniciar SIGED LAN (pruebas).bat').read_text(encoding='utf-8')
-        self.assertIn('--host 0.0.0.0 --port 8000 --no-proxy-headers', lan)
-        self.assertIn('if defined GESTOR_HTTPS_ONLY', lan)
+        self.assertIn('-m app.arranque --beta-lan', lan)
         self.assertNotIn('set "GESTOR_HTTPS_ONLY=', lan)
-        self.assertIn('choice /c SN', lan)
-        self.assertIn('HTTP sin cifrar', lan)
-        self.assertIn('CSRF y permisos siguen activos', lan)
+        self.assertNotIn('0.0.0.0', lan)
 
     def test_arranques_son_locales_y_confianza_esta_acotada(self):
         dev = (RAIZ / 'Iniciar SIGED.bat').read_text(encoding='utf-8')
         prod = (RAIZ / 'Iniciar SIGED produccion.bat').read_text(encoding='utf-8')
-        for texto in (dev, prod):
-            self.assertIn('--host 127.0.0.1 --port 8000', texto)
-            self.assertNotIn('--host 0.0.0.0', texto)
-        self.assertIn('GESTOR_HTTPS_ONLY=0', dev)
-        self.assertIn('--no-proxy-headers', dev)
+        self.assertIn('"%PYTHON%" -m app.arranque', dev)
+        self.assertNotIn('start ""', dev)
+        self.assertIn('--host 127.0.0.1 --port 8000', prod)
+        self.assertNotIn('--host 0.0.0.0', prod)
         self.assertIn('GESTOR_HTTPS_ONLY=1', prod)
         self.assertIn('--forwarded-allow-ips 127.0.0.1', prod)
         self.assertNotIn('--forwarded-allow-ips *', prod)

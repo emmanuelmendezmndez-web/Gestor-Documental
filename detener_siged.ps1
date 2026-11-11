@@ -12,6 +12,25 @@ function Mostrar-Mensaje([string]$texto, [System.Windows.Forms.MessageBoxIcon]$i
 }
 
 try {
+    $python = Join-Path $PSScriptRoot '.venv\Scripts\python.exe'
+    if (Test-Path -LiteralPath $python) {
+        Push-Location -LiteralPath $PSScriptRoot
+        try {
+            & $python -m app.arranque --detener
+            $resultado = $LASTEXITCODE
+        } finally {
+            Pop-Location
+        }
+        if ($resultado -eq 0) {
+            Mostrar-Mensaje "SIGED recibió la solicitud de cierre controlado." ([System.Windows.Forms.MessageBoxIcon]::Information)
+            exit 0
+        }
+        if ($resultado -ne 3) {
+            throw 'No se pudo enviar la señal de cierre de SIGED.'
+        }
+    }
+
+    # Compatibilidad con los lanzadores HTTPS y LAN anteriores.
     $conexion = Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue |
         Select-Object -First 1
 
