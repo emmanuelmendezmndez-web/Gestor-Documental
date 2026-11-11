@@ -22,6 +22,7 @@ from app.mensajeria import (
     motor,
     recepcion_http,
     sesiones_ws,
+    vistas,
 )
 from app.mensajeria.base_datos import LIMITE_ARCHIVO
 from app.mensajeria.websocket import _origen_exacto
@@ -135,10 +136,23 @@ def _preparar(actor, destino, clave, lector):
     return {"clave": clave, "nombre": adjunto.nombre_original, "tamano_bytes": adjunto.tamano_bytes}
 
 
-def _abrir(pila, actor, chat, mensaje):
-    if consultas.tipo_adjunto(actor, chat, mensaje) == "externo":
-        return pila.enter_context(adjuntos.abrir_descarga(actor, mensaje, conversacion=chat))
-    return pila.enter_context(biblioteca.abrir_descarga(actor, chat, mensaje, informar_estado_sesion=True))
+def _respuesta_adjunto(pila, actor, chat, mensaje, request):
+    externo = consultas.tipo_adjunto(actor, chat, mensaje) == "externo"
+    if request is None:
+        contexto = (adjuntos.abrir_descarga(actor, mensaje, conversacion=chat) if externo else
+                    biblioteca.abrir_descarga(actor, chat, mensaje, informar_estado_sesion=True))
+        archivo, cabeceras = pila.enter_context(contexto)
+    else:
+        contexto = (adjuntos.abrir_visualizacion(actor, mensaje, chat) if externo else
+                    biblioteca.abrir_visualizacion(actor, chat, mensaje, informar_estado_sesion=True))
+        archivo, datos = pila.enter_context(contexto)
+        respuesta, cabeceras = vistas.preparar(request, archivo, datos)
+        if respuesta is not None:
+            return respuesta
+    return StreamingResponse(
+        iter(lambda: archivo.read(recepcion_http.CORTE), b""),
+        headers={"Content-Security-Policy": "sandbox; default-src 'none'", **cabeceras, **PRIVADAS},
+    )
 
 
 def _credencial(request, origenes, https_only):
@@ -154,10 +168,11 @@ def _credencial(request, origenes, https_only):
     return datos
 
 
-class _Descarga(StreamingResponse):
-    def __init__(self, datos, chat, mensaje, cupos):
+class _RespuestaAdjunto(StreamingResponse):
+    def __init__(self, datos, chat, mensaje, cupos, request=None):
         super().__init__(iter(()), headers=PRIVADAS)
         self._datos, self._chat, self._mensaje, self._cupos = datos, chat, mensaje, cupos
+        self._request = request
 
     async def __call__(self, scope, receive, send):
         try:
@@ -169,16 +184,14 @@ class _Descarga(StreamingResponse):
         try:
             try:
                 with CancelScope(shield=True):
-                    archivo, cabeceras = await _ejecutar(
-                        self._datos, lambda actor: _abrir(pila, actor, self._chat, self._mensaje), lectura=True,
+                    respuesta = await _ejecutar(
+                        self._datos, lambda actor: _respuesta_adjunto(
+                            pila, actor, self._chat, self._mensaje, self._request,
+                        ), lectura=True,
                     )
             except sesiones_ws.ERRORES_DATOS as error:
                 await _error(error)(scope, receive, send)
                 return
-            respuesta = StreamingResponse(
-                iter(lambda: archivo.read(recepcion_http.CORTE), b""),
-                headers={**cabeceras, **PRIVADAS, "Content-Security-Policy": "sandbox; default-src 'none'"},
-            )
             async with asyncio.timeout(300):
                 await respuesta(scope, receive, send)
         finally:
@@ -247,8 +260,8 @@ def instalar(app, *, origenes, https_only):
 
     @api.get("/sincronizacion")
     async def sincronizacion(datos: Sesion, archivadas: bool = False,
-                            despues: CursorRef = None, limite: Pagina = 25):
-        return await _ejecutar(datos, consultas.sincronizar, archivadas, despues, limite, lectura=True)
+                            despues: CursorRef = None, limite: Pagina = 25, avisos: bool = False):
+        return await _ejecutar(datos, consultas.sincronizar, archivadas, despues, limite, avisos, lectura=True)
 
     @api.post("/envios/externos/preparar")
     async def preparar(request: Request, datos: Sesion):
@@ -289,14 +302,11 @@ def instalar(app, *, origenes, https_only):
 
     @api.get(MENSAJE + "/adjunto/descarga", response_class=StreamingResponse)
     async def descarga(chat: Referencia, mensaje: Referencia, datos: Sesion):
-        return _Descarga(datos, chat, mensaje, descargas)
+        return _RespuestaAdjunto(datos, chat, mensaje, descargas)
 
     @api.get(MENSAJE + "/adjunto/vista")
-    async def vista(chat: Referencia, mensaje: Referencia, datos: Sesion):
-        tarjeta_ = await _ejecutar(datos, consultas.tarjeta, chat, mensaje, lectura=True)
-        if not tarjeta_.get("visualizacion_pendiente"):
-            raise _Rechazo("no_disponible", 404)
-        raise _Rechazo("visualizacion_no_habilitada", 501)
+    async def vista(request: Request, chat: Referencia, mensaje: Referencia, datos: Sesion):
+        return _RespuestaAdjunto(datos, chat, mensaje, descargas, request)
 
     @api.post(MENSAJE + "/lectura")
     async def lectura(chat: Referencia, mensaje: Referencia, datos: Sesion):

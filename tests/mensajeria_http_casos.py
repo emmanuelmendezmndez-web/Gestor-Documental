@@ -8,7 +8,7 @@ import subprocess
 import sys
 import time
 import unittest
-from base64 import b64encode
+from base64 import b64decode, b64encode
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from threading import Thread
@@ -44,6 +44,7 @@ from app.mensajeria import (
 from app.mensajeria import base_datos as bd
 from app.mensajeria import limpieza_adjuntos as limpieza
 from app.mensajeria import reconciliacion as rec
+from app.rutas_documentos import router as documentos_router
 from app.rutas_sesion import router
 from app.seguridad import hashear_password
 
@@ -52,6 +53,7 @@ SECRETO = "secreto-de-prueba-http-experimental"
 CLAVE = "Contrasena-ficticia-2026"
 ORIGEN = "http://testserver"
 MIB = 1024 * 1024
+PNG = b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR4nGNgAAAAAgABSK+kcQAAAABJRU5ErkJggg==")
 
 
 def _app(origen=ORIGEN, *, habilitada=True, segura=False, vista=False):
@@ -258,6 +260,7 @@ with TestClient(app) as cliente:
             permitido = cliente.get("/mensajeria", params=params, headers=a)
             self.assertEqual(permitido.status_code, 200)
             self.assertIn(self.doc, permitido.text)
+            self.assertIn('data-solo-vista="si"', permitido.text)
             self.assertNotIn(str(STORAGE_DIR), permitido.text)
             otro = cliente.get("/mensajeria", params={**params, "destinatario": self.refs["gama"]}, headers=a)
             self.assertEqual(otro.status_code, 200)
@@ -328,19 +331,35 @@ with TestClient(app) as cliente:
         api_http.instalar(app, origenes=[ORIGEN], https_only=False)
         with TestClient(app) as cliente:
             a, b = (_login(cliente, u) for u in ("alfa", "beta"))
-            self.assertEqual(self._biblioteca(cliente, a).status_code, 200)
+            primero_http = self._biblioteca(cliente, a)
+            self.assertEqual(primero_http.status_code, 200)
             with cliente.websocket_connect(websocket.RUTA, headers=b) as ws:
                 self.assertEqual(ws.receive_json()["tipo"], "conexion_lista")
                 ws.send_json({"tipo": "sincronizar", "cursor": None})
                 primero = ws.receive_json()["cursor"]
-            self.assertEqual(self._biblioteca(cliente, a).status_code, 200)
+            segundo_http = self._biblioteca(cliente, a)
+            self.assertEqual(segundo_http.status_code, 200)
             with cliente.websocket_connect(websocket.RUTA, headers=b) as ws:
                 self.assertEqual(ws.receive_json()["tipo"], "conexion_lista")
                 ws.send_json({"tipo": "sincronizar", "cursor": primero})
-                self.assertEqual(ws.receive_json()["tipo"], "mensaje_nuevo")
-                estado = cliente.get(P + "/sincronizacion", headers=b).json()
+                evento = ws.receive_json()
+                self.assertEqual(set(evento), {"tipo", "cursor"})
+                self.assertEqual(evento["tipo"], "mensaje_nuevo")
+                consulta = P + "/sincronizacion?limite=1&avisos=true"
+                estado = cliente.get(consulta, headers=b).json()
                 self.assertEqual(estado["no_leidos"], 2)
                 self.assertEqual(len(estado["conversaciones"]["elementos"]), 1)
+                self.assertEqual(len(estado["avisos"]), 1)
+                self.assertEqual(estado["avisos"][0]["nombre"], "Perfil A")
+                self.assertIn(estado["avisos"][0]["mensaje"],
+                              {primero_http.json()["mensaje"], segundo_http.json()["mensaje"]})
+                self.assertEqual(cliente.get(consulta, headers=a).json()["avisos"], [])
+                for respuesta in (primero_http, segundo_http):
+                    ruta = self._mensaje(respuesta)
+                    self.assertEqual(cliente.post(ruta + "/lectura", headers=b).status_code, 200)
+                estado = cliente.get(consulta, headers=b).json()
+                self.assertEqual(estado["no_leidos"], 0)
+                self.assertEqual(estado["avisos"], [])
 
     def test_externo_idempotente_descarga_y_limpieza_concurrente(self):
         cliente = self.cliente()
@@ -353,6 +372,10 @@ with TestClient(app) as cliente:
         self.assertEqual(self._confirmar(cliente, a, {**datos, "texto": "Otro"}).status_code, 409)
         self.assertEqual(cliente.get(P + "/cuota", headers=a).json()["envios"], 1)
         self.assertEqual(cliente.get(ruta + "/adjunto", headers=b).json()["nombre_original"], "dato ñ.txt")
+        vista = cliente.get(ruta + "/adjunto/vista", headers=b)
+        self.assertEqual(vista.status_code, 200)
+        self.assertIn('<pre class="contenido-texto">Ficticio</pre>', vista.text)
+        self.assertEqual(cliente.get(ruta + "/adjunto/vista", headers=c).status_code, 404)
         self.assertEqual(cliente.get(ruta + "/adjunto/descarga", headers=c).status_code, 404)
         descarga = cliente.get(ruta + "/adjunto/descarga", headers=b)
         self.assertEqual(descarga.content, b"Ficticio")
@@ -372,6 +395,7 @@ with TestClient(app) as cliente:
             self.assertEqual(cliente.get(ruta + "/adjunto/descarga", headers=b).content, b"Ficticio")
         self.assertEqual(cliente.get(ruta + "/adjunto", headers=b).json(), {"estado": "no_disponible"})
         self.assertEqual(cliente.get(ruta + "/adjunto/descarga", headers=b).status_code, 404)
+        self.assertEqual(cliente.get(ruta + "/adjunto/vista", headers=b).status_code, 404)
         self.instante += 61
         self.assertEqual(limpieza.limpiar()["retirados"], 1)
 
@@ -406,24 +430,108 @@ with TestClient(app) as cliente:
             self.assertEqual(len(list((self.base.parent / "temporales").glob("*.bin"))), 1)
 
     def test_biblioteca_modalidad_vencimiento_y_revocacion(self):
-        cliente = self.cliente()
-        a, b = (_login(cliente, u) for u in ("alfa", "beta"))
+        app = _app()
+        app.include_router(documentos_router)
+        cliente = self.enterContext(TestClient(app))
+        a, b, c = (_login(cliente, u) for u in ("alfa", "beta", "gama"))
         self.assertEqual(self._biblioteca(cliente, a, destino="gama").status_code, 404)
         vista = self._mensaje(self._biblioteca(cliente, a))
         ruta = self._mensaje(self._biblioteca(cliente, a, "visualizar_y_descargar"))
+        with conectar() as db:
+            documento_id = db.execute("SELECT id FROM documentos WHERE mensajeria_ref=?", (self.doc,)).fetchone()[0]
+        previa_biblioteca = cliente.get(f"/documentos/{documento_id}/vista", headers=b)
+        self.assertEqual(previa_biblioteca.status_code, 200)
+        self.assertEqual(cliente.get(f"/documentos/{documento_id}/vista", headers=c).status_code, 404)
+        self.assertEqual(cliente.get(vista + "/adjunto", headers=b).json()["acciones"], ["visualizar"])
         self.assertEqual(cliente.get(vista + "/adjunto/descarga", headers=b).status_code, 404)
-        self.assertEqual(cliente.get(vista + "/adjunto/vista", headers=b).status_code, 501)
+        previa = cliente.get(vista + "/adjunto/vista", headers=b)
+        self.assertEqual(previa.status_code, 200)
+        self.assertEqual(previa.text, previa_biblioteca.text)
+        self.assertTrue(previa.headers["content-security-policy"].startswith("sandbox;"))
+        self.assertEqual(previa.headers["cache-control"], "private, no-store")
+        self.assertEqual(previa.headers["x-content-type-options"], "nosniff")
+        self.assertNotIn("location", previa.headers)
+        self.assertNotIn(str(STORAGE_DIR), previa.text)
+        self.assertEqual(cliente.get(vista + "/adjunto/vista", headers=c).status_code, 404)
+        otra = motor.conversacion(self.refs["beta"], self.refs["gama"], crear=True)
+        ajena = P + f"/conversaciones/{otra}/mensajes/{vista.rsplit('/', 1)[1]}/adjunto/vista"
+        self.assertEqual(cliente.get(ajena, headers=b).status_code, 404)
+        self.assertEqual(cliente.get(ruta + "/adjunto", headers=b).json()["acciones"], ["visualizar", "descargar"])
+        self.assertEqual(cliente.get(ruta + "/adjunto/vista", headers=b).status_code, 200)
         self.assertEqual(cliente.get(ruta + "/adjunto/descarga", headers=b).content, b"Original")
+        self.assertEqual(cliente.get(ruta + "/adjunto/vista", headers={**b, "Origin": "http://otro"}).status_code, 403)
         for sql in ("UPDATE documentos SET eliminado_en='2026-01-01'",
                     "UPDATE documentos SET eliminado_en=NULL,departamento='Archivos'"):
             with conectar() as db:
                 db.execute(sql)
             self.assertEqual(cliente.get(ruta + "/adjunto", headers=b).json(), {"estado": "no_disponible"})
+            self.assertEqual(cliente.get(ruta + "/adjunto/vista", headers=b).status_code, 404)
+            self.assertEqual(cliente.get(ruta + "/adjunto/descarga", headers=b).status_code, 404)
         with conectar() as db:
             db.execute("UPDATE documentos SET departamento='Tesorería'")
         self.instante += motor.VIGENCIA_DOCUMENTO
         b = _login(cliente, "beta")
         self.assertEqual(cliente.get(ruta + "/adjunto", headers=b).json(), {"estado": "no_disponible"})
+        self.assertEqual(cliente.get(ruta + "/adjunto/vista", headers=b).status_code, 404)
+
+    def test_vista_biblioteca_imagen_exige_descarga(self):
+        cliente = self.cliente()
+        a, b = (_login(cliente, u) for u in ("alfa", "beta"))
+        nombre = "ficticio.png"
+        original = STORAGE_DIR / nombre
+        original.write_bytes(PNG)
+        self.addCleanup(original.unlink)
+        with conectar() as db:
+            db.execute("""INSERT INTO documentos(titulo,nombre_archivo,nombre_guardado,categoria,tamano_bytes,
+                          departamento) VALUES (?,?,?,'Oficios',?,'Tesorería')""",
+                       ("Imagen ficticia", nombre, nombre, len(PNG)))
+            self.doc = db.execute("SELECT mensajeria_ref FROM documentos WHERE nombre_guardado=?", (nombre,)).fetchone()[0]
+        try:
+            solo = self._mensaje(self._biblioteca(cliente, a)) + "/adjunto"
+            ambas = self._mensaje(self._biblioteca(cliente, a, "visualizar_y_descargar")) + "/adjunto"
+            self.assertEqual(cliente.get(solo, headers=b).json()["acciones"], [])
+            self.assertEqual(cliente.get(solo + "/vista", headers=b).status_code, 404)
+            self.assertEqual(cliente.get(solo + "/descarga", headers=b).status_code, 404)
+            self.assertEqual(cliente.get(ambas, headers=b).json()["acciones"], ["visualizar", "descargar"])
+            vista = cliente.get(ambas + "/vista", headers=b)
+            self.assertEqual(vista.headers["content-type"], "image/png")
+            self.assertEqual(vista.content, PNG)
+            self.assertEqual(original.read_bytes(), PNG)
+        finally:
+            with conectar() as db:
+                db.execute("DELETE FROM documentos WHERE mensajeria_ref=?", (self.doc,))
+
+    def test_vista_externa_selecciona_formatos_y_aisla_contenido(self):
+        cliente = self.cliente()
+        a, b = (_login(cliente, u) for u in ("alfa", "beta"))
+        pdf = b"%PDF-1.7\nxref\n0 1\n0000000000 65535 f\nstartxref\n9\n%%EOF\n"
+        contenido = b'</pre><img src=x onerror="alert(1)"><script>alert(1)</script>'
+        for nombre, cuerpo, tipo in (("imagen.png", PNG, "image/png"), ("informe.pdf", pdf, None),
+                                     ("contenido.txt", contenido, "text/html")):
+            with self.subTest(nombre=nombre):
+                datos = self._externo(cliente, a, nombre=nombre, contenido=cuerpo)
+                ruta = self._mensaje(self._confirmar(cliente, a, datos)) + "/adjunto"
+                tarjeta = cliente.get(ruta, headers=b).json()
+                vista = cliente.get(ruta + "/vista", headers=b)
+                self.assertEqual(cliente.get(ruta + "/descarga", headers=b).content, cuerpo)
+                if tipo is None:
+                    self.assertEqual(tarjeta["acciones"], ["descargar"])
+                    self.assertEqual(vista.status_code, 404)
+                    continue
+                self.assertEqual(tarjeta["acciones"], ["visualizar", "descargar"])
+                self.assertEqual(vista.status_code, 200)
+                self.assertIn(tipo, vista.headers["content-type"])
+                self.assertEqual(vista.headers["x-frame-options"], "DENY")
+                self.assertIn("frame-ancestors 'none'", vista.headers["content-security-policy"])
+                if tipo == "image/png":
+                    self.assertEqual(vista.content, PNG)
+                    self.assertTrue(vista.headers["content-disposition"].startswith("inline;"))
+                else:
+                    self.assertIn("&lt;img", vista.text)
+                    self.assertNotIn("<script>", vista.text)
+        salida = cliente.post("/salir", headers=b, data={"csrf_token": b["X-CSRF-Token"]}, follow_redirects=False)
+        self.assertEqual(salida.status_code, 303)
+        self.assertEqual(cliente.get(ruta + "/vista", headers=b).status_code, 401)
 
     def test_multipart_rechazos_y_espacio(self):
         cliente = self.cliente()
@@ -573,8 +681,10 @@ with TestClient(app) as cliente:
         with conectar() as db:
             db.execute("DELETE FROM documentos")
         self.assertEqual(cliente.get(ruta + "/adjunto", headers=b).json(), {"estado": "no_disponible"})
+        self.assertEqual(cliente.get(ruta + "/adjunto/vista", headers=b).status_code, 404)
         respaldo.restaurar_respaldo(copia)
         self.assertEqual(cliente.get(ruta + "/adjunto/descarga", headers=b).status_code, 409)
+        self.assertEqual(cliente.get(ruta + "/adjunto/vista", headers=b).status_code, 409)
 
 
 if __name__ == "__main__":

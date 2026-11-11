@@ -92,6 +92,7 @@ class BibliotecaCasos(unittest.TestCase):
         self.assertEqual(tarjeta, {
             "origen": "biblioteca", "estado": "disponible", "nombre_original": "original reservado.txt",
             "formato": "txt", "vence_utc": self.instante + 7 * 86400, "acciones": ["visualizar"],
+            "tamano_bytes": len(b"Texto ficticio"),
         })
         with biblioteca.abrir_visualizacion(self.b, conversacion, mensaje) as (archivo, _):
             self.assertEqual(archivo.read(), b"Texto ficticio")

@@ -95,7 +95,6 @@
         <p class="mensajeria-estado" id="mensajeria-estado-selector" role="status"></p>
         <ul class="mensajeria-opciones" id="mensajeria-opciones"></ul>
         <button type="button" class="mensajeria-secundario mensajeria-mas" id="mensajeria-mas-opciones" hidden>Ver más</button>
-        <p class="mensajeria-nota-selector" id="mensajeria-nota-selector" hidden>La opción de solo visualizar estará disponible cuando se habilite la vista previa segura.</p>
     </dialog>
     {% for formato in ("pdf", "docx", "xlsx", "pptx", "txt", "png", "jpg", "jpeg", "archivo") %}
     <template id="mensajeria-formato-{{ formato }}">{{ icono_archivo(formato, 30) }}</template>

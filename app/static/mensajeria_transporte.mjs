@@ -89,6 +89,7 @@ export async function buscarDocumentos(parametros, signal) {
             referencia: item.dataset.referencia,
             nombre: item.querySelector("strong").textContent,
             nombreArchivo: item.querySelector("span").textContent,
+            soloVista: item.dataset.soloVista === "si",
         })),
         siguiente: lista.dataset.siguiente,
         descarga: lista.dataset.descarga === "si",
@@ -141,7 +142,7 @@ export async function enviar(operacion, actualizar) {
         Object.assign(datos, { nombre: preparado.nombre, tamano_bytes: preparado.tamano_bytes });
         ruta = "/envios/externos/confirmar";
     } else {
-        Object.assign(datos, { documento: adjunto.referencia, modalidad: "visualizar_y_descargar" });
+        Object.assign(datos, { documento: adjunto.referencia, modalidad: adjunto.modalidad ?? "visualizar_y_descargar" });
     }
     actualizar("Confirmando envío…", null);
     try {

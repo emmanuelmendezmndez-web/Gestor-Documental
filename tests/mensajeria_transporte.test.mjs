@@ -45,18 +45,21 @@ test("reintenta la confirmación externa sin repetir la carga ni cambiar su iden
     assert.deepEqual(etapas, ["Confirmando envío…", "Confirmando envío…"]);
 });
 
-test("envía referencias internas con la modalidad habilitada y traduce el error de cuota", async t => {
+test("envía referencias internas con la modalidad seleccionada y traduce el error de cuota", async t => {
     globalThis.document = cabecera;
     t.after(() => { delete globalThis.document; });
     t.mock.method(globalThis, "fetch", async (ruta, opciones) => {
         assert.equal(ruta, "/mensajeria/api/v1/envios/biblioteca");
         assert.deepEqual(JSON.parse(opciones.body), {
             destinatario: ref, clave: ref, texto: "Ficticio",
-            documento: ref, modalidad: "visualizar_y_descargar",
+            documento: ref, modalidad: "visualizar",
         });
         return new Response('{"error":"cuota_agotada"}', { status: 429 });
     });
-    const operacion = { destinatario: ref, texto: "Ficticio", clave: ref, adjunto: { referencia: ref } };
+    const operacion = {
+        destinatario: ref, texto: "Ficticio", clave: ref,
+        adjunto: { referencia: ref, modalidad: "visualizar" },
+    };
     await assert.rejects(enviar(operacion, () => {}), error =>
         error.estado === 429 && !error.resultadoIncierto && mensajeError(error).includes("50 envíos"));
 });
@@ -68,7 +71,7 @@ test("la selección de Biblioteca entrega un nombre y una referencia, sin un arc
             return {
                 getElementById: () => ({
                     children: [{
-                        dataset: { referencia: ref },
+                        dataset: { referencia: ref, soloVista: "si" },
                         querySelector: selector => ({ textContent: texto[selector] }),
                     }],
                     dataset: { descarga: "si", siguiente: "" },
@@ -83,5 +86,7 @@ test("la selección de Biblioteca entrega un nombre y una referencia, sin un arc
         return new Response("<ul></ul>");
     });
     const datos = await buscarDocumentos(new URLSearchParams({ destinatario: ref }));
-    assert.deepEqual(datos.elementos, [{ referencia: ref, nombre: "Circular <ficticia>", nombreArchivo: "Circular.txt" }]);
+    assert.deepEqual(datos.elementos, [{
+        referencia: ref, nombre: "Circular <ficticia>", nombreArchivo: "Circular.txt", soloVista: true,
+    }]);
 });

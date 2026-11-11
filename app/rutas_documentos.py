@@ -3,26 +3,30 @@
 import logging
 from pathlib import Path
 from uuid import uuid4
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+
 from app.acceso_documentos import filtro_area_documento
 from app.actividad import registrar
 from app.archivos import ArchivoInvalido, guardar_en_disco
 from app.catalogos import CATEGORIAS, DEPARTAMENTOS
 from app.configuracion import STORAGE_DIR
 from app.database import conectar
-from app.eliminaciones import descartar_generado
 from app.ediciones import describir_cambios
+from app.eliminaciones import descartar_generado
+from app.mensajes import AVISOS, MOTIVOS_SUBIDA
 from app.metadatos import limpiar_metadatos
 from app.operaciones_documentales import transaccion_documental
-from app.mensajes import AVISOS, MOTIVOS_SUBIDA
 from app.plantillas import templates
 from app.previsualizacion import ArchivoNoPrevisualizable, convertir_office_a_pdf
 from app.respuestas_documentos import avisar, avisar_edicion, avisar_eliminacion
+from app.seguridad import NoAutenticado, requiere_permiso
 from app.seleccion import leer_seleccion
 from app.tipos_archivo import EXTENSIONES_PERMITIDAS, TIPOS_ARCHIVO
 from app.utilidades import formatear_tamano
-from app.seguridad import NoAutenticado, requiere_permiso
+from app.vista_documental import CABECERAS_PRIVADAS, TIPOS_EN_LINEA
+from app.vista_documental import pagina as pagina_vista_documental
 
 logger = logging.getLogger("gestor")
 router = APIRouter()
@@ -249,22 +253,13 @@ def previsualizar_documento(request: Request, documento_id: int):
         entidad_nombre=documento["titulo"],
     )
 
-    tipos_en_linea = {
-        ".pdf": "application/pdf",
-        ".png": "image/png",
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-    }
-    if extension in tipos_en_linea:
+    if extension in TIPOS_EN_LINEA:
         return FileResponse(
             path=ruta_archivo,
-            media_type=tipos_en_linea[extension],
+            media_type=TIPOS_EN_LINEA[extension],
             filename=Path(documento["nombre_archivo"]).name,
             content_disposition_type="inline",
-            headers={
-                "X-Content-Type-Options": "nosniff",
-                "Cache-Control": "private, no-store",
-            },
+            headers=CABECERAS_PRIVADAS,
         )
 
     error = None
@@ -281,10 +276,7 @@ def previsualizar_documento(request: Request, documento_id: int):
                 media_type="application/pdf",
                 filename=f"{Path(documento['nombre_archivo']).stem}.pdf",
                 content_disposition_type="inline",
-                headers={
-                    "X-Content-Type-Options": "nosniff",
-                    "Cache-Control": "private, no-store",
-                },
+                headers=CABECERAS_PRIVADAS,
             )
 
     try:
@@ -294,20 +286,7 @@ def previsualizar_documento(request: Request, documento_id: int):
         logger.warning("No se pudo previsualizar el documento %s: %s", documento_id, exc)
         error = str(exc) if isinstance(exc, ArchivoNoPrevisualizable) else "No se pudo leer el archivo."
 
-    respuesta = templates.TemplateResponse(
-        request=request,
-        name="previsualizacion.html",
-        context={
-            "nombre_archivo": documento["nombre_archivo"],
-            "extension": extension,
-            "texto": texto,
-            "error": error,
-        },
-    )
-    respuesta.headers["X-Content-Type-Options"] = "nosniff"
-    respuesta.headers["Cache-Control"] = "private, no-store"
-    respuesta.headers["Content-Security-Policy"] = "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'self'"
-    return respuesta
+    return pagina_vista_documental(request, documento["nombre_archivo"], extension, texto=texto, error=error)
 
 
 @router.get(

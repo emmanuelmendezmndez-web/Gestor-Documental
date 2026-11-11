@@ -165,5 +165,6 @@ def instalar(app, *, origenes, secreto, https_only, intervalo=2):
 
     # Starlette monta el WebSocket sin ejecutar dependencias CSRF de tipo HTTP.
     app.router.add_websocket_route(RUTA, conectar)
+    app.state.mensajeria_ruta_ws = RUTA
     app.state.sesiones_ws_mensajeria = True
     return admin

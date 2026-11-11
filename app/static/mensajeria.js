@@ -1,6 +1,7 @@
 import {
     API, LIMITE, buscarDocumentos, caracteres, enviar, formato, mensajeError, pedir, referencia, textoValido,
 } from "./mensajeria_transporte.mjs";
+import { conectarMensajeria, sesionInvalida } from "./mensajeria_tiempo_real.mjs";
 
 const porId = id => document.getElementById(id);
 const raiz = porId("mensajeria");
@@ -27,16 +28,55 @@ function desplegable(detalle) {
     });
 }
 
+function iniciarAvisos() {
+    const badge = campana.querySelector("[data-mensajeria-avisos]");
+    const estado = campana.querySelector("[data-mensajeria-estado-avisos]");
+    const lista = campana.querySelector("[data-mensajeria-lista-avisos]");
+    const vivo = document.querySelector("[data-mensajeria-aviso-vivo]");
+    const anunciados = new Set();
+    let consultado = false;
+    return function mostrarAvisos(avisos, nuevo = false, error = "") {
+        const textos = avisos.map(({ nombre }) => nombre ? "Nuevo mensaje de " + nombre : "Nuevo mensaje recibido");
+        const novedad = nuevo && consultado ? avisos.findIndex(aviso => !anunciados.has(aviso.mensaje)) : -1;
+        vivo.textContent = textos[novedad] || "";
+        for (const aviso of avisos) {
+            anunciados.add(aviso.mensaje);
+            if (anunciados.size > 128) anunciados.delete(anunciados.values().next().value);
+        }
+        consultado = !error;
+        if (error) anunciados.clear();
+        lista.replaceChildren(...textos.map(texto => crear("li", "", texto)));
+        estado.hidden = Boolean(textos.length);
+        estado.textContent = error || "No hay avisos de mensajes pendientes.";
+        badge.hidden = !textos.length;
+        badge.textContent = textos.length ? numero(textos.length) : "";
+        campana.querySelector("summary").setAttribute("aria-label",
+            textos.length ? "Notificaciones, " + textos.length + " avisos pendientes" : "Notificaciones");
+    };
+}
+
 if (campana) {
     desplegable(campana);
-    if (raiz) {
-        iniciarMensajeria(raiz);
-    } else {
-        const sincronizar = () => pedir("/sincronizacion?limite=1")
-            .then(datos => mostrarContador(datos.no_leidos), () => mostrarContador(0));
-        sincronizar();
-        window.addEventListener("pageshow", evento => { if (evento.persisted) sincronizar(); });
-        campana.addEventListener("toggle", () => { if (campana.open) sincronizar(); });
+    const mostrarAvisos = iniciarAvisos();
+    if (raiz) iniciarMensajeria(raiz, mostrarAvisos);
+    else {
+        const canal = conectarMensajeria({
+            ruta: campana.dataset.rutaWs,
+            async actualizar({ nuevo, signal }) {
+                const datos = await pedir("/sincronizacion?limite=1&avisos=true", {
+                    signal: AbortSignal.any([signal, AbortSignal.timeout(20000)]),
+                });
+                if (signal.aborted) return;
+                mostrarContador(datos.no_leidos);
+                mostrarAvisos(datos.avisos ?? [], nuevo);
+            },
+            cerrarSesion(error) {
+                mostrarContador(0);
+                mostrarAvisos([], false, mensajeError(error));
+            },
+            informar() {},
+        });
+        campana.addEventListener("toggle", () => { if (campana.open) canal.invalidar(); });
     }
 }
 
@@ -97,7 +137,7 @@ function icono(nombre) {
     return (tipo || porId("mensajeria-formato-archivo")).content.cloneNode(true);
 }
 
-function iniciarMensajeria(raiz) {
+function iniciarMensajeria(raiz, mostrarAvisos) {
     const el = nombre => porId("mensajeria-" + nombre);
     const lista = el("conversaciones");
     const historial = el("historial");
@@ -119,7 +159,8 @@ function iniciarMensajeria(raiz) {
     let archivando = false;
     let falloSesion = false;
     let venceTarjeta;
-    let ultimaActualizacion = 0;
+    let paginasChats = 1;
+    let paginandoChats, paginandoMensajes;
 
     desplegable(acciones);
 
@@ -137,14 +178,19 @@ function iniciarMensajeria(raiz) {
         controles();
     }
 
-    function fallo(error) {
-        if (error.estado === 401 || ["identidad_no_reconciliada", "generacion_cambio"].includes(error.message)) {
+    function fallo(error, cerrar = false) {
+        if (cerrar || sesionInvalida(error)) {
             falloSesion = true;
             chats.clear();
             filasChat.clear();
             lista.replaceChildren();
             mensajes.replaceChildren();
             visibles.clear();
+            el("estado-lista").textContent = mensajeError(error);
+            el("mas-chats").hidden = true;
+            el("reintentar-lista").hidden = true;
+            el("mas-mensajes").hidden = true;
+            el("reintentar-historial").hidden = true;
             el("chat-titulo").textContent = "Mensajería no disponible";
             el("chat-avatar").textContent = "";
             el("chat-area").hidden = true;
@@ -154,8 +200,12 @@ function iniciarMensajeria(raiz) {
                 el("mas-opciones").hidden = true;
             }
             mostrarContador(0);
+            mostrarAvisos([], false, mensajeError(error));
             el("cuota").textContent = "";
+            peticionLista?.abort();
             peticionChat?.abort();
+            peticionSelector?.abort();
+            canal.detener();
             window.clearTimeout(venceTarjeta);
             controles();
         }
@@ -164,7 +214,8 @@ function iniciarMensajeria(raiz) {
 
     function pintarBandeja() {
         const termino = normalizar(el("buscar").value.trim());
-        const orden = [...chats.values()].sort((a, b) => (b.ultimo?.confirmado_utc || 0) - (a.ultimo?.confirmado_utc || 0));
+        const orden = [...chats.values()].sort((a, b) =>
+            (b.ultimo?.confirmado_utc || 0) - (a.ultimo?.confirmado_utc || 0) || a.id.localeCompare(b.id));
         const frecuencias = contarPerfiles(orden.map(chat => chat.otro).filter(Boolean));
         let anterior = null;
         let cantidad = 0;
@@ -215,32 +266,56 @@ function iniciarMensajeria(raiz) {
         filasChat.clear();
         lista.replaceChildren();
         cursorChats = undefined;
+        paginasChats = 1;
     }
 
-    async function cargarBandeja(mas = false, conservar = false) {
+    async function cargarBandeja(mas = false, conservar = false, sincronizacion) {
+        if (falloSesion) return;
         peticionLista?.abort();
         const peticion = new AbortController();
         peticionLista = peticion;
+        const signal = AbortSignal.any([peticion.signal, AbortSignal.timeout(20000),
+            ...(sincronizacion ? [sincronizacion.signal] : [])]);
         const filtro = new URLSearchParams({ archivadas });
+        if (!mas) filtro.set("avisos", "true");
         if (mas && cursorChats) filtro.set("despues", cursorChats);
         el("reintentar-lista").hidden = true;
         el("mas-chats").disabled = true;
         if (!chats.size) el("estado-lista").textContent = "Cargando conversaciones…";
         try {
-            const datos = await pedir((mas ? "/conversaciones?" : "/sincronizacion?") + filtro, { signal: peticion.signal });
-            if (peticion.signal.aborted) return;
-            if (!mas) {
-                falloSesion = false;
-                mostrarContador(datos.no_leidos);
-                guardarCuota(datos.cuota);
+            const datos = await pedir((mas ? "/conversaciones?" : "/sincronizacion?") + filtro, { signal });
+            let pagina = mas ? datos : datos.conversaciones;
+            const elementos = [...pagina.elementos];
+            if (conservar) {
+                filtro.delete("avisos");
+                for (let n = 1; n < paginasChats && pagina.siguiente; n++) {
+                    filtro.set("despues", pagina.siguiente);
+                    pagina = await pedir("/conversaciones?" + filtro, { signal });
+                    elementos.push(...pagina.elementos);
+                }
             }
-            const pagina = mas ? datos : datos.conversaciones;
-            if (!mas && !conservar) vaciarBandeja();
-            pagina.elementos.forEach(chat => chats.set(chat.id, chat));
-            if (!conservar || cursorChats === undefined) cursorChats = pagina.siguiente;
+            if (peticion.signal.aborted || sincronizacion?.signal.aborted) return false;
+            if (!mas) {
+                mostrarContador(datos.no_leidos);
+                mostrarAvisos(datos.avisos ?? [], sincronizacion?.nuevo);
+                guardarCuota(datos.cuota);
+                const ids = new Set(elementos.map(chat => chat.id));
+                for (const id of chats.keys()) {
+                    if (ids.has(id)) continue;
+                    filasChat.get(id)?.item.remove();
+                    filasChat.delete(id);
+                    chats.delete(id);
+                }
+            }
+            if (mas) paginasChats++;
+            else if (!conservar) paginasChats = 1;
+            elementos.forEach(chat => chats.set(chat.id, chat));
+            cursorChats = pagina.siguiente;
             pintarBandeja();
+            return true;
         } catch (error) {
-            if (peticion.signal.aborted) return;
+            if (peticion.signal.aborted || sincronizacion?.signal.aborted) return false;
+            if (sincronizacion) throw error;
             el("estado-lista").textContent = fallo(error);
             el("reintentar-lista").hidden = false;
         } finally {
@@ -253,7 +328,7 @@ function iniciarMensajeria(raiz) {
     }
 
     function abrirChat(chat, conservar = false) {
-        if (!chat || enviando || (operacion?.incierta && !conservar)) return;
+        if (!chat || falloSesion || enviando || (operacion?.incierta && !conservar)) return;
         if (activo?.id && activo.id === chat.id && !conservar) return;
         peticionChat?.abort();
         window.clearTimeout(venceTarjeta);
@@ -302,6 +377,7 @@ function iniciarMensajeria(raiz) {
     function burbuja(mensaje) {
         const saliente = mensaje.enviado;
         const item = crear("li", "mensajeria-mensaje" + (saliente ? " enviado" : ""));
+        item.dataset.mensaje = mensaje.id;
         const cuerpo = crear("div", "mensajeria-burbuja");
         cuerpo.append(crear("span", "sr-only", saliente ? "Enviado" : "Recibido"));
         cuerpo.append(crear("p", "mensajeria-texto", mensaje.texto));
@@ -341,14 +417,27 @@ function iniciarMensajeria(raiz) {
         detalle.append(crear("strong", "", nombre), crear("small", "",
             [origen, datos.tamano_bytes ? tamano(datos.tamano_bytes) : "", vence].filter(Boolean).join(" · ")));
         fila.tarjeta.replaceChildren(icono(nombre), detalle);
-        if (datos.acciones.includes("descargar")) {
-            const enlace = crear("a", "", "Descargar");
-            enlace.href = API + "/conversaciones/" + chat + "/mensajes/" + fila.mensaje.id + "/adjunto/descarga";
-            enlace.download = "";
-            enlace.setAttribute("aria-label", "Descargar " + nombre);
-            fila.tarjeta.append(enlace);
+        const ruta = API + "/conversaciones/" + chat + "/mensajes/" + fila.mensaje.id + "/adjunto/";
+        const acciones = crear("span", "mensajeria-archivo-acciones");
+        for (const [accion, etiqueta, destino] of [
+            ["visualizar", "Visualizar", "vista"], ["descargar", "Descargar", "descarga"],
+        ]) {
+            if (!datos.acciones.includes(accion)) continue;
+            const enlace = crear("a", "", etiqueta);
+            enlace.href = ruta + destino;
+            enlace.setAttribute("aria-label", etiqueta + " " + nombre + (accion === "visualizar" ? " (nueva pestaña)" : ""));
+            if (accion === "visualizar") {
+                enlace.target = "_blank";
+                enlace.rel = "noopener noreferrer";
+            } else {
+                enlace.download = "";
+            }
+            acciones.append(enlace);
         }
-        if (datos.visualizacion_pendiente) detalle.append(crear("small", "", "Vista previa segura pendiente."));
+        if (acciones.childElementCount) fila.tarjeta.append(acciones);
+        if (!datos.acciones.includes("visualizar")) {
+            detalle.append(crear("small", "", "Vista previa no disponible para este archivo o modalidad."));
+        }
     }
 
     function programarVencimientos() {
@@ -385,7 +474,7 @@ function iniciarMensajeria(raiz) {
                 } catch (error) {
                     if (signal.aborted) break;
                     tarjetaNoDisponible(fila);
-                    if (error.estado === 401 || error.message === "identidad_no_reconciliada") {
+                    if (sesionInvalida(error)) {
                         el("estado-historial").textContent = fallo(error);
                         break;
                     }
@@ -396,48 +485,85 @@ function iniciarMensajeria(raiz) {
         if (!signal.aborted) programarVencimientos();
     }
 
-    async function cargarHistorial(mas = false, actualizar = false) {
+    async function cargarHistorial(mas = false, actualizar = false, sincronizacion) {
         const chat = activo?.id;
-        if (!referencia(chat)) return;
+        if (!referencia(chat) || falloSesion) return true;
         peticionChat?.abort();
         const peticion = new AbortController();
         peticionChat = peticion;
+        const signal = AbortSignal.any([peticion.signal, AbortSignal.timeout(60000),
+            ...(sincronizacion ? [sincronizacion.signal] : [])]);
         const filtro = new URLSearchParams({ limite: 20 });
         if (mas && cursorMensajes) filtro.set("antes", cursorMensajes);
         el("reintentar-historial").hidden = true;
         el("mas-mensajes").disabled = true;
         if (!visibles.size) el("estado-historial").textContent = "Cargando historial…";
         try {
-            const pagina = await pedir("/conversaciones/" + chat + "/mensajes?" + filtro, { signal: peticion.signal });
-            if (peticion.signal.aborted) return;
+            const ruta = "/conversaciones/" + chat + "/mensajes?";
+            let pagina = await pedir(ruta + filtro, { signal });
+            const elementos = [...pagina.elementos];
+            if (actualizar && visibles.size) {
+                const limite = sincronizacion?.completo ? mensajes.firstElementChild?.dataset.mensaje : null;
+                const alcanza = mensaje => limite ? mensaje.id === limite : visibles.has(mensaje.id);
+                while (pagina.siguiente && !pagina.elementos.some(alcanza)) {
+                    filtro.set("antes", pagina.siguiente);
+                    pagina = await pedir(ruta + filtro, { signal });
+                    elementos.push(...pagina.elementos);
+                }
+                if (limite) {
+                    const indice = elementos.findIndex(alcanza);
+                    if (indice >= 0) elementos.length = indice + 1;
+                }
+            }
+            if (peticion.signal.aborted || sincronizacion?.signal.aborted) return false;
             const previamente = historial.scrollHeight;
             const abajo = historial.scrollHeight - historial.scrollTop - historial.clientHeight < 60;
             if (!actualizar || !visibles.size) cursorMensajes = pagina.siguiente;
-            const primeras = [...pagina.elementos].reverse();
             const filas = [];
-            for (const mensaje of primeras) {
+            for (const mensaje of elementos.reverse()) {
                 if (!referencia(mensaje.id)) continue;
                 const previa = visibles.get(mensaje.id);
                 if (previa) {
+                    // Una respuesta iniciada antes del POST puede llegar después de su confirmación.
+                    mensaje.leido_utc ||= previa.mensaje.leido_utc;
                     previa.mensaje = mensaje;
                     if (!previa.vence) filas.push(previa);
                     continue;
                 }
                 filas.push(burbuja(mensaje));
             }
-            const nuevas = document.createDocumentFragment();
-            for (const fila of filas) if (!fila.item.isConnected) nuevas.append(fila.item);
-            if (mas) mensajes.prepend(nuevas);
-            else mensajes.append(nuevas);
+            const orden = [...visibles.values()].sort((a, b) =>
+                a.mensaje.confirmado_utc - b.mensaje.confirmado_utc || a.mensaje.id.localeCompare(b.mensaje.id));
+            let anterior = null;
+            for (const fila of orden) {
+                const siguiente = anterior ? anterior.nextElementSibling : mensajes.firstElementChild;
+                if (siguiente !== fila.item) mensajes.insertBefore(fila.item, siguiente);
+                anterior = fila.item;
+            }
             el("estado-historial").textContent = visibles.size ? "" : "No hay mensajes en el historial de los últimos 15 días.";
             el("mas-mensajes").hidden = !cursorMensajes;
             controles();
             if (mas) historial.scrollTop += historial.scrollHeight - previamente;
             else if (!actualizar || abajo) historial.scrollTop = historial.scrollHeight;
-            await comprobarTarjetas(filas, chat, peticion.signal);
-            if (!peticion.signal.aborted && !mas && (!actualizar || abajo)) historial.scrollTop = historial.scrollHeight;
+            const posicion = historial.scrollTop;
+            await comprobarTarjetas(filas, chat, signal);
+            if (signal.aborted && !peticion.signal.aborted && !sincronizacion?.signal.aborted) throw signal.reason;
+            if (!signal.aborted && !mas && (!actualizar || abajo) && historial.scrollTop >= posicion - 4) {
+                historial.scrollTop = historial.scrollHeight;
+            }
+            return !signal.aborted;
         } catch (error) {
-            if (peticion.signal.aborted) return;
+            if (peticion.signal.aborted || sincronizacion?.signal.aborted) return false;
+            if (error.estado === 404 && sincronizacion) {
+                visibles.clear();
+                mensajes.replaceChildren();
+                cursorMensajes = null;
+                el("mas-mensajes").hidden = true;
+                el("estado-historial").textContent = mensajeError(error);
+                controles();
+                return true;
+            }
+            if (sincronizacion) throw error;
             el("estado-historial").textContent = fallo(error);
             el("reintentar-historial").hidden = false;
         } finally {
@@ -455,6 +581,8 @@ function iniciarMensajeria(raiz) {
         for (const nombre of ["adjuntar", "biblioteca"]) el(nombre).disabled = texto.disabled;
         const quitar = el("adjunto-elegido").querySelector("button");
         if (quitar) quitar.disabled = texto.disabled;
+        const modalidad = el("adjunto-elegido").querySelector("select");
+        if (modalidad) modalidad.disabled = texto.disabled;
         el("nuevo").disabled = Boolean(bloqueado || falloSesion);
         el("volver").disabled = Boolean(bloqueado);
         el("archivar").disabled = Boolean(bloqueado || archivando || falloSesion);
@@ -478,8 +606,26 @@ function iniciarMensajeria(raiz) {
             const archivo = elegido.archivo;
             const nombre = archivo ? archivo.name : elegido.nombre;
             const datos = crear("span", "mensajeria-archivo-datos");
-            datos.append(crear("strong", "", nombre), crear("small", "", archivo ?
-                formato(nombre).toUpperCase() + " · " + tamano(archivo.size) : "Biblioteca · Visualizar y descargar"));
+            const descripcion = archivo ? formato(nombre).toUpperCase() + " · " + tamano(archivo.size) :
+                elegido.modalidad === "visualizar" ? "Biblioteca · Solo visualizar" : "Biblioteca";
+            datos.append(crear("strong", "", nombre), crear("small", "", descripcion));
+            if (elegido.soloVista && elegido.descarga) {
+                const modalidad = crear("select");
+                modalidad.setAttribute("aria-label", "Modalidad de acceso del adjunto");
+                for (const [valor, etiqueta] of [
+                    ["visualizar_y_descargar", "Visualizar y descargar"], ["visualizar", "Solo visualizar"],
+                ]) {
+                    const opcion = crear("option", "", etiqueta);
+                    opcion.value = valor;
+                    modalidad.append(opcion);
+                }
+                modalidad.value = elegido.modalidad;
+                modalidad.addEventListener("change", () => {
+                    elegido.modalidad = modalidad.value;
+                    operacion = null;
+                });
+                datos.append(modalidad);
+            }
             const quitar = boton("Quitar", "mensajeria-secundario");
             quitar.setAttribute("aria-label", "Quitar adjunto");
             quitar.addEventListener("click", () => { elegirAdjunto(null); el("adjuntar").focus(); });
@@ -540,6 +686,7 @@ function iniciarMensajeria(raiz) {
             enviando = false;
             controles();
         }
+        if (falloSesion) return;
         limpiarCompositor();
         anunciar("Mensaje enviado.");
         if (!activo.id) {
@@ -590,12 +737,16 @@ function iniciarMensajeria(raiz) {
         marcando = true;
         controles();
         try {
-            for (const fila of visibles.values()) {
+            for (const fila of [...visibles.values()]) {
                 const mensaje = fila.mensaje;
                 if (activo !== chat) break;
                 if (!mensaje.enviado && !mensaje.leido_utc) {
                     const datos = await pedir("/conversaciones/" + chat.id + "/mensajes/" + mensaje.id + "/lectura", { post: true });
-                    if (datos) mensaje.leido_utc = true;
+                    if (datos) {
+                        mensaje.leido_utc = true;
+                        const actual = activo === chat && visibles.get(mensaje.id);
+                        if (actual) actual.mensaje.leido_utc ||= true;
+                    }
                 }
             }
         } catch (error) {
@@ -607,7 +758,7 @@ function iniciarMensajeria(raiz) {
                 acciones.querySelector("summary").focus();
             }
             controles();
-            cargarBandeja(false, true);
+            canal.invalidar(true);
         }
     }
 
@@ -616,7 +767,6 @@ function iniciarMensajeria(raiz) {
         el("selector-titulo").textContent = tipo === "personas" ? "Nueva conversación" : "Seleccionar de Biblioteca";
         el("filtro-selector").placeholder = tipo === "personas" ? "Nombre o área" : "Título o nombre de archivo";
         el("filtro-selector").value = "";
-        el("nota-selector").hidden = tipo !== "documentos";
         opciones.replaceChildren();
         dialogo.showModal();
         cargarOpciones();
@@ -641,11 +791,9 @@ function iniciarMensajeria(raiz) {
                 await buscarDocumentos(filtro, peticion.signal);
             if (peticion.signal.aborted) return;
             if (!mas) estado.elementos.clear();
-            datos.elementos.forEach(item => estado.elementos.set(item.referencia, item));
+            datos.elementos.forEach(item => estado.elementos.set(item.referencia, { ...item, descarga: datos.descarga }));
             estado.cursor = datos.siguiente;
             pintarOpciones();
-            if (!personas && !datos.descarga) el("estado-selector").textContent =
-                "La modalidad de descarga no está disponible para ambos participantes.";
         } catch (error) {
             if (!peticion.signal.aborted) el("estado-selector").textContent = fallo(error);
         } finally {
@@ -671,7 +819,11 @@ function iniciarMensajeria(raiz) {
             elegir.addEventListener("click", () => {
                 dialogo.close();
                 if (!personas) {
-                    elegirAdjunto({ referencia: opcion.referencia, nombre: opcion.nombreArchivo });
+                    elegirAdjunto({
+                        referencia: opcion.referencia, nombre: opcion.nombreArchivo,
+                        soloVista: opcion.soloVista, descarga: opcion.descarga,
+                        modalidad: opcion.descarga ? "visualizar_y_descargar" : "visualizar",
+                    });
                     texto.focus();
                     return;
                 }
@@ -714,9 +866,13 @@ function iniciarMensajeria(raiz) {
         });
     }
     el("volver").addEventListener("click", () => volver());
-    el("mas-chats").addEventListener("click", () => cargarBandeja(true));
-    el("reintentar-lista").addEventListener("click", () => cargarBandeja());
-    el("mas-mensajes").addEventListener("click", () => cargarHistorial(true));
+    el("mas-chats").addEventListener("click", () => {
+        paginandoChats = cargarBandeja(true).finally(() => { paginandoChats = null; });
+    });
+    el("reintentar-lista").addEventListener("click", () => canal.invalidar(true));
+    el("mas-mensajes").addEventListener("click", () => {
+        paginandoMensajes = cargarHistorial(true).finally(() => { paginandoMensajes = null; });
+    });
     el("reintentar-historial").addEventListener("click", () => cargarHistorial(false, true));
     el("archivar").addEventListener("click", cambiarArchivo);
     el("leer").addEventListener("click", marcarLectura);
@@ -742,21 +898,29 @@ function iniciarMensajeria(raiz) {
         cargarBandeja(false, true);
     });
 
-    function actualizarDesdeServidor() {
-        if (document.hidden || enviando || Date.now() - ultimaActualizacion < 5000) return;
-        ultimaActualizacion = Date.now();
-        cargarBandeja(false, true);
-        if (activo?.id) {
+    const canal = conectarMensajeria({
+        ruta: campana.dataset.rutaWs,
+        async actualizar(sincronizacion) {
+            await paginandoChats;
+            if (sincronizacion.signal.aborted) return false;
+            if (!await cargarBandeja(false, true, sincronizacion)) return false;
+            await paginandoMensajes;
+            if (sincronizacion.signal.aborted) return false;
+            return cargarHistorial(false, true, sincronizacion);
+        },
+        cerrarSesion(error) { anunciar(fallo(error, true), true); },
+        informar(error) {
+            el("estado-lista").textContent = mensajeError(error);
+            el("reintentar-lista").hidden = false;
+        },
+    });
+    document.addEventListener("siged:mensajeria-actualizar", () => canal.invalidar());
+    document.addEventListener("visibilitychange", () => {
+        if (!document.hidden && activo?.id) {
             for (const fila of visibles.values()) tarjetaPorComprobar(fila, activo.id);
-            cargarHistorial(false, true);
         }
-    }
-
-    // Los eventos mínimos de una futura conexión pueden solicitar esta misma actualización HTTP.
-    document.addEventListener("siged:mensajeria-actualizar", actualizarDesdeServidor);
-    document.addEventListener("visibilitychange", actualizarDesdeServidor);
-    window.addEventListener("pageshow", evento => { if (evento.persisted) actualizarDesdeServidor(); });
-    campana.addEventListener("toggle", () => { if (campana.open) actualizarDesdeServidor(); });
+    });
+    campana.addEventListener("toggle", () => { if (campana.open) canal.invalidar(); });
     function ajustarVista() {
         const menu = document.querySelector(".sidebar-menu");
         menu.open = !movil.matches;
@@ -773,5 +937,4 @@ function iniciarMensajeria(raiz) {
     window.visualViewport?.addEventListener("resize", ajustarTeclado);
     ajustarVista();
     ajustarTeclado();
-    cargarBandeja();
 }

@@ -16,6 +16,7 @@
     inset: 1px 2px auto auto;
 }
 .mensajeria-campana { position: relative; flex: none; }
+.mensajeria-campana .mensajeria-contador { position: absolute; inset: -5px -5px auto auto; }
 .mensajeria-campana summary,
 .mensajeria-chat-acciones summary {
     display: grid;
@@ -58,6 +59,8 @@
 }
 .mensajeria-notificaciones h2 { font-size: 1rem; }
 .mensajeria-notificaciones p { margin-block: .5rem; color: #4c6079; }
+.mensajeria-notificaciones ul { max-height: 45vh; overflow: auto; padding-inline-start: 1.25rem; }
+.mensajeria-notificaciones ul:empty { display: none; }
 .mensajeria-notificaciones a { color: #184ab6; font-weight: 650; }
 :is(.mensajeria, .mensajeria-campana) :is(button, summary, a, input, textarea, [tabindex="0"]):focus-visible {
     outline: 2px solid #2563eb;
@@ -237,6 +240,8 @@
 .mensajeria-archivo-datos { display: grid; min-width: 0; flex: 1 1 8rem; gap: .14rem; }
 .mensajeria-archivo-datos strong { overflow-wrap: anywhere; }
 .mensajeria-archivo-datos small { color: var(--msj-secundario); }
+.mensajeria-archivo-datos select { min-width: 0; max-width: 100%; }
+.mensajeria-archivo-acciones { display: flex; flex-wrap: wrap; gap: .25rem; }
 .mensajeria-tarjeta a { color: #1749aa; padding: .55rem .25rem; font-weight: 700; }
 .mensajeria-compositor {
     display: grid;
@@ -300,7 +305,6 @@
 .mensajeria-selector header, .mensajeria-selector form { margin-bottom: .5rem; }
 .mensajeria-selector header form { margin: 0; }
 .mensajeria-selector input { min-width: 0; }
-.mensajeria-selector .mensajeria-nota-selector { margin-top: .55rem; color: var(--msj-secundario); font-size: .85rem; }
 
 @media (min-width: 801px) {
     .mensajeria button.mensajeria-volver { display: none; }

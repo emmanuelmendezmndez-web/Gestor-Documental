@@ -2,7 +2,7 @@
 
 from pathlib import PureWindowsPath
 
-from app.mensajeria import adjuntos, biblioteca, motor
+from app.mensajeria import adjuntos, biblioteca, motor, vistas
 
 
 def destinatarios(actor, despues, limite):
@@ -53,15 +53,39 @@ def conversaciones(actor, archivadas, despues, limite):
         return _conversaciones(principal, db, actor, archivadas, despues, limite, ahora)
 
 
-def sincronizar(actor, archivadas, despues, limite):
+def _avisos(principal, db, actor, desde):
+    filas = db.execute(
+        """WITH pendientes AS (
+               SELECT conversacion_id,remitente_ref,id,confirmado_utc,
+                      row_number() OVER (PARTITION BY conversacion_id ORDER BY confirmado_utc DESC,id DESC) AS orden
+               FROM mensajes m WHERE destinatario_ref=? AND confirmado_utc>?
+               AND NOT EXISTS (SELECT 1 FROM lecturas l WHERE l.mensaje_id=m.id)
+           )
+           SELECT remitente_ref,id FROM pendientes WHERE orden=1
+           ORDER BY confirmado_utc DESC,id DESC LIMIT 25""",
+        (actor, desde),
+    ).fetchall()
+    avisos = []
+    for remitente, mensaje in filas:
+        perfil = principal.execute(
+            "SELECT nombre FROM usuarios WHERE mensajeria_ref=? AND activo=1", (remitente,),
+        ).fetchone()
+        avisos.append({"mensaje": mensaje, "nombre": perfil[0] if perfil else None})
+    return avisos
+
+
+def sincronizar(actor, archivadas, despues, limite, avisos=False):
     with motor._transaccion(actor) as (principal, db, _, ahora, dia):
         no_leidos = db.execute(
             """SELECT count(*) FROM mensajes m WHERE destinatario_ref=? AND confirmado_utc>?
                AND NOT EXISTS (SELECT 1 FROM lecturas l WHERE l.mensaje_id=m.id)""",
             (actor, ahora - motor.RETENCION),
         ).fetchone()[0]
-        return {"conversaciones": _conversaciones(principal, db, actor, archivadas, despues, limite, ahora),
-                "no_leidos": no_leidos, "cuota": con_restantes(motor._cuota(db, actor, dia))}
+        estado = {"conversaciones": _conversaciones(principal, db, actor, archivadas, despues, limite, ahora),
+                  "no_leidos": no_leidos, "cuota": con_restantes(motor._cuota(db, actor, dia))}
+        if avisos:
+            estado["avisos"] = _avisos(principal, db, actor, ahora - motor.RETENCION)
+        return estado
 
 
 def con_restantes(cuota):
@@ -94,14 +118,17 @@ def tarjeta(actor, chat, mensaje):
     tipo = tipo_adjunto(actor, chat, mensaje)
     if tipo == "externo":
         try:
-            return adjuntos.tarjeta(actor, mensaje, chat)
+            datos = adjuntos.tarjeta(actor, mensaje, chat)
         except motor.ErrorMotor as error:
             if str(error) in {"sesion_no_valida", "identidad_no_reconciliada"}:
                 raise
             return {"estado": "no_disponible"}
-    datos = biblioteca.tarjeta(actor, chat, mensaje, informar_estado_sesion=True)
+    else:
+        datos = biblioteca.tarjeta(actor, chat, mensaje, informar_estado_sesion=True)
     if datos["estado"] == "disponible":
         datos["extension"] = PureWindowsPath(datos["nombre_original"]).suffix.lower() or None
-        datos["visualizacion_pendiente"] = "visualizar" in datos["acciones"]
-        datos["acciones"] = [accion for accion in datos["acciones"] if accion == "descargar"]
+        acciones = ["visualizar"] if vistas.habilitada(datos) else []
+        if "descargar" in datos["acciones"]:
+            acciones.append("descargar")
+        datos["acciones"] = acciones
     return datos

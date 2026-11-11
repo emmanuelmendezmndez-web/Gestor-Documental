@@ -169,7 +169,7 @@ def _acceso(actor, conversacion, mensaje, accion=None, *, informar_estado_sesion
             raise motor.ErrorMotor(NO_DISPONIBLE) from None
         yield archivo, {
             "origen": "biblioteca", "estado": "disponible", "nombre_original": documento["nombre_archivo"],
-            "formato": formato, "vence_utc": referencia["vence_utc"],
+            "formato": formato, "vence_utc": referencia["vence_utc"], "tamano_bytes": documento["tamano_bytes"],
             "acciones": [a for a in acciones if formato is not None or a == "descargar"],
         }
 
@@ -186,9 +186,9 @@ def tarjeta(actor, conversacion, mensaje, *, informar_estado_sesion=False):
 
 
 @contextmanager
-def abrir_visualizacion(actor, conversacion, mensaje):
-    """Entrega un flujo al renderizador interno, nunca una respuesta HTTP."""
-    with _acceso(actor, conversacion, mensaje, "visualizar") as resultado:
+def abrir_visualizacion(actor, conversacion, mensaje, *, informar_estado_sesion=False):
+    """Entrega el original fijado y sus acciones autorizadas."""
+    with _acceso(actor, conversacion, mensaje, "visualizar", informar_estado_sesion=informar_estado_sesion) as resultado:
         yield resultado
 
 

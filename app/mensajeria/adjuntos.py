@@ -354,13 +354,21 @@ def _abrir_adjunto(actor, mensaje, conversacion):
         yield archivo, fila
 
 
-def tarjeta(actor, mensaje, conversacion):
-    with _abrir_adjunto(actor, mensaje, conversacion) as (_, fila):
+@contextmanager
+def abrir_visualizacion(actor, mensaje, conversacion):
+    """Entrega el mismo original íntegro que se admite para descarga."""
+    with _abrir_adjunto(actor, mensaje, conversacion) as (archivo, fila):
         nombre = fila["nombre_original"]
         extension = formatos.extension(nombre)
-        return {"origen": "externo", "estado": "disponible", "nombre_original": nombre,
-                "formato": "jpg" if extension == ".jpeg" else extension[1:], "extension": extension,
-                "tamano_bytes": fila["tamano_bytes"], "vence_utc": fila["vence_utc"], "acciones": ["descargar"]}
+        yield archivo, {"origen": "externo", "estado": "disponible", "nombre_original": nombre,
+                        "formato": "jpg" if extension == ".jpeg" else extension[1:], "extension": extension,
+                        "tamano_bytes": fila["tamano_bytes"], "vence_utc": fila["vence_utc"],
+                        "acciones": ["descargar"]}
+
+
+def tarjeta(actor, mensaje, conversacion):
+    with abrir_visualizacion(actor, mensaje, conversacion) as (_, datos):
+        return datos
 
 
 @contextmanager

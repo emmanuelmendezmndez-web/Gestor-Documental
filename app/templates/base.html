@@ -117,16 +117,20 @@
                     <button type="button" class="boton-busqueda-asistida" id="abrir-busqueda-asistida" aria-haspopup="dialog" aria-label="Buscar con Clippy" title="Buscar con Clippy">✨ <span>Con Clippy</span></button>
                 </form>
                 {% if request.app.state.mensajeria_interfaz %}
-                <details class="mensajeria-campana" id="mensajeria-campana">
+                <details class="mensajeria-campana" id="mensajeria-campana"
+                         {% if request.app.state.mensajeria_ruta_ws %}data-ruta-ws="{{ request.app.state.mensajeria_ruta_ws }}"{% endif %}>
                     <summary aria-label="Notificaciones" title="Notificaciones">
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 17h14l-2-3V9a5 5 0 0 0-10 0v5zM10 20h4"/></svg>
+                        <small class="mensajeria-contador" data-mensajeria-avisos aria-hidden="true" hidden></small>
                     </summary>
                     <section class="mensajeria-notificaciones" aria-labelledby="mensajeria-notificaciones-titulo">
                         <h2 id="mensajeria-notificaciones-titulo">Notificaciones</h2>
-                        <p>Las notificaciones aparecerán aquí cuando estén disponibles.</p>
+                        <p data-mensajeria-estado-avisos>Consultando notificaciones…</p>
+                        <ul data-mensajeria-lista-avisos></ul>
                         <a href="/mensajeria">Ir a Mensajería</a>
                     </section>
                 </details>
+                <p class="sr-only" data-mensajeria-aviso-vivo role="status"></p>
                 {% endif %}
                 <span class="rol-topbar">{{ usuario["rol_nombre"] }}</span>
             </div>

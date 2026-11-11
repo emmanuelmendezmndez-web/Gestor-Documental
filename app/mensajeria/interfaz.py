@@ -1,12 +1,13 @@
 """Vista experimental de Mensajería y selección documental autorizada."""
 
+from pathlib import PureWindowsPath
 from typing import Annotated
 
 from fastapi import Depends, Query, Request
 from fastapi.responses import HTMLResponse
 
 from app.database import normalizar_texto
-from app.mensajeria import biblioteca, formatos, motor, sesiones_ws
+from app.mensajeria import biblioteca, formatos, motor, sesiones_ws, vistas
 from app.mensajeria.api_http import PATRON_REF, PRIVADAS, _credencial, _ejecutar, _error
 from app.mensajeria.websocket import _origen_exacto
 from app.plantillas import templates
@@ -21,20 +22,26 @@ def _documentos(actor, destinatario, buscar, despues):
         raise motor.ErrorMotor(biblioteca.NO_DISPONIBLE)
     with motor._transaccion(actor, destinatario) as (principal, _, _, _, _):
         alcance, parametros, descarga = biblioteca._alcance(principal, (actor, destinatario))
-        if not descarga:
-            return [], None, False
         termino = "%" + escapar_like(normalizar_texto(buscar.strip())) + "%"
         filas = principal.execute(
-            r"""SELECT mensajeria_ref, titulo, nombre_archivo FROM documentos
+            r"""SELECT mensajeria_ref, titulo, nombre_archivo, nombre_guardado, tamano_bytes FROM documentos
                WHERE eliminado_en IS NULL AND mensajeria_ref>? AND mensajeria_original=nombre_guardado
                AND (normalizar(titulo) LIKE ? ESCAPE '\' OR normalizar(nombre_archivo) LIKE ? ESCAPE '\')"""
             + alcance + " ORDER BY mensajeria_ref LIMIT ?",
             (despues or "", termino, termino, *parametros, _POR_PAGINA + 1),
         ).fetchall()
         siguiente = filas[_POR_PAGINA - 1][0] if len(filas) > _POR_PAGINA else None
-        documentos = [fila for fila in filas[:_POR_PAGINA]
-                      if len(fila["nombre_archivo"] or "") <= 260 and formatos._segmento(fila["nombre_archivo"])]
-        return documentos, siguiente, True
+        documentos = []
+        for fila in filas[:_POR_PAGINA]:
+            nombre = fila["nombre_archivo"]
+            if len(nombre or "") > 260 or not formatos._segmento(nombre):
+                continue
+            extension = PureWindowsPath(nombre).suffix.lower()
+            solo_vista = (extension == PureWindowsPath(fila["nombre_guardado"]).suffix.lower()
+                          and vistas.compatible(extension, fila["tamano_bytes"], descarga=False))
+            if descarga or solo_vista:
+                documentos.append({**dict(fila), "solo_vista": solo_vista})
+        return documentos, siguiente, descarga
 
 
 def instalar(app, *, origenes, https_only):
