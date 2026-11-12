@@ -30,14 +30,14 @@ export function mensajeError(error) {
     };
     if (Object.hasOwn(codigos, error.message)) return codigos[error.message];
     return {
-        0: "Se interrumpió la conexión. Comprueba tu acceso a SIGED.",
+        0: "Se interrumpió la conexión. Comprueba tu acceso a NexusGrid.",
         400: "Revisa los datos y el archivo antes de reintentar.",
         401: "La sesión de Mensajería dejó de ser válida. Cierra sesión y vuelve a entrar.",
-        403: "SIGED rechazó la solicitud. Actualiza la página antes de reintentar.",
+        403: "NexusGrid rechazó la solicitud. Actualiza la página antes de reintentar.",
         404: "El elemento ya no está disponible o no tienes acceso.",
         408: "El servidor agotó el tiempo de espera. Puedes reintentar la misma operación.",
         413: "El archivo o la solicitud supera el límite permitido de 20 MiB por archivo.",
-        415: "SIGED rechazó el formato del archivo.",
+        415: "NexusGrid rechazó el formato del archivo.",
         429: "El servidor está ocupado. Espera un momento y reintenta.",
     }[error.estado] || "Mensajería está temporalmente no disponible. Inténtalo de nuevo.";
 }
@@ -137,7 +137,7 @@ export async function enviar(operacion, actualizar) {
         if (!operacion.preparado) {
             actualizar("Subiendo archivo…", 0);
             operacion.preparado = await preparar(operacion, avance => actualizar(
-                avance === null ? "Validando el archivo en SIGED…" : "Subiendo archivo…", avance,
+                avance === null ? "Validando el archivo en NexusGrid…" : "Subiendo archivo…", avance,
             ));
         }
         const preparado = operacion.preparado;

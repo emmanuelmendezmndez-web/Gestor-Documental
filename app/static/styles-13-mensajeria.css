@@ -46,6 +46,8 @@
     stroke-linejoin: round;
     flex: none;
 }
+.mensajeria-campana .ph-bold { font-size: 20px; }
+.mensajeria-notificacion-datos .ph-bold { font-size: 15px; }
 .mensajeria-notificaciones, .mensajeria-chat-acciones > div {
     position: absolute;
     z-index: 4;
@@ -387,8 +389,6 @@
     font-weight: 650;
     overflow-wrap: anywhere;
     pointer-events: none;
-    animation: mensajeria-aviso-entrada .16s ease-out;
-    transition: opacity .16s, transform .16s;
 }
 .mensajeria-aviso-envio[data-salida] { opacity: 0; transform: translateY(4px); }
 .mensajeria-aviso-icono {
@@ -401,7 +401,7 @@
     background: #dff2e5;
     color: #13743b;
 }
-.mensajeria .mensajeria-aviso-icono svg { width: 16px; height: 16px; }
+.mensajeria-aviso-icono .ph-bold { font-size: 16px; }
 .mensajeria-aviso-envio[data-tipo="error"] { border-color: #f1d0cd; background: #fff7f6; color: #81221c; }
 .mensajeria-aviso-envio[data-tipo="error"] .mensajeria-aviso-icono { background: #fce5e3; color: #a62b22; }
 .mensajeria-aviso-envio[data-tipo="error"] [data-tipo="exito"],
@@ -409,6 +409,10 @@
 @keyframes mensajeria-aviso-entrada {
     from { opacity: 0; transform: translateY(4px); }
     to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: no-preference) {
+    .mensajeria-aviso-envio { animation: mensajeria-aviso-entrada 300ms ease-out; transition: opacity 250ms, transform 250ms; }
+    .mensajeria-aviso-icono .ph-bold { animation: aviso-icono-entrada 320ms ease-out; }
 }
 .mensajeria-selector {
     width: min(34rem, calc(100vw - 28px));

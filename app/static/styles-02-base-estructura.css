@@ -22,40 +22,41 @@ body {
     padding: 48px max(20px, calc((100% - var(--ancho-contenido)) / 2 + 20px)) 28px;
 }
 
-.auth-header h1 {
-    margin: 0 0 8px;
-}
-
-.auth-header p {
-    margin: 0;
-    color: #dbe6f3;
-}
-
-.auth-header .auth-subtitulo {
-    margin-bottom: 4px;
-    color: #fff;
-    font-size: 1.08rem;
-    font-weight: 650;
-}
-
 .auth-identidad {
     display: flex;
     align-items: center;
     gap: 16px;
-    margin-bottom: 12px;
 }
 
 .auth-logo {
     display: block;
-    width: 76px;
-    height: 76px;
-    flex: 0 0 76px;
-    background: transparent;
-    object-fit: cover;
+    overflow: hidden;
+    width: clamp(96px, 25vw, 136px);
+    aspect-ratio: 1;
+    flex: none;
+    border-radius: 12px;
+}
+
+.auth-logo img,
+.marca-icono img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    transform: scale(1.1);
 }
 
 .auth-identidad h1 {
-    margin: 0 0 2px;
+    margin: 0 0 4px;
+    font-size: clamp(1.5rem, 7vw, 2rem);
+    line-height: 1.2;
+}
+
+.auth-subtitulo {
+    margin: 0;
+    font-size: clamp(.9rem, 3.8vw, 1.08rem);
+    font-weight: 650;
+    line-height: 1.35;
 }
 
 main {
@@ -132,23 +133,16 @@ main {
 .sidebar-toggle svg {
     width: 17px;
     height: 17px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    transition: transform 0.2s ease;
     flex: none;
 }
 
-.sidebar-toggle-flecha {
-    transform-box: fill-box;
+.sidebar-toggle .icono-orientacion-barra {
+    transform-box: view-box;
     transform-origin: center;
-    transition: transform 0.2s ease;
 }
 
-.sidebar:not(.is-collapsed) .sidebar-toggle-flecha {
-    transform: rotate(180deg);
+.sidebar-toggle[aria-expanded="true"] .icono-orientacion-barra {
+    transform: scaleX(-1);
 }
 
 .sidebar.is-collapsed .marca {
@@ -197,20 +191,14 @@ main {
 }
 
 .marca-icono {
-    display: grid;
+    display: block;
     overflow: hidden;
     width: 42px;
     height: 42px;
-    place-items: center;
+    flex: none;
+    padding: 2px;
     border-radius: 12px;
-    background: transparent;
-}
-
-.marca-icono img {
-    display: block;
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
+    background: var(--color-primario-suave);
 }
 
 .marca strong,
@@ -276,7 +264,7 @@ main {
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .sidebar, .sidebar-toggle, .sidebar-toggle svg, .sidebar-toggle-flecha,
+    .sidebar, .sidebar-toggle,
     .sidebar .marca > span:last-child, .sidebar .sidebar-link > span:not(.avatar),
     .sidebar .boton-cerrar-sesion > span, .sidebar .sidebar-toggle > span,
     .sidebar .sidebar-link, .sidebar .boton-cerrar-sesion { transition: none; }
@@ -536,54 +524,51 @@ footer {
     color: var(--color-texto-suave);
 }
 
-/* La página solo aparece durante el movimiento; el libro permanece reconocible en reposo. */
-.sidebar .nav-icono-pagina { opacity: 0; transform-box: view-box; transform-origin: 50% 50%; }
+.icono-phosphor path { fill: currentColor; stroke: none; }
+.icono-phosphor { overflow: visible; }
+.buscar-accion .ph-bold { flex: none; font-size: 19px; }
+.icono-phosphor :is(.icono-libro-recto, .icono-libro-inclinado, .icono-carpeta-dorso,
+    .icono-carpeta-frente, .icono-globo-detras, .icono-globo-delante) { display: none; }
 
-/* Una sola reacción por entrada del cursor o foco; sin modificar el espacio del menú. */
 @media (prefers-reduced-motion: no-preference) {
-    :is(.sidebar-link, .boton-cerrar-sesion):focus-visible {
-        --nav-inicio: siged-nav-inicio;
-        --nav-pagina: siged-nav-pagina;
-        --nav-carpeta: siged-nav-carpeta;
-        --nav-subir: siged-nav-subir;
-        --nav-persona: siged-nav-persona;
-        --nav-persona-secundaria: siged-nav-persona-secundaria;
-        --nav-tapa: siged-nav-tapa;
-        --nav-actividad: siged-nav-actividad;
-        --nav-salir: siged-nav-salir;
+    .animando-icono .icono-phosphor .icono-reposo { display: none; }
+    .animando-icono .icono-phosphor :where(path:not(.icono-reposo)) {
+        display: inline;
+        transform-box: view-box;
+        transform-origin: var(--origen-icono, center);
+        animation: var(--movimiento-icono, none) 360ms ease-in-out;
     }
 
-    @media (hover: hover) {
-        :is(.sidebar-link, .boton-cerrar-sesion):hover {
-            --nav-inicio: siged-nav-inicio;
-            --nav-pagina: siged-nav-pagina;
-            --nav-carpeta: siged-nav-carpeta;
-            --nav-subir: siged-nav-subir;
-            --nav-persona: siged-nav-persona;
-            --nav-persona-secundaria: siged-nav-persona-secundaria;
-            --nav-tapa: siged-nav-tapa;
-            --nav-actividad: siged-nav-actividad;
-            --nav-salir: siged-nav-salir;
-        }
-    }
+    .icono-salto { --movimiento-icono: icono-salto; }
+    .icono-libro-recto { --movimiento-icono: icono-inclinar; --angulo-libro: -9deg; }
+    .icono-libro-inclinado { --movimiento-icono: icono-inclinar; --angulo-libro: 11deg; }
+    .icono-phosphor :is(.icono-libro-recto, .icono-libro-inclinado) { --origen-icono: 50% 84%; }
+    .icono-phosphor .icono-carpeta-frente { --movimiento-icono: icono-abrir; --origen-icono: 50% 84%; }
+    .icono-globo-detras { --movimiento-icono: icono-desplazar; --movimiento-x: -7px; --movimiento-y: -12px; }
+    .icono-globo-delante { --movimiento-icono: icono-desplazar; --movimiento-x: 7px; --movimiento-y: 12px; }
+    .icono-flecha-subir { --movimiento-icono: icono-desplazar; --movimiento-y: -29px; }
+    .icono-usuario-primero { --movimiento-icono: icono-desplazar; --movimiento-x: -11px; }
+    .icono-usuario-segundo { --movimiento-icono: icono-desplazar; --movimiento-x: 11px; }
+    .icono-phosphor .icono-tapa { --movimiento-icono: icono-levantar; --origen-icono: 16% 25%; }
+    .icono-phosphor .icono-manecillas { --movimiento-icono: icono-girar; }
+    .icono-phosphor .icono-campana { --movimiento-icono: icono-oscilar; --origen-icono: 50% 17%; }
+    .icono-ondas { --movimiento-icono: icono-ondas; }
 
-    .sidebar .nav-icono-inicio { animation: var(--nav-inicio, none) 580ms ease-out; }
-    .sidebar .nav-icono-pagina { animation: var(--nav-pagina, none) 680ms ease-in-out; }
-    .sidebar .nav-icono-carpeta { transform-box: fill-box; transform-origin: left bottom; animation: var(--nav-carpeta, none) 580ms ease-in-out; }
-    .sidebar .nav-icono-subir { animation: var(--nav-subir, none) 580ms ease-out; }
-    .sidebar .nav-icono-persona { animation: var(--nav-persona, none) 580ms ease-in-out; }
-    .sidebar .nav-icono-persona-secundaria { animation: var(--nav-persona-secundaria, none) 580ms ease-in-out; }
-    .sidebar .nav-icono-tapa { transform-box: fill-box; transform-origin: left bottom; animation: var(--nav-tapa, none) 580ms ease-in-out; }
-    .sidebar .nav-icono-actividad { animation: var(--nav-actividad, none) 580ms ease-in-out; }
-    .sidebar .nav-icono-salir { animation: var(--nav-salir, none) 580ms ease-out; }
+    .icono-flecha-salir { --movimiento-icono: icono-desplazar; --movimiento-x: 29px; }
+    .sidebar-toggle.animando-icono .icono-phosphor {
+        --movimiento-x: 2px;
+        animation: icono-desplazar 360ms ease-in-out;
+    }
 }
 
-@keyframes siged-nav-inicio { 40% { transform: translateY(-3px); } 70% { transform: translateY(1px); } }
-@keyframes siged-nav-pagina { 0% { opacity: 0; transform: rotateY(0deg); } 15% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; transform: rotateY(180deg); } }
-@keyframes siged-nav-carpeta { 50% { transform: translateY(-2px) rotate(-8deg); } }
-@keyframes siged-nav-subir { 50% { transform: translateY(-3px); } }
-@keyframes siged-nav-persona { 50% { transform: translateX(-1.8px); } }
-@keyframes siged-nav-persona-secundaria { 50% { transform: translateX(1.8px); } }
-@keyframes siged-nav-tapa { 50% { transform: translateY(-3px) rotate(-10deg); } }
-@keyframes siged-nav-actividad { 50% { opacity: .35; } }
-@keyframes siged-nav-salir { 50% { transform: translateX(3px); } }
+@keyframes icono-salto { 42% { transform: translateY(-28px); } 70% { transform: translateY(5px); } }
+@keyframes icono-inclinar { 50% { transform: rotate(var(--angulo-libro)); } }
+@keyframes icono-abrir {
+    28% { transform: skewX(-5deg) scaleY(.9); }
+    65% { transform: skewX(14deg) scaleY(1.22); }
+}
+@keyframes icono-desplazar { 50% { transform: translate(var(--movimiento-x, 0px), var(--movimiento-y, 0px)); } }
+@keyframes icono-levantar { 50% { transform: translateY(-13px) rotate(-12deg); } }
+@keyframes icono-girar { to { transform: rotate(360deg); } }
+@keyframes icono-oscilar { 25% { transform: rotate(13deg); } 55% { transform: rotate(-11deg); } 80% { transform: rotate(5deg); } }
+@keyframes icono-ondas { 30%, 70% { opacity: .5; } 50% { opacity: 1; } }

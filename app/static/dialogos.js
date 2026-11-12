@@ -71,7 +71,7 @@
         if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
             finalizar();
         } else {
-            respaldoCierre = window.setTimeout(() => finalizar(), 220);
+            respaldoCierre = window.setTimeout(() => finalizar(), 320);
         }
     }
 
@@ -88,6 +88,7 @@
                 soloAviso = true;
                 dialogo.dataset.tono = "aviso";
                 dialogo.dataset.icono = "aviso";
+                dialogo.dataset.estado = "advertencia";
                 afectado.hidden = true;
                 nombreAfectado.textContent = "";
                 iconoAfectado.replaceChildren();
@@ -117,6 +118,7 @@
         const reversible = ruta === "/documentos/papelera" || /^\/documentos\/\d+\/eliminar$/.test(ruta) || ruta === "/papelera/restaurar" || /^\/documentos\/\d+\/restaurar$/.test(ruta);
         dialogo.dataset.tono = reversible ? "aviso" : origen.dataset.confirmTone === "danger" ? "peligro" : "normal";
         dialogo.dataset.icono = iconoOperacion(ruta, origen);
+        delete dialogo.dataset.estado;
         titulo.textContent = origen.dataset.confirmTitle || "Confirma esta acción";
         const nombreEnMensaje = mostrarMensaje(origen.dataset.confirm || "¿Deseas continuar?");
         const nombre = origen.dataset.confirmSubject || nombreEnMensaje;

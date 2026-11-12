@@ -99,7 +99,7 @@ app.mount(
 @app.get("/favicon.ico", include_in_schema=False)
 def favicon():
     return FileResponse(
-        APP_DIR / "static" / "img" / "siged-isotipo.png",
+        APP_DIR / "static" / "img" / "nexusgrid-isotipo.png",
         media_type="image/png",
         headers={"Cache-Control": "public, max-age=86400"},
     )

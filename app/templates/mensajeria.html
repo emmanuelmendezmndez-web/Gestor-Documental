@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "_iconos.html" import icono_archivo %}
-{% block titulo %}SIGED | Mensajes{% endblock %}
+{% block titulo %}NexusGrid | Mensajes{% endblock %}
 {% block contenido %}
 <div class="mensajeria" id="mensajeria">
     <aside class="mensajeria-bandeja" aria-labelledby="mensajeria-bandeja-titulo">
@@ -31,10 +31,10 @@
     <section class="mensajeria-bienvenida" aria-labelledby="mensajeria-bienvenida-titulo">
         <img src="{{ url_for('static', path='img/mensajeria-bienvenida.svg') }}" alt="" width="300" height="174">
         <h2 id="mensajeria-bienvenida-titulo">Comunicación documental en un solo lugar</h2>
-        <p>Selecciona una conversación para intercambiar mensajes y compartir documentos de forma segura dentro de SIGED.</p>
+        <p>Selecciona una conversación para intercambiar mensajes y compartir documentos de forma segura dentro de NexusGrid.</p>
         <p class="mensajeria-permisos">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 5 3 8 7 10 4-2 7-5 7-10V6zM9 12l2 2 4-4"/></svg>
-            Acceso controlado según los permisos de SIGED
+            Acceso controlado según los permisos de NexusGrid
         </p>
     </section>
     <section class="mensajeria-chat" aria-labelledby="mensajeria-chat-titulo" hidden>
@@ -62,8 +62,8 @@
         <form class="mensajeria-compositor" id="mensajeria-compositor" autocomplete="off">
             <div id="mensajeria-aviso" class="mensajeria-aviso-envio" aria-hidden="true" hidden>
                 <span class="mensajeria-aviso-icono">
-                    <svg data-tipo="exito" viewBox="0 0 24 24"><path d="m5 12 4 4 10-10"/></svg>
-                    <svg data-tipo="error" viewBox="0 0 24 24"><path d="M12 7v6m0 4v.1"/><circle cx="12" cy="12" r="9"/></svg>
+                    <i class="ph-bold ph-seal-check" data-tipo="exito"></i>
+                    <i class="ph-bold ph-x-circle" data-tipo="error"></i>
                 </span>
                 <span id="mensajeria-aviso-texto"></span>
             </div>

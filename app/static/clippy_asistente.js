@@ -253,7 +253,7 @@
                 ayudaDeEstaSeccion = "Abre una carpeta para consultar el expediente y sus documentos visibles." +
                     (config.puedeGestionarExpedientes ? " Usa Nuevo expediente para crear uno." : "");
             } else if (ruta === "/expedientes/nuevo") {
-                ayudaDeEstaSeccion = config.puedeGestionarExpedientes ? "Escribe el nombre o asunto y, si deseas, una descripción. Al crear el expediente, SIGED asigna el folio." : "Consulta el explorador de expedientes para abrir los asuntos disponibles.";
+                ayudaDeEstaSeccion = config.puedeGestionarExpedientes ? "Escribe el nombre o asunto y, si deseas, una descripción. Al crear el expediente, NexusGrid asigna el folio." : "Consulta el explorador de expedientes para abrir los asuntos disponibles.";
             } else if (ruta.startsWith("/expedientes/") && ruta.endsWith("/eliminar")) {
                 ayudaDeEstaSeccion = "Revisa el folio antes de confirmar: solo se elimina la ficha y sus vínculos; los originales permanecen en Biblioteca.";
             } else if (ruta.startsWith("/expedientes/")) {
@@ -333,7 +333,7 @@
                 ]
             };
             const guiaMensajeria = [
-                "Aquí puedes conversar y compartir documentos con otros usuarios de SIGED.",
+                "Aquí puedes conversar y compartir documentos con otros usuarios de NexusGrid.",
                 "Para enviar un mensaje, adjunta un archivo o selecciona un documento de Biblioteca.",
                 "Puedes buscar conversaciones en la lista. En escritorio está en el panel izquierdo.",
                 "Los documentos de Biblioteca conservan sus restricciones de acceso al compartirlos.",
@@ -460,7 +460,7 @@
             } else if (config.busquedaSinResultados) {
                 ayudaDeEstaSeccion = "No hay resultados visibles para tu cuenta. Prueba el folio, el número de oficio o una parte del título.";
             } else if (config.discoLleno) {
-                ayudaDeEstaSeccion = "El disco donde SIGED guarda archivos supera el 90 por ciento de uso. Avisa al administrador para revisar el espacio disponible.";
+                ayudaDeEstaSeccion = "El disco donde NexusGrid guarda archivos supera el 90 por ciento de uso. Avisa al administrador para revisar el espacio disponible.";
             }
 
             const detectarAccion = (evento) => {

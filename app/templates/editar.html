@@ -9,7 +9,7 @@
         Unicamente puedes editar los metadatos: el archivo en sí no se modifica.
     </p>
 
-    <form action="/documentos/{{ documento['id'] }}/editar" method="post" data-clippy-tip="Puedes corregir los metadatos; al guardar, SIGED conserva las versiones anteriores del documento."><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <form action="/documentos/{{ documento['id'] }}/editar" method="post" data-clippy-tip="Puedes corregir los metadatos; al guardar, NexusGrid conserva las versiones anteriores del documento."><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <input type="hidden" name="version" value="{{ documento['version'] }}">
         <div class="campo">
             <label for="titulo">Título del documento</label>

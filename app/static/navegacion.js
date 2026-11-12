@@ -47,16 +47,23 @@
         let temporizador;
         const cancelar = () => window.clearTimeout(temporizador);
         const ocultar = () => {
+            if (aviso.hasAttribute("data-salida")) return;
+            aviso.setAttribute("data-salida", "");
             cancelar();
-            const teniaFoco = document.activeElement === cerrar;
-            aviso.hidden = true;
-            if (teniaFoco) document.getElementById("contenido-principal")?.focus({ preventScroll: true });
+            if (document.activeElement === cerrar) {
+                document.getElementById("contenido-principal")?.focus({ preventScroll: true });
+            }
+            if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+                aviso.hidden = true;
+            } else {
+                window.setTimeout(() => { aviso.hidden = true; }, 250);
+            }
         };
         cerrar.addEventListener("click", ocultar);
         if (aviso.dataset.avisoOperacion === "exito") {
             const programar = () => {
                 cancelar();
-                if (!aviso.hidden && document.activeElement !== cerrar && !cerrar.matches(":hover")) {
+                if (!aviso.hidden && !aviso.hasAttribute("data-salida") && document.activeElement !== cerrar && !cerrar.matches(":hover")) {
                     temporizador = window.setTimeout(ocultar, 7000);
                 }
             };
@@ -155,4 +162,24 @@
         vistaMovil.addEventListener("change", ajustarVista);
         ajustarVista();
     }
+
+    const movimientoReducido = window.matchMedia("(prefers-reduced-motion: reduce)");
+    function animarIcono(control) {
+        if (!control || movimientoReducido.matches || control.classList.contains("animando-icono")) return;
+        control.classList.add("animando-icono");
+        window.setTimeout(() => control.classList.remove("animando-icono"), 400);
+    }
+    const controlConIcono = (evento) => evento.target?.closest?.("[data-animar-icono]");
+    document.addEventListener("pointerover", (evento) => {
+        if (evento.pointerType === "touch") return;
+        const control = controlConIcono(evento);
+        if (control && !control.contains(evento.relatedTarget)) animarIcono(control);
+    });
+    document.addEventListener("focusin", (evento) => {
+        const control = controlConIcono(evento);
+        if (control?.matches(":focus-visible")) animarIcono(control);
+    });
+    document.addEventListener("pointerdown", (evento) => animarIcono(controlConIcono(evento)));
+    document.addEventListener("click", (evento) => animarIcono(controlConIcono(evento)));
+    document.addEventListener("animar-icono", (evento) => animarIcono(controlConIcono(evento)));
 })();

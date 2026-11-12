@@ -39,7 +39,7 @@
 
     <details class="cuenta-edicion">
         <summary class="boton-secundario">Editar mis datos</summary>
-        <form action="/cuenta/perfil" method="post" class="formulario-cuenta-perfil" enctype="multipart/form-data" data-clippy-tip="Actualiza tus datos de contacto. Si no eliges una foto, SIGED conservará la actual o mostrará tus iniciales."><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <form action="/cuenta/perfil" method="post" class="formulario-cuenta-perfil" enctype="multipart/form-data" data-clippy-tip="Actualiza tus datos de contacto. Si no eliges una foto, NexusGrid conservará la actual o mostrará tus iniciales."><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div class="campo">
                 <label for="nombre-perfil">Nombre para mostrar</label>
                 <input type="text" id="nombre-perfil" name="nombre" value="{{ usuario['nombre'] }}" maxlength="100" autocomplete="name" data-clippy-read="Tu nombre" required>

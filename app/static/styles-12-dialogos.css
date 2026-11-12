@@ -26,19 +26,14 @@
 
 .dialogo-confirmacion::backdrop {
     background: rgb(15 23 42 / 48%);
-    animation: fondo-dialogo-aparece 0.15s ease-out both;
 }
 
-.dialogo-confirmacion[open] {
-    animation: dialogo-aparece 0.2s cubic-bezier(0.2, 0.75, 0.25, 1) both;
-}
-
-.dialogo-confirmacion.dialogo-cerrando {
-    animation: dialogo-desaparece 0.14s ease-in both;
-}
-
-.dialogo-confirmacion.dialogo-cerrando::backdrop {
-    animation: fondo-dialogo-desaparece 0.14s ease-in both;
+@media (prefers-reduced-motion: no-preference) {
+    .dialogo-confirmacion[open] { animation: dialogo-aparece 300ms cubic-bezier(.2, .75, .25, 1) both; }
+    .dialogo-confirmacion::backdrop { animation: fondo-dialogo-aparece 250ms ease-out both; }
+    .dialogo-confirmacion[open].dialogo-cerrando { animation: dialogo-desaparece 250ms ease-in both; }
+    .dialogo-confirmacion.dialogo-cerrando::backdrop { animation: fondo-dialogo-desaparece 250ms ease-in both; }
+    .dialogo-confirmacion[open] .dialogo-confirmacion-icono .ph-bold { animation: aviso-icono-entrada 320ms ease-out; }
 }
 
 .dialogo-confirmacion-contenido {
@@ -62,29 +57,10 @@
     background: #e3edf9;
 }
 
-.dialogo-confirmacion[data-tono="peligro"] .dialogo-confirmacion-icono { color: #b91c1c; background: #fef2f2; border-color: #fecaca; }
-
-.dialogo-confirmacion-icono svg {
-    width: 25px;
-    height: 25px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.8;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    display: none;
-}
-
-.dialogo-confirmacion:not([data-icono]) .dialogo-confirmacion-icono svg[data-icono="aviso"],
-.dialogo-confirmacion[data-icono="aviso"] .dialogo-confirmacion-icono svg[data-icono="aviso"],
-.dialogo-confirmacion[data-icono="documento"] .dialogo-confirmacion-icono svg[data-icono="documento"],
-.dialogo-confirmacion[data-icono="expediente"] .dialogo-confirmacion-icono svg[data-icono="expediente"],
-.dialogo-confirmacion[data-icono="papelera"] .dialogo-confirmacion-icono svg[data-icono="papelera"],
-.dialogo-confirmacion[data-icono="usuario"] .dialogo-confirmacion-icono svg[data-icono="usuario"],
-.dialogo-confirmacion[data-icono="comunicado"] .dialogo-confirmacion-icono svg[data-icono="comunicado"],
-.dialogo-confirmacion[data-icono="enviar-papelera"] .dialogo-confirmacion-icono svg[data-icono="enviar-papelera"],
-.dialogo-confirmacion[data-icono="restaurar"] .dialogo-confirmacion-icono svg[data-icono="restaurar"],
-.dialogo-confirmacion[data-icono="administracion"] .dialogo-confirmacion-icono svg[data-icono="administracion"] { display: block; }
+.dialogo-confirmacion[data-estado="advertencia"] .dialogo-confirmacion-icono { color: #854d0e; background: #fef3c7; border-color: #fde68a; }
+.dialogo-confirmacion-icono .ph-bold { font-size: 25px; }
+.dialogo-confirmacion:not([data-estado="advertencia"]) .dialogo-confirmacion-icono .ph-warning-octagon,
+.dialogo-confirmacion[data-estado="advertencia"] .dialogo-confirmacion-icono .ph-question { display: none; }
 
 .dialogo-confirmacion-contenido h2 {
     min-width: 0;

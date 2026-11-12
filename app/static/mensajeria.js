@@ -29,6 +29,7 @@ function desplegable(detalle) {
 }
 
 function iniciarAvisos() {
+    const controlCampana = campana.querySelector("summary");
     const badge = campana.querySelector("[data-mensajeria-avisos]");
     const estado = campana.querySelector("[data-mensajeria-estado-avisos]");
     const lista = campana.querySelector("[data-mensajeria-lista-avisos]");
@@ -45,6 +46,7 @@ function iniciarAvisos() {
         const textos = avisos.map(({ nombre }) => nombre ? "Nuevo mensaje de " + nombre : "Nuevo mensaje recibido");
         const novedad = nuevo && consultado ? avisos.findIndex(aviso => !anunciados.has(aviso.mensaje)) : -1;
         vivo.textContent = textos[novedad] || "";
+        if (novedad >= 0) controlCampana.dispatchEvent(new Event("animar-icono", { bubbles: true }));
         const presentes = new Set();
         let anterior = null;
         for (const aviso of avisos) {
@@ -72,7 +74,7 @@ function iniciarAvisos() {
         }
         for (const [id, fila] of filas) {
             if (presentes.has(id)) continue;
-            if (fila.contains(document.activeElement)) campana.querySelector("summary").focus();
+            if (fila.contains(document.activeElement)) controlCampana.focus();
             fila.remove();
             filas.delete(id);
         }
@@ -83,7 +85,7 @@ function iniciarAvisos() {
         estado.textContent = error || "No tienes notificaciones pendientes.";
         badge.hidden = !total;
         badge.textContent = total ? numero(total) : "";
-        campana.querySelector("summary").setAttribute("aria-label",
+        controlCampana.setAttribute("aria-label",
             total ? "Notificaciones, " + total + (total === 1 ? " aviso pendiente" : " avisos pendientes") : "Notificaciones");
     };
 }
@@ -239,8 +241,12 @@ function iniciarMensajeria(raiz, mostrarAvisos) {
         aviso.hidden = !mensaje;
         if (!mensaje) return;
         ocultarAviso = window.setTimeout(() => {
+            if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+                aviso.hidden = true;
+                return;
+            }
             aviso.dataset.salida = "";
-            ocultarAviso = window.setTimeout(() => { aviso.hidden = true; }, 160);
+            ocultarAviso = window.setTimeout(() => { aviso.hidden = true; }, 250);
         }, error ? Math.max(7000, Math.min(16000, mensaje.length * 55)) : 2600);
     }
 
