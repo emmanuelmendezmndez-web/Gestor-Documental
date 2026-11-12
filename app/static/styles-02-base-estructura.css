@@ -7,10 +7,25 @@ body {
     min-height: 100vh;
     display: flex;
     flex-direction: column;
-    font-family: system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+    font-family: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+    font-weight: 400;
     line-height: 1.6;
     background: var(--color-fondo);
     color: var(--color-texto);
+}
+
+:where(h2, h3, h4, h5, h6, strong, b, summary):not(:where(.clippy-balloon *)) {
+    font-weight: 600;
+}
+
+:where(input, select, textarea) {
+    font-family: inherit;
+    font-weight: 400;
+}
+
+input::file-selector-button {
+    font-family: inherit;
+    font-weight: 600;
 }
 
 .auth-header {
@@ -55,7 +70,7 @@ body {
 .auth-subtitulo {
     margin: 0;
     font-size: clamp(.9rem, 3.8vw, 1.08rem);
-    font-weight: 650;
+    font-weight: 600;
     line-height: 1.35;
 }
 
@@ -282,6 +297,7 @@ main {
     background: transparent;
     color: #dce4ed;
     font: inherit;
+    font-weight: 500;
     text-align: left;
     text-decoration: none;
     transition: background-color 0.15s, color 0.15s, transform 0.15s ease;
@@ -381,8 +397,8 @@ main {
     z-index: 2;
     top: 0;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-    grid-template-areas: "busqueda titulo acciones";
+    grid-template-columns: fit-content(15rem) minmax(0, 1fr) auto;
+    grid-template-areas: "titulo busqueda acciones";
     align-items: center;
     gap: 10px clamp(12px, 2vw, 24px);
     padding: 14px clamp(16px, 2.6vw, 38px);
@@ -398,10 +414,10 @@ main {
     min-width: 0;
     margin: 0;
     color: var(--color-texto);
-    font-size: clamp(1.15rem, 1.6vw, 1.45rem);
-    font-weight: 750;
-    line-height: 1.2;
-    text-align: center;
+    font-size: clamp(1.375rem, 1.25rem + .4vw, 1.5rem);
+    font-weight: 700;
+    line-height: 1.25;
+    text-align: left;
     overflow-wrap: anywhere;
 }
 
@@ -416,10 +432,12 @@ main {
 }
 
 .busqueda-global {
-    position: relative;
-    display: flex;
-    flex: 0 1 390px;
-    min-width: 220px;
+    display: grid;
+    grid-area: busqueda;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    min-width: 0;
+    align-items: center;
+    gap: 6px;
     margin: 0;
 }
 
@@ -427,7 +445,8 @@ main {
     width: 100%;
     max-width: none;
     height: 42px;
-    padding: 9px 86px 9px 13px;
+    min-width: 0;
+    padding: 9px 13px;
     border: 1px solid var(--color-borde);
     border-radius: 10px;
     background: #f8fafc;
@@ -444,35 +463,16 @@ main {
 }
 
 .busqueda-global kbd {
-    position: absolute;
-    top: 50%;
-    right: 48px;
     padding: 2px 6px;
-    transform: translateY(-50%);
     border: 1px solid #dbe3ed;
     border-radius: 5px;
     background: white;
     color: var(--color-texto-suave);
-    font: 0.7rem/1.4 system-ui, sans-serif;
+    font-family: inherit;
+    font-size: 0.7rem;
+    line-height: 1.4;
+    white-space: nowrap;
     pointer-events: none;
-}
-
-.busqueda-global button {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    display: grid;
-    width: 34px;
-    height: 34px;
-    place-items: center;
-    padding: 0;
-    border-radius: 7px;
-    background: var(--color-primario);
-}
-
-.busqueda-global button:hover {
-    background: #1d4ed8;
-    opacity: 1;
 }
 
 .sr-only {
@@ -487,14 +487,15 @@ main {
 }
 
 .rol-topbar {
-    flex: 0 0 auto;
+    min-width: 0;
     padding: 6px 11px;
     border: 1px solid #dbeafe;
     border-radius: 999px;
     background: #eff6ff;
     color: #1d4ed8;
     font-size: 0.82rem;
-    font-weight: 700;
+    font-weight: 600;
+    overflow-wrap: anywhere;
 }
 
 
@@ -523,6 +524,23 @@ footer {
     padding: 24px;
     color: var(--color-texto-suave);
 }
+
+.pie-nexusgrid .pie-copyright {
+    margin: 0;
+}
+
+.pie-nexusgrid .pie-aviso {
+    display: flex;
+    justify-content: center;
+    align-items: baseline;
+    gap: .45rem;
+    margin: .65rem 0 0;
+    padding-top: .65rem;
+    border-top: 1px solid var(--color-borde);
+    font-size: .8rem;
+}
+
+.pie-aviso .ph-bold { flex: none; }
 
 .icono-phosphor path { fill: currentColor; stroke: none; }
 .icono-phosphor { overflow: visible; }

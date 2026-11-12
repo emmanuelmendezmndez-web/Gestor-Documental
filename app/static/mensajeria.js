@@ -1,6 +1,7 @@
 import {
-    API, LIMITE, buscarDocumentos, caracteres, claveEnvio, enviar, formato, mensajeError, pedir, referencia, textoValido,
-} from "./mensajeria_transporte.mjs";
+    API, LIMITE, ErrorHTTP, buscarDocumentos, caracteres, claveEnvio, enviar, formato, mensajeError,
+    pedir, plazoPeticion, referencia, textoValido,
+} from "./mensajeria_transporte.mjs?v=2";
 import { conectarMensajeria, sesionInvalida } from "./mensajeria_tiempo_real.mjs";
 
 const porId = id => document.getElementById(id);
@@ -99,7 +100,7 @@ if (campana) {
             ruta: campana.dataset.rutaWs,
             async actualizar({ nuevo, signal }) {
                 const datos = await pedir("/sincronizacion?limite=1&avisos=true", {
-                    signal: AbortSignal.any([signal, AbortSignal.timeout(20000)]),
+                    signal, plazo: 20000,
                 });
                 if (signal.aborted) return;
                 mostrarContador(datos.no_leidos);
@@ -130,7 +131,7 @@ function boton(texto, clase) {
 
 function iniciales(nombre) {
     const palabras = nombre.trim().split(/\s+/);
-    return (palabras.length > 1 ? [palabras[0], palabras.at(-1)] : palabras)
+    return (palabras.length > 1 ? [palabras[0], palabras[palabras.length - 1]] : palabras)
         .map(palabra => Array.from(palabra)[0] || "").join("").toLocaleUpperCase("es");
 }
 
@@ -353,8 +354,7 @@ function iniciarMensajeria(raiz, mostrarAvisos) {
         peticionLista?.abort();
         const peticion = new AbortController();
         peticionLista = peticion;
-        const signal = AbortSignal.any([peticion.signal, AbortSignal.timeout(20000),
-            ...(sincronizacion ? [sincronizacion.signal] : [])]);
+        const { signal, liberar } = plazoPeticion(20000, peticion.signal, sincronizacion?.signal);
         const filtro = new URLSearchParams({ archivadas });
         if (!mas) filtro.set("avisos", "true");
         if (mas && cursorChats) filtro.set("despues", cursorChats);
@@ -398,6 +398,7 @@ function iniciarMensajeria(raiz, mostrarAvisos) {
             el("estado-lista").textContent = fallo(error);
             el("reintentar-lista").hidden = false;
         } finally {
+            liberar();
             if (peticionLista === peticion) el("mas-chats").disabled = false;
         }
     }
@@ -600,8 +601,7 @@ function iniciarMensajeria(raiz, mostrarAvisos) {
         peticionChat?.abort();
         const peticion = new AbortController();
         peticionChat = peticion;
-        const signal = AbortSignal.any([peticion.signal, AbortSignal.timeout(60000),
-            ...(sincronizacion ? [sincronizacion.signal] : [])]);
+        const { signal, liberar } = plazoPeticion(60000, peticion.signal, sincronizacion?.signal);
         const filtro = new URLSearchParams({ limite: 20 });
         if (mas && cursorMensajes) filtro.set("antes", cursorMensajes);
         el("reintentar-historial").hidden = true;
@@ -658,7 +658,7 @@ function iniciarMensajeria(raiz, mostrarAvisos) {
             const posicion = historial.scrollTop;
             programarLectura();
             await comprobarTarjetas(filas, chat, signal);
-            if (signal.aborted && !peticion.signal.aborted && !sincronizacion?.signal.aborted) throw signal.reason;
+            if (signal.aborted && !peticion.signal.aborted && !sincronizacion?.signal.aborted) throw new ErrorHTTP(0);
             if (!signal.aborted && !mas && (!actualizar || abajo) && historial.scrollTop >= posicion - 4) {
                 historial.scrollTop = historial.scrollHeight;
             }
@@ -678,6 +678,7 @@ function iniciarMensajeria(raiz, mostrarAvisos) {
             el("estado-historial").textContent = fallo(error);
             el("reintentar-historial").hidden = false;
         } finally {
+            liberar();
             if (peticionChat === peticion) el("mas-mensajes").disabled = false;
         }
     }
@@ -791,7 +792,7 @@ function iniciarMensajeria(raiz, mostrarAvisos) {
         peticionApertura?.abort();
         const peticion = new AbortController();
         peticionApertura = peticion;
-        const signal = AbortSignal.any([peticion.signal, AbortSignal.timeout(20000)]);
+        const { signal, liberar } = plazoPeticion(20000, peticion.signal);
         try {
             const chat = chats.get(id) || await buscarConversacion(item => item.id === id, signal);
             if (signal.aborted || enviando || operacion?.incierta) return;
@@ -809,6 +810,7 @@ function iniciarMensajeria(raiz, mostrarAvisos) {
         } catch (error) {
             if (!peticion.signal.aborted) el("estado-lista").textContent = fallo(error);
         } finally {
+            liberar();
             if (peticionApertura === peticion) peticionApertura = null;
         }
     }
@@ -895,7 +897,7 @@ function iniciarMensajeria(raiz, mostrarAvisos) {
                 if (activo !== chat) break;
                 if (!mensaje.leido_utc && (!automatica || textoVisible(fila))) {
                     const datos = await pedir("/conversaciones/" + chat.id + "/mensajes/" + mensaje.id + "/lectura", {
-                        post: true, signal: AbortSignal.timeout(20000),
+                        post: true, plazo: 20000,
                     });
                     if (datos.leido) {
                         confirmado = true;
@@ -1031,7 +1033,7 @@ function iniciarMensajeria(raiz, mostrarAvisos) {
     }
     el("volver").addEventListener("click", () => volver());
     el("cerrar-chat").addEventListener("click", () => volver());
-    el("inicio").addEventListener("click", evento => {
+    document.querySelector('.sidebar-nav a[href="/inicio"]')?.addEventListener("click", evento => {
         if (evento.ctrlKey || evento.metaKey || evento.shiftKey || evento.altKey) return;
         if (enviando || (operacion?.incierta && !falloSesion)) {
             evento.preventDefault();

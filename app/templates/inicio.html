@@ -1,11 +1,26 @@
 {% extends "base.html" %}
 
+{% block recursos_pagina %}
+    <link rel="stylesheet" href="{{ url_for('static', path='estado-sistema.css') }}?v=3">
+    <script src="{{ url_for('static', path='estado-sistema.js') }}?v=2" defer></script>
+{% endblock %}
+
 {% block contenido %}
 <section class="dashboard-encabezado">
     <div>
-        <p class="sobrelinea">{{ usuario["departamento"] or usuario["rol_nombre"] }}</p>
-        <h2>Panel de control</h2>
-        <p class="nota">Bienvenido(a) al sistema de gestión y control documental.</p>
+        <h2>Bienvenido a NexusGrid</h2>
+        <p class="nota">Plataforma centralizada para la gestión y administración de información documental.</p>
+        <div class="estado-sistema" id="estado-sistema" data-estado="degradado"
+             data-url="{{ url_for('estado_sistema') }}" role="status" aria-atomic="true">
+            <p class="estado-sistema-encabezado">
+                <i class="ph-bold ph-check-circle" data-icono-estado="operativo" aria-hidden="true"></i>
+                <i class="ph-bold ph-warning-circle" data-icono-estado="degradado" aria-hidden="true"></i>
+                <i class="ph-bold ph-x-circle" data-icono-estado="critico" aria-hidden="true"></i>
+                <span>Estado del sistema</span>
+                <strong data-estado-titulo>Funcionamiento degradado</strong>
+            </p>
+            <ul class="sr-only" data-estado-incidencias><li>Comprobación inicial pendiente.</li></ul>
+        </div>
     </div>
     {% if puede("avisos") %}
     <a href="/avisos" class="boton-secundario">Gestionar avisos</a>

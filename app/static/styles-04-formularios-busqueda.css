@@ -6,7 +6,7 @@
 
 .campo label {
     display: block;
-    font-weight: bold;
+    font-weight: 400;
     margin-bottom: 6px;
 }
 
@@ -39,7 +39,7 @@ button {
     padding: 10px 18px;
     border-radius: 6px;
     font: inherit;
-    font-weight: bold;
+    font-weight: 600;
     cursor: pointer;
     transition: background-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
 }
@@ -100,7 +100,7 @@ input[type="search"]:focus {
 
 .busqueda label {
     display: block;
-    font-weight: bold;
+    font-weight: 400;
     margin-bottom: 6px;
 }
 
@@ -123,7 +123,7 @@ input[type="search"]:focus {
     border-radius: 6px;
     background: #f1f5f9;
     color: #475569;
-    font-weight: bold;
+    font-weight: 600;
     text-decoration: none;
 }
 

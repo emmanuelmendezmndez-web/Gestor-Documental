@@ -13,7 +13,7 @@
 
 .sesion-usuario {
     color: white;
-    font-weight: bold;
+    font-weight: 600;
     text-shadow: 0 1px 3px rgb(0 0 0 / 70%);
 }
 
@@ -49,7 +49,6 @@ input[type="password"]:focus {
     border-radius: 20px;
     background: #fff;
     box-shadow: 0 12px 34px rgb(30 58 98 / 13%);
-    font-family: "Plus Jakarta Sans", system-ui, sans-serif;
     text-align: center;
 }
 
@@ -68,7 +67,7 @@ input[type="password"]:focus {
 .panel-login > h2 {
     margin: 0 0 22px;
     font-size: clamp(1.45rem, 5vw, 1.75rem);
-    font-weight: 800;
+    font-weight: 600;
     line-height: 1.2;
 }
 
@@ -138,7 +137,7 @@ input.login-entrada:focus { outline: none; }
     border-radius: 9px;
     background: var(--color-primario);
     font-size: 1.05rem;
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .login-visibilidad:focus-visible,
@@ -261,7 +260,7 @@ input.login-entrada:focus { outline: none; }
     align-items: center;
     gap: 8px;
     margin-top: 10px;
-    font-weight: 500 !important;
+    font-weight: 400;
 }
 
 .opcion-quitar-foto input[type="checkbox"] {
@@ -316,7 +315,7 @@ input.login-entrada:focus { outline: none; }
     background: var(--color-primario-suave);
     color: var(--color-primario);
     font-size: 0.8rem;
-    font-weight: bold;
+    font-weight: 600;
 }
 
 .etiqueta.activo {
@@ -402,7 +401,7 @@ a.sesion-usuario[aria-current="page"] {
 .avanzada summary {
     cursor: pointer;
     color: var(--color-primario);
-    font-weight: bold;
+    font-weight: 600;
 }
 
 .avanzada .busqueda {
@@ -428,7 +427,7 @@ a.sesion-usuario[aria-current="page"] {
     align-items: center;
     gap: 8px;
     margin-right: auto;
-    font-weight: 600;
+    font-weight: 400;
 }
 
 .seleccion-checkbox {

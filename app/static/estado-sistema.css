@@ -1,0 +1,36 @@
+.estado-sistema {
+    width: fit-content;
+    max-width: 100%;
+    margin-top: .85rem;
+    color: #854d0e;
+    font-size: .85rem;
+    overflow-wrap: anywhere;
+}
+
+.estado-sistema[data-estado="operativo"] {
+    color: #166534;
+}
+
+.estado-sistema[data-estado="critico"] {
+    color: #991b1b;
+}
+
+.estado-sistema-encabezado {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .25rem .45rem;
+    margin: 0;
+}
+
+.estado-sistema [data-icono-estado] { display: none; }
+.estado-sistema[data-estado="operativo"] [data-icono-estado="operativo"],
+.estado-sistema[data-estado="degradado"] [data-icono-estado="degradado"],
+.estado-sistema[data-estado="critico"] [data-icono-estado="critico"] {
+    display: inline-block;
+    font-size: 1.1rem;
+}
+
+@media (max-width: 560px) {
+    .dashboard-encabezado { flex-direction: column; }
+}

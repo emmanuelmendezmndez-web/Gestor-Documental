@@ -90,7 +90,7 @@
     margin: 0 0 4px;
     color: var(--color-texto-suave);
     font-size: 0.76rem;
-    font-weight: 700;
+    font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
 }
@@ -254,7 +254,7 @@
     margin: 0;
     color: var(--color-texto);
     font-size: 0.83rem;
-    font-weight: 700;
+    font-weight: 600;
     font-variant-numeric: tabular-nums;
     text-align: right;
     white-space: nowrap;
@@ -287,7 +287,7 @@
 .enlace-discreto {
     color: #426b9a;
     font-size: 0.88rem;
-    font-weight: 650;
+    font-weight: 600;
     text-decoration: none;
     white-space: nowrap;
 }
@@ -497,7 +497,7 @@
     background: var(--color-primario-suave);
     color: #1d4ed8;
     font-size: 0.8rem;
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .lista-resultados-globales {

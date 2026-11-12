@@ -1,4 +1,20 @@
 {% from "_iconos_phosphor.html" import icono_animado -%}
+{% macro avatar_usuario(cuenta) -%}
+    <span class="avatar" aria-hidden="true">
+        {% set nombres = cuenta["nombre"].split() %}
+        {% if nombres %}{{ nombres[0][:1]|upper }}{% if nombres|length > 1 %}{{ nombres[-1][:1]|upper }}{% endif %}{% endif %}
+        {% if cuenta["foto_perfil"] %}<img src="/cuenta/foto?v={{ cuenta['foto_perfil'] }}" alt="" onerror="this.hidden=true">{% endif %}
+    </span>
+{%- endmacro %}
+{% macro pie_nexusgrid() -%}
+    <footer class="pie-nexusgrid">
+        <p class="pie-copyright">&copy; 2026 NexusGrid. Todos los derechos reservados.</p>
+        <p class="pie-aviso">
+            <i class="ph-bold ph-shield-check" aria-hidden="true"></i>
+            <span>Acceso reservado a usuarios autorizados. Las operaciones relevantes se registran para fines de seguridad y auditoría.</span>
+        </p>
+    </footer>
+{%- endmacro %}
 {% set disco_lleno = almacenamiento is defined and almacenamiento["disponible"] and almacenamiento["porcentaje"] >= 90 -%}
 {% set logo_nexusgrid = url_for('static', path='img/nexusgrid-isotipo.png') ~ '?v=2' -%}
 {% set eslogan_nexusgrid = 'El núcleo de la transformación digital.' -%}
@@ -10,14 +26,12 @@
     <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{% block titulo %}NexusGrid | Panel de Control{% endblock %}</title>
     <link rel="icon" type="image/png" href="{{ logo_nexusgrid }}">
-    <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}?v={% if pagina == 'biblioteca' %}40{% else %}36{% endif %}&busqueda=3">
-    {% if usuario or mensaje or pagina == 'login' %}
+    <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}?v={% if pagina == 'biblioteca' %}43{% else %}39{% endif %}&busqueda=3">
     <link rel="stylesheet" href="{{ url_for('static', path='icons/phosphor/bold/style.css') }}">
-    {% endif %}
     {% if usuario %}
     <link rel="stylesheet" href="{{ url_for('static', path='clippy/clippy.css') }}?v=9">
     {% if request.app.state.mensajeria_interfaz and puede("ver") %}
-    <link rel="stylesheet" href="{{ url_for('static', path='styles-13-mensajeria.css') }}?v=3">
+    <link rel="stylesheet" href="{{ url_for('static', path='styles-13-mensajeria.css') }}?v=5">
     {% endif %}
     {% endif %}
     {% block recursos_pagina %}{% endblock %}
@@ -88,11 +102,7 @@
 
             <div class="sidebar-cuenta">
                 <a class="sidebar-link cuenta-link" href="/cuenta" title="Mi cuenta" aria-label="Cuenta de {{ usuario['nombre'] }}" {% if pagina == "cuenta" %}aria-current="page"{% endif %}>
-                    <span class="avatar" aria-hidden="true">
-                        {% set iniciales_sidebar = usuario["nombre"].split() %}
-                        {{ iniciales_sidebar[0][:1]|upper }}{% if iniciales_sidebar|length > 1 %}{{ iniciales_sidebar[-1][:1]|upper }}{% endif %}
-                        {% if usuario["foto_perfil"] %}<img src="/cuenta/foto?v={{ usuario['foto_perfil'] }}" alt="" onerror="this.hidden=true">{% endif %}
-                    </span>
+                    {{ avatar_usuario(usuario) }}
                     <span class="usuario-info"><strong>{{ usuario["nombre"] }}</strong><small>{{ usuario["rol_nombre"] }}</small></span>
                 </a>
                 <form action="/salir" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -120,15 +130,9 @@
                         <i class="ph-bold ph-magnifying-glass" aria-hidden="true"></i>
                         <span>Buscar</span>
                     </button>
-                    <button type="button" class="boton-busqueda-asistida" id="abrir-busqueda-asistida" aria-haspopup="dialog" aria-label="Buscar con Clippy" title="Buscar con Clippy">✨ <span>Con Clippy</span></button>
                 </form>
                 <div class="app-topbar-acciones">
-                {% if pagina == "mensajeria" %}
-                <a class="mensajeria-inicio" href="/inicio" id="mensajeria-inicio" aria-label="Volver a Inicio" data-animar-icono>
-                    {{ icono_animado("house-line") }}
-                    <span>Volver a Inicio</span>
-                </a>
-                {% endif %}
+                <button type="button" class="boton-busqueda-asistida" id="abrir-busqueda-asistida" aria-haspopup="dialog" aria-label="Buscar con Clippy" title="Buscar con Clippy">✨ <span>Con Clippy</span></button>
                 {% if request.app.state.mensajeria_interfaz and puede("ver") %}
                 <details class="mensajeria-campana" id="mensajeria-campana"
                          {% if request.app.state.mensajeria_ruta_ws %}data-ruta-ws="{{ request.app.state.mensajeria_ruta_ws }}"{% endif %}>
@@ -180,7 +184,10 @@
                 </details>
                 <p class="sr-only" data-mensajeria-aviso-vivo role="status"></p>
                 {% endif %}
-                <span class="rol-topbar">{{ usuario["rol_nombre"] }}</span>
+                <a class="app-topbar-perfil" href="/cuenta" aria-label="Cuenta de {{ usuario['nombre'] }}, {{ usuario['rol_nombre'] }}" {% if pagina == "cuenta" %}aria-current="page"{% endif %}>
+                    {{ avatar_usuario(usuario) }}
+                    <span class="rol-topbar">{{ usuario["rol_nombre"] }}</span>
+                </a>
                 </div>
             </header>
     {% else %}
@@ -289,13 +296,13 @@
             <script src="{{ url_for('static', path='clippy/clippy.min.js') }}"></script>
             <script src="{{ url_for('static', path='clippy_asistente.js') }}?v=9"></script>
             {% if request.app.state.mensajeria_interfaz and puede("ver") %}
-            <script type="module" src="{{ url_for('static', path='mensajeria.js') }}?v=1"></script>
+            <script type="module" src="{{ url_for('static', path='mensajeria.js') }}?v=2"></script>
             {% endif %}
-            <footer>Todos los derechos reservados &copy; 2026</footer>
+            {{ pie_nexusgrid() }}
         </div>
     </div>
     {% else %}
-    <footer>Todos los derechos reservados &copy; 2026</footer>
+    {{ pie_nexusgrid() }}
     {% endif %}
     <script src="{{ url_for('static', path='navegacion.js') }}?v=3"></script>
 </body>

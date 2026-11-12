@@ -12,7 +12,7 @@
     border-radius: 6px;
     background: white;
     color: var(--color-primario);
-    font-weight: bold;
+    font-weight: 600;
     text-decoration: none;
 }
 
@@ -79,14 +79,14 @@
 /* Variante con texto junto al icono (la usa la ficha) */
 .boton-con-texto {
     gap: 8px;
-    font-weight: bold;
+    font-weight: 600;
 }
 
 /* ---------- Ficha del documento ---------- */
 
 .enlace-titulo {
     color: var(--color-primario);
-    font-weight: bold;
+    font-weight: 600;
     text-decoration: none;
 }
 
@@ -98,7 +98,7 @@
     display: inline-block;
     margin-bottom: 20px;
     color: var(--color-primario);
-    font-weight: bold;
+    font-weight: 600;
     text-decoration: none;
     transition: color 0.16s ease, transform 0.16s ease;
 }
@@ -191,7 +191,7 @@
 .ficha-datos dt {
     color: var(--color-texto-suave);
     font-size: 0.8rem;
-    font-weight: bold;
+    font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
 }
@@ -282,7 +282,7 @@
     border: 0;
     border-radius: 6px;
     font: inherit;
-    font-weight: bold;
+    font-weight: 600;
     text-decoration: none;
     cursor: pointer;
 }

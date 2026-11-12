@@ -18,7 +18,7 @@
     color: var(--color-primario);
     padding: 8px 12px;
     border-radius: 6px;
-    font-weight: bold;
+    font-weight: 600;
 }
 
 .aviso-operacion {

@@ -3,7 +3,7 @@ export const LIMITE = 20 * 1024 * 1024;
 export const referencia = valor => typeof valor === "string" && /^[0-9a-f]{32}$/.test(valor);
 export const caracteres = texto => Array.from(texto).length;
 export const textoValido = texto => Boolean(texto.trim()) && caracteres(texto) <= 300 && !texto.includes("\0");
-export const formato = nombre => nombre.split(".").at(-1).toLowerCase();
+export const formato = nombre => nombre.split(".").pop().toLowerCase();
 export const claveEnvio = () => Array.from(crypto.getRandomValues(new Uint8Array(16)),
     byte => byte.toString(16).padStart(2, "0")).join("");
 
@@ -28,7 +28,7 @@ export function mensajeError(error) {
         preparacion_vencida: "La preparación del archivo venció. Vuelve a seleccionar el archivo.",
         carga_interrumpida: "Se interrumpió la carga. Puedes intentarlo nuevamente.",
     };
-    if (Object.hasOwn(codigos, error.message)) return codigos[error.message];
+    if (Object.prototype.hasOwnProperty.call(codigos, error.message)) return codigos[error.message];
     return {
         0: "Se interrumpió la conexión. Comprueba tu acceso a NexusGrid.",
         400: "Revisa los datos y el archivo antes de reintentar.",
@@ -43,6 +43,29 @@ export function mensajeError(error) {
 }
 
 const csrf = () => document.querySelector('meta[name="csrf-token"]').content;
+
+export function plazoPeticion(milisegundos, ...origenes) {
+    const control = new AbortController();
+    const senales = origenes.filter(Boolean);
+    const temporizador = setTimeout(() => {
+        control.abort(new DOMException("Se agotó el plazo de la petición.", "TimeoutError"));
+        liberar();
+    }, milisegundos);
+
+    function liberar() {
+        clearTimeout(temporizador);
+        for (const origen of senales) origen.removeEventListener("abort", cancelar);
+    }
+
+    function cancelar() {
+        control.abort();
+        liberar();
+    }
+
+    if (senales.some(origen => origen.aborted)) cancelar();
+    else for (const origen of senales) origen.addEventListener("abort", cancelar, { once: true });
+    return { signal: control.signal, liberar };
+}
 
 async function respuesta(ruta, opciones) {
     let resultado;
@@ -62,8 +85,8 @@ async function respuesta(ruta, opciones) {
     return resultado;
 }
 
-export async function pedir(ruta, { datos, post = false, signal } = {}) {
-    const opciones = { signal };
+export async function pedir(ruta, { datos, post = false, signal, plazo } = {}) {
+    const opciones = {};
     if (post) {
         opciones.method = "POST";
         opciones.headers = { "X-CSRF-Token": csrf() };
@@ -72,12 +95,18 @@ export async function pedir(ruta, { datos, post = false, signal } = {}) {
             opciones.body = JSON.stringify(datos);
         }
     }
-    const resultado = await respuesta(API + ruta, opciones);
+    const limite = plazo === undefined ? null : plazoPeticion(plazo, signal);
+    opciones.signal = limite?.signal ?? signal;
     try {
-        return await resultado.json();
-    } catch (error) {
-        if (error.name === "AbortError") throw error;
-        throw new ErrorHTTP(0);
+        const resultado = await respuesta(API + ruta, opciones);
+        try {
+            return await resultado.json();
+        } catch (error) {
+            if (error.name === "AbortError") throw error;
+            throw new ErrorHTTP(0);
+        }
+    } finally {
+        limite?.liberar();
     }
 }
 
@@ -148,10 +177,12 @@ export async function enviar(operacion, actualizar) {
     }
     actualizar("Confirmando envío…", null);
     try {
-        const resultado = await pedir(ruta, { post: true, datos, signal: AbortSignal.timeout(60000) });
+        const resultado = await pedir(ruta, { post: true, datos, plazo: 60000 });
         if (!referencia(resultado?.mensaje)) throw new ErrorHTTP(0);
         return resultado.mensaje;
     } catch (error) {
+        // Este envío solo se cancela por su plazo local. La respuesta pudo perderse después de confirmar.
+        if (error.name === "AbortError") error = new ErrorHTTP(0);
         if (error.estado === 0 || error.estado >= 500) error.resultadoIncierto = true;
         throw error;
     }

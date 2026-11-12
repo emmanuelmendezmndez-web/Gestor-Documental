@@ -1,12 +1,30 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-    buscarDocumentos, caracteres, enviar, mensajeError, referencia, textoValido,
+    buscarDocumentos, caracteres, enviar, mensajeError, plazoPeticion, referencia, textoValido,
 } from "../app/static/mensajeria_transporte.mjs";
 
 const ref = "a".repeat(32);
 const csrf = "csrf-ficticio";
 const cabecera = { querySelector: () => ({ content: csrf }) };
+
+test("el plazo de una petición distingue vencimiento, cancelación y finalización", t => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    const origen = new AbortController();
+    const cancelada = plazoPeticion(20, origen.signal);
+    origen.abort();
+    assert.equal(cancelada.signal.reason.name, "AbortError");
+    assert.equal(plazoPeticion(20, origen.signal).signal.aborted, true);
+
+    const origenFinalizado = new AbortController();
+    const finalizada = plazoPeticion(20, origenFinalizado.signal);
+    finalizada.liberar();
+    origenFinalizado.abort();
+    const vencida = plazoPeticion(20);
+    t.mock.timers.tick(20);
+    assert.equal(finalizada.signal.aborted, false);
+    assert.equal(vencida.signal.reason.name, "TimeoutError");
+});
 
 test("cuenta puntos de código y limita mensajes de texto plano", () => {
     assert.equal(caracteres("A🙂🎉e\u0301"), 5);

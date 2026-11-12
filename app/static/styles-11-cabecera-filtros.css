@@ -1,33 +1,72 @@
-/* Búsqueda compartida del encabezado */
-.app-topbar .busqueda-global { grid-area: busqueda; width: 100%; min-width: 0; align-items: center; gap: 6px; }
-.app-topbar .busqueda-global input[type="search"] { flex: 1 1 auto; min-width: 0; padding-right: 55px; }
-.app-topbar .busqueda-global kbd { position: static; transform: none; flex: 0 0 auto; margin-left: -52px; margin-right: 6px; z-index: 1; }
-.app-topbar .busqueda-global button { position: static; display: inline-flex; flex: 0 0 auto; width: auto; height: 42px; align-items: center; justify-content: center; gap: 5px; padding: 0 11px; border-radius: 8px; font: inherit; font-weight: 600; white-space: nowrap; }
-.app-topbar .busqueda-global .buscar-accion { background: #2563eb; color: #fff; }
-.app-topbar .busqueda-global .boton-busqueda-asistida { border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8; }
-.app-topbar .busqueda-global .boton-busqueda-asistida:hover { background: #dbeafe; }
-.app-topbar .busqueda-global button:focus-visible, .consulta-asistida button:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
+/* Controles de la cabecera compartida */
+.app-topbar :is(.buscar-accion, .boton-busqueda-asistida) {
+    display: inline-flex;
+    min-width: 42px;
+    height: 42px;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 0 11px;
+    border-radius: 8px;
+    font: inherit;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.app-topbar .buscar-accion { background: var(--color-primario); color: #fff; }
+.app-topbar .buscar-accion:hover { background: #1d4ed8; opacity: 1; }
+.app-topbar .boton-busqueda-asistida { border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8; }
+.app-topbar .boton-busqueda-asistida:hover { background: #dbeafe; opacity: 1; }
+.app-topbar-perfil {
+    display: inline-flex;
+    min-width: 0;
+    max-width: 100%;
+    min-height: 42px;
+    align-items: center;
+    gap: .4rem;
+    border-radius: 999px;
+    text-decoration: none;
+}
+.app-topbar-perfil:hover .rol-topbar { background: #dbeafe; }
+.app-topbar :is(button, .app-topbar-perfil):focus-visible,
+.consulta-asistida button:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
 .consulta-asistida { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid #dbe3ed; border-radius: 9px; background: #f8fafc; }
 .consulta-asistida > span { color: #64748b; font-size: .85rem; }
 .consulta-asistida p { flex: 1 1 180px; overflow-wrap: anywhere; }
 .consulta-asistida button { padding: 6px 10px; font-size: .85rem; }
-@media (max-width: 1180px) {
- .app-topbar { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "titulo titulo" "busqueda acciones"; }
+@media (min-width: 801px) and (max-width: 1260px) {
+ .sidebar:not(.is-collapsed) + .app-content > .app-topbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "titulo acciones" "busqueda busqueda";
+ }
+}
+@media (max-width: 1120px) {
+ .app-topbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "titulo acciones" "busqueda busqueda";
+ }
 }
 @media (max-width: 680px) {
- .app-topbar { grid-template-columns: minmax(0, 1fr); grid-template-areas: "titulo" "busqueda" "acciones"; row-gap: 6px; }
- .app-topbar .busqueda-global .boton-busqueda-asistida span { display: inline; }
- .app-topbar .busqueda-global kbd { display: none; }
- .app-topbar .busqueda-global input[type="search"] { padding-right: 12px; }
+ .busqueda-global { grid-template-columns: minmax(0, 1fr) auto; }
+ .busqueda-global kbd { display: none; }
+}
+@media (max-width: 560px) {
+ .app-topbar {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "titulo" "busqueda" "acciones";
+    row-gap: 6px;
+ }
 }
 @media (max-width: 480px) {
- .app-topbar .busqueda-global { gap: 4px; }
- .app-topbar .busqueda-global button { padding: 0 8px; font-size: .78rem; }
- .app-topbar .busqueda-global .buscar-accion span { display: none; }
+ .app-topbar :is(.buscar-accion, .boton-busqueda-asistida) { padding-inline: 8px; font-size: .78rem; }
+}
+@media (max-width: 380px) {
+ .app-topbar .buscar-accion span { display: none; }
 }
 @media (max-width: 360px) {
  .app-topbar .app-topbar-acciones { gap: .25rem; }
- .app-topbar-acciones .rol-topbar { padding-inline: .45rem; }
+ .app-topbar-perfil { gap: .3rem; }
+ .app-topbar-perfil .avatar { width: 32px; height: 32px; flex-basis: 32px; }
+ .app-topbar-acciones .rol-topbar { padding-inline: .45rem; font-size: .75rem; }
 }
 
 /* Revisión de filtros de la búsqueda asistida */
@@ -35,7 +74,7 @@
 .busqueda-asistida-dialogo .ayuda-filtros { color: #64748b; font-size: .83rem; line-height: 1.4; }
 .filtros-asistidos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; }
 .filtros-asistidos > div { display: grid; min-width: 0; gap: 3px; }
-.filtros-asistidos label { margin: 0; font-size: .84rem; font-weight: 600; }
+.filtros-asistidos label { margin: 0; font-size: .84rem; font-weight: 400; }
 .busqueda-asistida-dialogo .filtros-asistidos input, .busqueda-asistida-dialogo .filtros-asistidos select { width: 100%; min-width: 0; max-width: 100%; height: 40px; padding: 7px 9px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; font: inherit; }
 .filtros-asistidos input:focus-visible, .filtros-asistidos select:focus-visible { outline: 2px solid #60a5fa; outline-offset: 1px; }
 .filtros-asistidos small { color: #64748b; font-size: .72rem; }

@@ -1,13 +1,14 @@
 /* Orden de cascada: mantener los módulos en esta secuencia. */
+@import url("fonts/plus-jakarta-sans/style.css");
 @import url("styles-01-variables.css");
-@import url("styles-02-base-estructura.css?v=10");
-@import url("styles-03-paneles.css?v=3");
-@import url("styles-04-formularios-busqueda.css");
-@import url("styles-05-documentos-acciones.css");
-@import url("styles-06-cuentas-usuarios.css?v=2");
-@import url("styles-07-expedientes-panel.css?v=2");
+@import url("styles-02-base-estructura.css?v=13");
+@import url("styles-03-paneles.css?v=4");
+@import url("styles-04-formularios-busqueda.css?v=2");
+@import url("styles-05-documentos-acciones.css?v=2");
+@import url("styles-06-cuentas-usuarios.css?v=3");
+@import url("styles-07-expedientes-panel.css?v=3");
 @import url("styles-08-responsivo.css?v=2");
-@import url("styles-09-busqueda-asistida.css");
-@import url("styles-10-biblioteca.css");
-@import url("styles-11-cabecera-filtros.css?v=2");
-@import url("styles-12-dialogos.css?v=5");
+@import url("styles-09-busqueda-asistida.css?v=2");
+@import url("styles-10-biblioteca.css?v=2");
+@import url("styles-11-cabecera-filtros.css?v=4");
+@import url("styles-12-dialogos.css?v=6");
