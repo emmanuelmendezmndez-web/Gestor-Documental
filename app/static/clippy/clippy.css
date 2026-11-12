@@ -10,7 +10,7 @@
     box-sizing: border-box;
     width: min(260px, calc(100vw - 24px));
     max-width: calc(100vw - 24px);
-    max-height: min(240px, calc(100vh - var(--clippy-bocadillo-abajo, 140px) - 12px));
+    max-height: min(var(--clippy-bocadillo-alto, 240px), calc(100vh - var(--clippy-bocadillo-abajo, 140px) - 12px));
     overflow: auto;
     right: 12px !important;
     left: auto !important;

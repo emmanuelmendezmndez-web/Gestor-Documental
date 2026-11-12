@@ -61,16 +61,19 @@ def _avisos(principal, db, actor, desde):
                FROM mensajes m WHERE destinatario_ref=? AND confirmado_utc>?
                AND NOT EXISTS (SELECT 1 FROM lecturas l WHERE l.mensaje_id=m.id)
            )
-           SELECT remitente_ref,id FROM pendientes WHERE orden=1
+           SELECT remitente_ref,id,conversacion_id,confirmado_utc FROM pendientes WHERE orden=1
            ORDER BY confirmado_utc DESC,id DESC LIMIT 25""",
         (actor, desde),
     ).fetchall()
     avisos = []
-    for remitente, mensaje in filas:
+    for remitente, mensaje, conversacion, confirmado in filas:
         perfil = principal.execute(
             "SELECT nombre FROM usuarios WHERE mensajeria_ref=? AND activo=1", (remitente,),
         ).fetchone()
-        avisos.append({"mensaje": mensaje, "nombre": perfil[0] if perfil else None})
+        avisos.append({
+            "mensaje": mensaje, "nombre": perfil[0] if perfil else None,
+            "conversacion": conversacion, "confirmado_utc": confirmado,
+        })
     return avisos
 
 

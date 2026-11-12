@@ -11,21 +11,52 @@ function iniciar(ruta = '/inicio', config = {}, opciones = {}) {
     const timers = new Map(), eventos = {}, dichos = [], movimientos = [], clases = new Set();
     const figura = {style:{}, classList:{add(c){clases.add(c);}, remove(c){clases.delete(c);}, contains(c){return clases.has(c);}}, matches:()=>false, setAttribute(){}, addEventListener(tipo, fn){ this[tipo] = fn; }};
     const busqueda = {open:false}, confirmacion = {open:false};
+    const selector = {open:false}, compositor = {addEventListener(){}};
+    const texto = {addEventListener(){}}, envio = {activo:false, getAttribute(){return this.activo ? 'true' : null;}};
+    const elementos = {'busqueda-asistida':busqueda, 'dialogo-confirmacion':confirmacion,
+        ...(opciones.mensajeria ? {mensajeria:{}, 'mensajeria-compositor':compositor,
+            'mensajeria-texto':texto, 'mensajeria-enviar':envio, 'mensajeria-selector':selector} : {})};
     class Entrada { constructor(){ this.type='text'; this.value='ficticio'; this.dataset={clippyRead:'Búsqueda'}; } hasAttribute(){return true;} closest(){return null;} }
     const document = {readyState:'complete', addEventListener(tipo, fn){ (eventos[tipo] ||= []).push(fn); },
-        getElementById(id){return id === 'busqueda-asistida' ? busqueda : id === 'dialogo-confirmacion' ? confirmacion : null;},
-        querySelector(q){return q === '.clippy' ? figura : null;}, querySelectorAll(){return (opciones.controles || []).map(rect => ({getClientRects:()=>[rect], getBoundingClientRect:()=>rect}));}};
+        getElementById(id){return elementos[id] || null;},
+        querySelector(q){return q === '.clippy' ? figura : null;},
+        querySelectorAll(q){const rects = q.includes('#mensajeria-compositor') ? opciones.protegidos : opciones.controles;
+            return (rects || []).map(rect => ({getClientRects:()=>[rect], getBoundingClientRect:()=>rect}));}};
     const agente = {_getIdleAnimation(){}, hasAnimation(nombre){return (opciones.animaciones || []).includes(nombre);}, _onQueueEmpty(){reposos++;}, _queue:{}, _balloon:{hide(){}, _balloon:{hide(){}}}, _animator:{_playSound(){sonidos.push('sonido');}},
         _addToQueue(fn){colaAnimaciones.push(fn);}, _playInternal(nombre, fin){reacciones.push(nombre); fin(nombre, 'exited');},
         speak(texto){dichos.push(texto);}, stop(){colaAnimaciones.length=0;}, moveTo(x,y){movimientos.push({x,y}); figura.style.top = String(y);}, show(){}};
     const window = {clippy:true, sigedClippyConfig:{basePath:'', usuarioId:1, nombre:'Prueba', ...config}, location:{pathname:ruta, search:opciones.search || ''},
         innerHeight:opciones.alto || 800, innerWidth:opciones.ancho || 1200, matchMedia:()=>movimiento, requestAnimationFrame(){}, addEventListener(){}, removeEventListener(){},
+        sigedClippyPreferencias:opciones.preferencias && {then(fn){fn(opciones.preferencias);}},
         setTimeout(fn, ms){const id=++secuencia; timers.set(id,{fn, ms}); return id;}, clearTimeout(id){timers.delete(id);}};
     class Fecha extends Date { static now(){return reloj;} }
-    const ctx = {window, document, clippy:{Animator:{States:{EXITED:'exited'}}, load(_nombre, fn){fn(agente);}}, Date:Fecha, URLSearchParams, HTMLElement:Entrada, HTMLInputElement:Entrada, getComputedStyle:()=>({display:'none'}), console};
+    const ctx = {window, document, clippy:{Animator:{States:{EXITED:'exited'}}, load(_nombre, fn){fn(agente);}}, Date:Fecha, URLSearchParams, HTMLElement:Entrada, HTMLInputElement:Entrada, getComputedStyle:()=>({display:'none'}), ResizeObserver:class {observe(){}}, console};
     vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../app/static/clippy_asistente.js'), 'utf8'), ctx);
-    return {busqueda, confirmacion, figura, dichos, eventos, Entrada, timers, movimientos, agente, reacciones, colaAnimaciones, movimiento, sonidos, reposos:()=>reposos, avanzar(ms){reloj += ms;}, ejecutar(ms){const lista=[...timers.entries()].filter(([, t])=>t.ms===ms); for (const [id,t] of lista) {timers.delete(id); t.fn();}}};
+    return {busqueda, confirmacion, figura, dichos, eventos, Entrada, timers, movimientos, agente, reacciones, colaAnimaciones, movimiento, sonidos, document, selector, envio, texto, reposos:()=>reposos, avanzar(ms){reloj += ms;}, ejecutar(ms){const lista=[...timers.entries()].filter(([, t])=>t.ms===ms); for (const [id,t] of lista) {timers.delete(id); t.fn();}}};
 }
+test('Mensajería ofrece consejos propios aunque Biblioteca sea la sección habitual', () => {
+    const p = iniciar('/mensajeria', {saludoEntrada:true}, {mensajeria:true, search:'?aviso=subido',
+        preferencias:{experiencia:'habitual', secciones:['biblioteca'], rutina:'biblioteca'}});
+    p.avanzar(3000); p.ejecutar(3000);
+    assert.deepEqual(p.dichos, []);
+    for (let i=0; i<6; i++) p.figura.click();
+    assert.equal(new Set(p.dichos).size, 6);
+    assert.match(p.dichos.join(' '), /panel izquierdo.*restricciones de acceso.*contador verde/);
+    assert.doesNotMatch(p.dichos.join(' '), /Sueles usar|Documento subido/);
+    p.figura.click();
+    assert.equal(p.dichos.at(-1), p.dichos[0]);
+});
+test('Mensajería protege la edición, el envío y la posición del compositor', () => {
+    const compositor = {left:0, right:390, top:510, bottom:844};
+    const p = iniciar('/mensajeria', {}, {mensajeria:true, ancho:390, alto:844, protegidos:[compositor]});
+    p.document.activeElement = p.texto; p.figura.click();
+    p.document.activeElement = null; p.envio.activo = true; p.figura.click();
+    p.envio.activo = false; p.selector.open = true; p.figura.click();
+    assert.deepEqual(p.dichos, []);
+    p.selector.open = false; p.figura.click();
+    assert.equal(p.dichos.length, 1);
+    assert.ok(parseFloat(p.figura.style.top) + 93 <= compositor.top);
+});
 test('el diálogo asistido y la confirmación bloquean lectura y consejos automáticos', () => {
     const p = iniciar(); const campo = new p.Entrada();
     for (const fn of p.eventos.input) fn({target:campo});

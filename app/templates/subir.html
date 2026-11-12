@@ -2,7 +2,7 @@
 
 {% block contenido %}
 <section class="panel">
-    <h2>Subir documento</h2>
+    <h2>Datos del documento</h2>
     <p>Completa los datos y selecciona un archivo. Solo el título, la categoría y el archivo son obligatorios.</p>
 
     <form action="/subir" method="post" enctype="multipart/form-data" data-clippy-tip="Completa los datos básicos del documento. El título, la categoría y el archivo son obligatorios."><input type="hidden" name="csrf_token" value="{{ csrf_token }}">

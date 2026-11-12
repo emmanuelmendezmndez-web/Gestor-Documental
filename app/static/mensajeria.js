@@ -32,26 +32,59 @@ function iniciarAvisos() {
     const badge = campana.querySelector("[data-mensajeria-avisos]");
     const estado = campana.querySelector("[data-mensajeria-estado-avisos]");
     const lista = campana.querySelector("[data-mensajeria-lista-avisos]");
+    const avisoDisco = lista.querySelector("[data-aviso-almacenamiento] a");
+    avisoDisco?.addEventListener("click", evento => {
+        if (!evento.ctrlKey && !evento.metaKey && !evento.shiftKey && !evento.altKey) campana.open = false;
+    });
     const vivo = document.querySelector("[data-mensajeria-aviso-vivo]");
+    const plantilla = porId("mensajeria-aviso-pendiente");
+    const filas = new Map();
     const anunciados = new Set();
     let consultado = false;
     return function mostrarAvisos(avisos, nuevo = false, error = "") {
         const textos = avisos.map(({ nombre }) => nombre ? "Nuevo mensaje de " + nombre : "Nuevo mensaje recibido");
         const novedad = nuevo && consultado ? avisos.findIndex(aviso => !anunciados.has(aviso.mensaje)) : -1;
         vivo.textContent = textos[novedad] || "";
+        const presentes = new Set();
+        let anterior = null;
         for (const aviso of avisos) {
             anunciados.add(aviso.mensaje);
             if (anunciados.size > 128) anunciados.delete(anunciados.values().next().value);
+            presentes.add(aviso.mensaje);
+            let fila = filas.get(aviso.mensaje);
+            if (!fila) {
+                fila = plantilla.content.firstElementChild.cloneNode(true);
+                const enlace = fila.querySelector("a");
+                enlace.href = "/mensajeria";
+                if (referencia(aviso.conversacion)) {
+                    enlace.dataset.conversacion = aviso.conversacion;
+                    enlace.href += "?conversacion=" + aviso.conversacion;
+                }
+                if (Number.isSafeInteger(aviso.confirmado_utc) && aviso.confirmado_utc > 0) {
+                    enlace.querySelector(".mensajeria-notificacion-texto").append(hora(aviso.confirmado_utc, true));
+                }
+                filas.set(aviso.mensaje, fila);
+            }
+            fila.querySelector("[data-remitente]").textContent = aviso.nombre || "Usuario no disponible";
+            const siguiente = anterior ? anterior.nextElementSibling : lista.firstElementChild;
+            if (siguiente !== fila) lista.insertBefore(fila, siguiente);
+            anterior = fila;
+        }
+        for (const [id, fila] of filas) {
+            if (presentes.has(id)) continue;
+            if (fila.contains(document.activeElement)) campana.querySelector("summary").focus();
+            fila.remove();
+            filas.delete(id);
         }
         consultado = !error;
         if (error) anunciados.clear();
-        lista.replaceChildren(...textos.map(texto => crear("li", "", texto)));
-        estado.hidden = Boolean(textos.length);
-        estado.textContent = error || "No hay avisos de mensajes pendientes.";
-        badge.hidden = !textos.length;
-        badge.textContent = textos.length ? numero(textos.length) : "";
+        const total = avisos.length + Number(Boolean(avisoDisco));
+        estado.hidden = total > 0 && !error;
+        estado.textContent = error || "No tienes notificaciones pendientes.";
+        badge.hidden = !total;
+        badge.textContent = total ? numero(total) : "";
         campana.querySelector("summary").setAttribute("aria-label",
-            textos.length ? "Notificaciones, " + textos.length + " avisos pendientes" : "Notificaciones");
+            total ? "Notificaciones, " + total + (total === 1 ? " aviso pendiente" : " avisos pendientes") : "Notificaciones");
     };
 }
 
@@ -151,14 +184,15 @@ function iniciarMensajeria(raiz, mostrarAvisos) {
     const chats = new Map();
     const filasChat = new Map();
     const visibles = new Map();
+    const borradores = new Map();
     let cursorChats, cursorMensajes, activo, cuota, adjunto, operacion;
-    let peticionLista, peticionChat, peticionSelector, selector;
+    let peticionLista, peticionChat, peticionSelector, peticionApertura, selector;
     let archivadas = false;
     let enviando = false;
     let marcando = false;
     let archivando = false;
     let falloSesion = false;
-    let venceTarjeta;
+    let venceTarjeta, ocultarAviso;
     let paginasChats = 1;
     let paginandoChats, paginandoMensajes;
     let lecturaProgramada = false;
@@ -196,10 +230,18 @@ function iniciarMensajeria(raiz, mostrarAvisos) {
 
     function anunciar(mensaje, error = false) {
         const aviso = el("aviso");
-        aviso.classList.toggle("error", error);
-        aviso.classList.toggle("exito", !error);
-        aviso.textContent = mensaje;
+        window.clearTimeout(ocultarAviso);
+        delete aviso.dataset.salida;
+        aviso.dataset.tipo = error ? "error" : "exito";
+        el("aviso-texto").textContent = mensaje;
+        el("aviso-estado").textContent = error ? "" : mensaje;
+        el("aviso-error").textContent = error ? mensaje : "";
         aviso.hidden = !mensaje;
+        if (!mensaje) return;
+        ocultarAviso = window.setTimeout(() => {
+            aviso.dataset.salida = "";
+            ocultarAviso = window.setTimeout(() => { aviso.hidden = true; }, 160);
+        }, error ? Math.max(7000, Math.min(16000, mensaje.length * 55)) : 2600);
     }
 
     function guardarCuota(datos) {
@@ -235,6 +277,7 @@ function iniciarMensajeria(raiz, mostrarAvisos) {
             peticionLista?.abort();
             peticionChat?.abort();
             peticionSelector?.abort();
+            peticionApertura?.abort();
             canal.detener();
             window.clearTimeout(venceTarjeta);
             controles();
@@ -357,14 +400,37 @@ function iniciarMensajeria(raiz, mostrarAvisos) {
         return chat?.otro || { nombre: "Usuario no disponible", area: "" };
     }
 
+    function limpiarEnlaceChat(id) {
+        const ubicacion = new URL(location.href);
+        if (ubicacion.searchParams.has("conversacion") && ubicacion.searchParams.get("conversacion") !== id) {
+            ubicacion.searchParams.delete("conversacion");
+            history.replaceState(history.state, "", ubicacion);
+        }
+    }
+
     function abrirChat(chat, conservar = false) {
         if (!chat || falloSesion || enviando || (operacion?.incierta && !conservar)) return;
+        peticionApertura?.abort();
         if (activo?.id && activo.id === chat.id && !conservar) return;
         peticionChat?.abort();
         window.clearTimeout(venceTarjeta);
         acciones.open = false;
-        if (!conservar) limpiarCompositor();
+        if (!conservar) {
+            guardarBorrador();
+            limpiarCompositor();
+        }
         activo = chat;
+        limpiarEnlaceChat(chat.id);
+        if (!conservar) {
+            const clave = chat.otro?.referencia;
+            const borrador = borradores.get(clave);
+            if (borrador) {
+                borradores.delete(clave);
+                texto.value = borrador.texto;
+                elegirAdjunto(borrador.adjunto);
+                operacion = borrador.operacion;
+            }
+        }
         cursorMensajes = null;
         limpiarVisibles();
         mensajes.replaceChildren();
@@ -390,8 +456,12 @@ function iniciarMensajeria(raiz, mostrarAvisos) {
 
     function volver(foco = true) {
         if (enviando || operacion?.incierta) return;
+        guardarBorrador();
         const seleccionado = activo;
         activo = null;
+        limpiarEnlaceChat();
+        acciones.open = false;
+        peticionApertura?.abort();
         peticionChat?.abort();
         window.clearTimeout(venceTarjeta);
         limpiarVisibles();
@@ -620,12 +690,18 @@ function iniciarMensajeria(raiz, mostrarAvisos) {
         if (modalidad) modalidad.disabled = texto.disabled;
         el("nuevo").disabled = Boolean(bloqueado || falloSesion);
         el("volver").disabled = Boolean(bloqueado);
+        el("cerrar-chat").disabled = Boolean(bloqueado);
         el("archivar").disabled = Boolean(bloqueado || archivando || falloSesion);
         el("leer").hidden = ![...visibles.values()].some(({ mensaje }) =>
             !mensaje.leido_utc && !mensaje.enviado);
         el("leer").disabled = Boolean(bloqueado || marcando || falloSesion);
         el("descartar").hidden = !operacion?.incierta || enviando;
-        el("enviar").textContent = operacion ? "Reintentar" : "Enviar";
+        const enviarBoton = el("enviar");
+        const etiqueta = enviando ? "Enviando…" : operacion ? "Reintentar" : "Enviar";
+        if (el("enviar-texto").textContent !== etiqueta) el("enviar-texto").textContent = etiqueta;
+        enviarBoton.querySelector(".mensajeria-envio-giro").hidden = !enviando;
+        if (enviando) enviarBoton.setAttribute("aria-busy", "true");
+        else enviarBoton.removeAttribute("aria-busy");
         el("enviar").disabled = Boolean(enviando || archivando || falloSesion || !destinatario || !adjunto || !textoValido(texto.value) ||
             (cuota?.restantes === 0 && !operacion?.incierta));
     }
@@ -670,33 +746,65 @@ function iniciarMensajeria(raiz, mostrarAvisos) {
         controles();
     }
 
+    function guardarBorrador() {
+        const clave = activo?.otro?.referencia;
+        if (!clave) return;
+        if (texto.value || adjunto) borradores.set(clave, { texto: texto.value, adjunto, operacion });
+        else borradores.delete(clave);
+    }
+
     function limpiarCompositor() {
         texto.value = "";
         elegirAdjunto(null);
         anunciar("");
-        el("transferencia").hidden = true;
+        estadoEnvio(null);
     }
 
-    function estadoEnvio(etapa, avance) {
-        el("transferencia").hidden = !etapa;
-        el("fase-envio").textContent = etapa || "";
-        el("progreso").hidden = avance === null;
-        if (avance !== null) el("progreso").value = avance;
+    function estadoEnvio(etapa) {
+        const estado = el("fase-envio");
+        if (estado.textContent !== (etapa || "")) estado.textContent = etapa || "";
     }
 
-    async function buscarConversacion(destinatario) {
+    async function buscarConversacion(coincide, signal) {
         for (const bandeja of [archivadas, !archivadas]) {
             let despues = null;
             do {
                 const filtro = new URLSearchParams({ archivadas: bandeja, limite: 50 });
                 if (despues) filtro.set("despues", despues);
-                const pagina = await pedir("/conversaciones?" + filtro);
-                const encontrada = pagina.elementos.find(chat => chat.otro?.referencia === destinatario);
+                const pagina = await pedir("/conversaciones?" + filtro, { signal });
+                const encontrada = pagina.elementos.find(coincide);
                 if (encontrada) return encontrada;
                 despues = pagina.siguiente;
             } while (despues);
         }
         return null;
+    }
+
+    async function abrirConversacionAviso(id) {
+        if (!referencia(id) || enviando || operacion?.incierta || falloSesion) return;
+        peticionApertura?.abort();
+        const peticion = new AbortController();
+        peticionApertura = peticion;
+        const signal = AbortSignal.any([peticion.signal, AbortSignal.timeout(20000)]);
+        try {
+            const chat = chats.get(id) || await buscarConversacion(item => item.id === id, signal);
+            if (signal.aborted || enviando || operacion?.incierta) return;
+            if (!chat) {
+                el("estado-lista").textContent = "La conversación del aviso ya no está disponible.";
+                return;
+            }
+            if (chat.archivada !== archivadas) {
+                archivadas = chat.archivada;
+                actualizarPestanas();
+                vaciarBandeja();
+                cargarBandeja();
+            }
+            abrirChat(chat);
+        } catch (error) {
+            if (!peticion.signal.aborted) el("estado-lista").textContent = fallo(error);
+        } finally {
+            if (peticionApertura === peticion) peticionApertura = null;
+        }
     }
 
     async function enviarMensaje(evento) {
@@ -717,16 +825,16 @@ function iniciarMensajeria(raiz, mostrarAvisos) {
             if (error.message === "cuota_agotada") guardarCuota(await pedir("/cuota").catch(() => ({ restantes: 0, limite: 50 })));
             return;
         } finally {
-            estadoEnvio(null, null);
+            estadoEnvio(null);
             enviando = false;
             controles();
         }
         if (falloSesion) return;
         limpiarCompositor();
-        anunciar("Mensaje enviado.");
+        anunciar("Mensaje enviado");
         if (!activo.id) {
             const pendiente = activo;
-            const chat = await buscarConversacion(destinatario).catch(() => null);
+            const chat = await buscarConversacion(item => item.otro?.referencia === destinatario).catch(() => null);
             if (activo === pendiente && chat) {
                 if (chat.archivada !== archivadas) {
                     archivadas = chat.archivada;
@@ -900,6 +1008,7 @@ function iniciarMensajeria(raiz, mostrarAvisos) {
     });
     el("mas-opciones").addEventListener("click", () => cargarOpciones(true));
     dialogo.addEventListener("close", () => {
+        if (dialogo.open) return;
         peticionSelector?.abort();
         programarLectura();
     });
@@ -915,6 +1024,18 @@ function iniciarMensajeria(raiz, mostrarAvisos) {
         });
     }
     el("volver").addEventListener("click", () => volver());
+    el("cerrar-chat").addEventListener("click", () => volver());
+    el("inicio").addEventListener("click", evento => {
+        if (evento.ctrlKey || evento.metaKey || evento.shiftKey || evento.altKey) return;
+        if (enviando || (operacion?.incierta && !falloSesion)) {
+            evento.preventDefault();
+            anunciar(enviando ? "Espera a que termine el envío antes de salir." :
+                "Reintenta o descarta el envío pendiente antes de salir.", true);
+        } else if ((borradores.size || texto.value || adjunto) &&
+            !window.confirm("Los borradores de esta página se perderán al volver a Inicio. ¿Quieres salir?")) {
+            evento.preventDefault();
+        }
+    });
     el("mas-chats").addEventListener("click", () => {
         paginandoChats = cargarBandeja(true).finally(() => { paginandoChats = null; });
     });
@@ -973,6 +1094,18 @@ function iniciarMensajeria(raiz, mostrarAvisos) {
     window.addEventListener("focus", programarLectura);
     window.visualViewport?.addEventListener("resize", programarLectura);
     campana.addEventListener("toggle", () => { if (campana.open) canal.invalidar(); });
+    campana.addEventListener("click", evento => {
+        const enlace = evento.target.closest("a[data-conversacion]");
+        if (!enlace || evento.ctrlKey || evento.metaKey || evento.shiftKey || evento.altKey) return;
+        evento.preventDefault();
+        if (enviando || operacion?.incierta) return;
+        campana.open = false;
+        if (activo?.id === enlace.dataset.conversacion) el("chat-titulo").focus({ preventScroll: true });
+        else campana.querySelector("summary").focus();
+        abrirConversacionAviso(enlace.dataset.conversacion);
+    });
+    const idInicial = new URLSearchParams(location.search).get("conversacion");
+    if (idInicial) abrirConversacionAviso(idInicial);
     function ajustarVista() {
         const menu = document.querySelector(".sidebar-menu");
         menu.open = !movil.matches;

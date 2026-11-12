@@ -1,3 +1,4 @@
+{% set disco_lleno = almacenamiento is defined and almacenamiento["disponible"] and almacenamiento["porcentaje"] >= 90 -%}
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -6,11 +7,11 @@
     <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{% block titulo %}SIGED | Panel de Control{% endblock %}</title>
     <link rel="icon" type="image/png" href="{{ url_for('static', path='img/siged-isotipo.png') }}?v=1">
-    <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}?v={% if pagina == 'biblioteca' %}33{% else %}29{% endif %}&busqueda=3">
+    <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}?v={% if pagina == 'biblioteca' %}34{% else %}30{% endif %}&busqueda=3">
     {% if usuario %}
-    <link rel="stylesheet" href="{{ url_for('static', path='clippy/clippy.css') }}?v=8">
+    <link rel="stylesheet" href="{{ url_for('static', path='clippy/clippy.css') }}?v=9">
     {% if request.app.state.mensajeria_interfaz and puede("ver") %}
-    <link rel="stylesheet" href="{{ url_for('static', path='styles-13-mensajeria.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='styles-13-mensajeria.css') }}?v=2">
     {% endif %}
     {% endif %}
 </head>
@@ -97,15 +98,13 @@
         </aside>
 
         <div class="app-content">
-            <div class="app-topbar">
-                <div class="app-topbar-identidad">
-                    <nav class="migas-pan" aria-label="Migas de pan">
-                        <a href="/inicio">SIGED</a>
-                        <span aria-hidden="true">/</span>
-                        <span aria-current="page">{% if pagina == "inicio" %}Panel de control{% elif pagina == "mensajeria" %}Mensajes{% elif pagina == "biblioteca" %}Biblioteca{% elif pagina == "expedientes" %}Expedientes{% elif pagina == "expediente_nuevo" %}Nuevo expediente{% elif pagina == "buscar" %}Búsqueda global{% elif pagina == "subir" %}Subir documento{% elif pagina == "usuarios" %}Usuarios{% elif pagina == "papelera" %}Papelera{% elif pagina == "actividad" %}Actividad{% elif pagina == "cuenta" %}Mi cuenta{% else %}Panel de control{% endif %}</span>
-                    </nav>
-                    <span class="topbar-descripcion">Plataforma digital de archivos y control documental institucional</span>
-                </div>
+            <header class="app-topbar">
+                <h1 class="app-topbar-titulo">{% block titulo_apartado %}{{ {
+                    "inicio": "Inicio", "biblioteca": "Biblioteca", "expedientes": "Expedientes",
+                    "expediente_nuevo": "Nuevo expediente", "mensajeria": "Mensajes", "buscar": "Búsqueda global",
+                    "subir": "Subir documento", "papelera": "Papelera", "actividad": "Actividad",
+                    "usuarios": "Usuarios", "cuenta": "Mi cuenta"
+                }.get(pagina, "Error") }}{% endblock %}</h1>
                 <form action="/buscar" method="get" class="busqueda-global" role="search">
                     <label class="sr-only" for="busqueda-global">Buscar documentos o expedientes</label>
                     <input type="search" id="busqueda-global" name="q" value="{{ busqueda_global|default('') }}" placeholder="Buscar documentos o expedientes" maxlength="200" autocomplete="off" aria-keyshortcuts="Control+K Meta+K" data-clippy-tip="Escribe título, folio u oficio; la búsqueda global revisa documentos y expedientes. También puedes abrirla con Ctrl+K." data-clippy-read="Búsqueda">
@@ -116,24 +115,67 @@
                     </button>
                     <button type="button" class="boton-busqueda-asistida" id="abrir-busqueda-asistida" aria-haspopup="dialog" aria-label="Buscar con Clippy" title="Buscar con Clippy">✨ <span>Con Clippy</span></button>
                 </form>
+                <div class="app-topbar-acciones">
+                {% if pagina == "mensajeria" %}
+                <a class="mensajeria-inicio" href="/inicio" id="mensajeria-inicio" aria-label="Volver a Inicio">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 9-8 9 8M5 10v10h5v-6h4v6h5V10"/></svg>
+                    <span>Volver a Inicio</span>
+                </a>
+                {% endif %}
                 {% if request.app.state.mensajeria_interfaz and puede("ver") %}
                 <details class="mensajeria-campana" id="mensajeria-campana"
                          {% if request.app.state.mensajeria_ruta_ws %}data-ruta-ws="{{ request.app.state.mensajeria_ruta_ws }}"{% endif %}>
-                    <summary aria-label="Notificaciones" title="Notificaciones">
+                    <summary aria-label="{{ 'Notificaciones, 1 aviso pendiente' if disco_lleno else 'Notificaciones' }}" title="Notificaciones">
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 17h14l-2-3V9a5 5 0 0 0-10 0v5zM10 20h4"/></svg>
-                        <small class="mensajeria-contador" data-mensajeria-avisos aria-hidden="true" hidden></small>
+                        <small class="mensajeria-contador" data-mensajeria-avisos aria-hidden="true"{% if not disco_lleno %} hidden{% endif %}>{{ '1' if disco_lleno else '' }}</small>
                     </summary>
                     <section class="mensajeria-notificaciones" aria-labelledby="mensajeria-notificaciones-titulo">
-                        <h2 id="mensajeria-notificaciones-titulo">Notificaciones</h2>
-                        <p data-mensajeria-estado-avisos>Consultando notificaciones…</p>
-                        <ul data-mensajeria-lista-avisos></ul>
-                        <a href="/mensajeria">Ir a Mensajería</a>
+                        <header class="mensajeria-notificaciones-cabecera">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 17h14l-2-3V9a5 5 0 0 0-10 0v5zM10 20h4"/></svg>
+                            <h2 id="mensajeria-notificaciones-titulo">Notificaciones</h2>
+                        </header>
+                        <p class="mensajeria-notificaciones-estado" data-mensajeria-estado-avisos{% if disco_lleno %} hidden{% endif %}>Consultando notificaciones…</p>
+                        <ul data-mensajeria-lista-avisos>{% if disco_lleno %}
+                            <li data-aviso-almacenamiento>
+                                <a class="mensajeria-notificacion" href="/inicio#almacenamiento-titulo" title="Ver almacenamiento en Inicio">
+                                    <span class="mensajeria-notificacion-icono">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 14h18m-5 2h2"/></svg>
+                                    </span>
+                                    <span class="mensajeria-notificacion-texto">
+                                        <strong>Poco espacio de almacenamiento</strong>
+                                        <small>{{ almacenamiento["porcentaje"] }}% del disco ocupado</small>
+                                    </span>
+                                    <span class="mensajeria-notificacion-datos">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>
+                                    </span>
+                                </a>
+                            </li>
+                        {% endif %}</ul>
                     </section>
+                    <template id="mensajeria-aviso-pendiente">
+                        <li>
+                            <a class="mensajeria-notificacion" title="Abrir conversación">
+                                <span class="sr-only">Abrir conversación</span>
+                                <span class="mensajeria-notificacion-icono">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v12H9l-5 4zM8 8h8M8 12h6"/></svg>
+                                </span>
+                                <span class="mensajeria-notificacion-texto">
+                                    <strong data-remitente></strong>
+                                    <small>Nuevo mensaje</small>
+                                </span>
+                                <span class="mensajeria-notificacion-datos">
+                                    <span class="mensajeria-notificacion-punto" aria-hidden="true"></span>
+                                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>
+                                </span>
+                            </a>
+                        </li>
+                    </template>
                 </details>
                 <p class="sr-only" data-mensajeria-aviso-vivo role="status"></p>
                 {% endif %}
                 <span class="rol-topbar">{{ usuario["rol_nombre"] }}</span>
-            </div>
+                </div>
+            </header>
     {% else %}
     <header class="auth-header">
         <div class="auth-identidad">
@@ -147,9 +189,9 @@
     </header>
     {% endif %}
 
-    <main class="{{ 'app-main' if usuario else 'auth-main' }}">
+    <main id="contenido-principal" tabindex="-1" class="{{ 'app-main' if usuario else 'auth-main' }}">
         {% if mensaje %}
-        <div class="panel aviso {{ tipo }}" role="{{ 'alert' if tipo == 'error' else 'status' }}">{{ mensaje }}</div>
+        {% include "_aviso_operacion.html" %}
         {% endif %}
         {% block contenido %}{% endblock %}
     </main>
@@ -190,7 +232,6 @@
                 </div>
             </dialog>
             <script src="{{ url_for('static', path='dialogos.js') }}?v=4"></script>
-            <script src="{{ url_for('static', path='navegacion.js') }}?v=1"></script>
             <dialog id="busqueda-asistida" class="busqueda-asistida-dialogo" aria-labelledby="busqueda-asistida-titulo">
                 <form method="dialog" id="form-busqueda-asistida" novalidate>
                     <h2 id="busqueda-asistida-titulo">Buscar con Clippy</h2>
@@ -235,7 +276,7 @@
             </dialog>
             <div id="siged-configuracion" hidden
                 data-opciones='{{ dict(categorias=asistente_categorias, areas=asistente_areas, usuarioId=usuario["id"], rol=usuario["rol"], areaUsuario=usuario["departamento"])|tojson }}'
-                data-clippy='{{ dict(basePath=url_for("static", path="clippy/agents") ~ "/", cantidadExpediente=(documentos|length if expediente is defined and documentos is defined else none), bibliotecaSinResultados=(pagina == "biblioteca" and hay_filtros|default(false) and total|default(0) == 0), busquedaSinResultados=(pagina == "buscar" and not buscar_vacio|default(true) and not documentos_encontrados|default([]) and not expedientes_encontrados|default([])), discoLleno=(almacenamiento is defined and almacenamiento["disponible"] and almacenamiento["porcentaje"] >= 90), saludoEntrada=saludo_clippy_entrada|default(false), nombre=(usuario["nombre"].split()|first|default("Usuario", true)), usuarioId=usuario["id"], puedeSubir=puede("subir"), puedeRestaurar=puede("restaurar"), puedeUsuarios=puede("usuarios"), puedeActividad=puede("actividad"), puedeVer=puede("ver"), puedeVerExpedientes=puede("ver_expedientes"), puedeGestionarExpedientes=puede("gestionar_expedientes"), puedePapelera=puede("papelera"), puedeEliminar=puede("eliminar"))|tojson }}'></div>
+                data-clippy='{{ dict(basePath=url_for("static", path="clippy/agents") ~ "/", cantidadExpediente=(documentos|length if expediente is defined and documentos is defined else none), bibliotecaSinResultados=(pagina == "biblioteca" and hay_filtros|default(false) and total|default(0) == 0), busquedaSinResultados=(pagina == "buscar" and not buscar_vacio|default(true) and not documentos_encontrados|default([]) and not expedientes_encontrados|default([])), discoLleno=disco_lleno, saludoEntrada=saludo_clippy_entrada|default(false), nombre=(usuario["nombre"].split()|first|default("Usuario", true)), usuarioId=usuario["id"], puedeSubir=puede("subir"), puedeRestaurar=puede("restaurar"), puedeUsuarios=puede("usuarios"), puedeActividad=puede("actividad"), puedeVer=puede("ver"), puedeVerExpedientes=puede("ver_expedientes"), puedeGestionarExpedientes=puede("gestionar_expedientes"), puedePapelera=puede("papelera"), puedeEliminar=puede("eliminar"))|tojson }}'></div>
             <script src="{{ url_for('static', path='siged_configuracion.js') }}?v=1"></script>
             <script src="{{ url_for('static', path='interprete_busqueda.js') }}?v=1"></script>
             <script src="{{ url_for('static', path='memoria_temporal.js') }}?v=2"></script>
@@ -245,7 +286,7 @@
             <script src="{{ url_for('static', path='busqueda_asistida.js') }}?v=14"></script>
             <script src="{{ url_for('static', path='clippy/jquery.min.js') }}"></script>
             <script src="{{ url_for('static', path='clippy/clippy.min.js') }}"></script>
-            <script src="{{ url_for('static', path='clippy_asistente.js') }}?v=6"></script>
+            <script src="{{ url_for('static', path='clippy_asistente.js') }}?v=8"></script>
             {% if request.app.state.mensajeria_interfaz and puede("ver") %}
             <script type="module" src="{{ url_for('static', path='mensajeria.js') }}"></script>
             {% endif %}
@@ -255,5 +296,6 @@
     {% else %}
     <footer>Todos los derechos reservados &copy; 2026</footer>
     {% endif %}
+    <script src="{{ url_for('static', path='navegacion.js') }}?v=2"></script>
 </body>
 </html>

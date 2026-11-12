@@ -7,6 +7,11 @@
     function cargarAsistente() {
         clippy.load("Clippy", (agente) => {
             window.sigedClippy = agente;
+            const mensajeria = document.getElementById("mensajeria");
+            const compositor = mensajeria && document.getElementById("mensajeria-compositor");
+            const textoMensaje = mensajeria && document.getElementById("mensajeria-texto");
+            const enviarMensaje = mensajeria && document.getElementById("mensajeria-enviar");
+            const limiteBocadillo = mensajeria ? 120 : 240;
             const elegirAnimacionInactiva = agente._getIdleAnimation.bind(agente);
             agente._getIdleAnimation = () => agente.hasAnimation("Idle1_1")
                 ? "Idle1_1" : elegirAnimacionInactiva();
@@ -83,8 +88,8 @@
                 const alto = window.innerHeight;
                 const figuraActual = document.querySelector(".clippy");
                 const bocadilloActual = document.querySelector(".clippy-balloon");
-                if (figuraActual?.matches(":hover, :focus-visible") ||
-                    (bocadilloActual && getComputedStyle(bocadilloActual).display !== "none")) return;
+                if (!mensajeria && (figuraActual?.matches(":hover, :focus-visible") ||
+                    (bocadilloActual && getComputedStyle(bocadilloActual).display !== "none"))) return;
                 const inactivo = figuraActual?.classList.contains("clippy-inactivo");
                 const escala = inactivo ? (window.innerWidth <= 700 ? 0.40 : 0.50) : 1;
                 const anchoFigura = 124 * escala;
@@ -100,9 +105,18 @@
                 const controles = Array.from(document.querySelectorAll(
                     ".app-content button, .app-content a, .app-content input, .kpi-card, .almacenamiento-panel, .archivo-fila, .barra-seleccion, .sidebar a, .sidebar button"
                 )).filter(elemento => elemento.getClientRects().length).map(elemento => elemento.getBoundingClientRect());
+                const protegidos = mensajeria ? Array.from(document.querySelectorAll(
+                    ".app-topbar, .mensajeria-bandeja-cabecera, .mensajeria-chat-cabecera, #mensajeria-compositor, " +
+                    ".mensajeria-campana[open] .mensajeria-notificaciones, .mensajeria-chat-acciones[open] > div"
+                )).filter(elemento => elemento.getClientRects().length).map(elemento => elemento.getBoundingClientRect()) : [];
+                for (const rect of protegidos) {
+                    const antes = rect.top - altoFigura - 4;
+                    if (antes >= minimoY && antes + altoFigura <= alto - 8) ys.push(antes);
+                }
                 const area = (a, b) => Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) *
                     Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
                 let mejor = { puntaje: Infinity, izquierda: xs[0], arriba: ys[0] };
+                let mejorLibre;
                 for (const izquierda of xs) for (const arriba of ys) {
                     const figura = { left: izquierda - 4, right: izquierda + anchoFigura + 4,
                         top: arriba - 4, bottom: arriba + altoFigura + 4 };
@@ -111,17 +125,35 @@
                         top: arribaExpandido - 4, bottom: arriba + altoFigura + 4};
                     const espacioMinimo = Math.min(160, Math.max(80, alto - 32));
                     const abajo = Math.min(Math.max(16, alto - arribaExpandido + 16), alto - espacioMinimo);
-                    const alturaConsejo = Math.max(0, Math.min(240, alto - abajo - 12));
+                    const alturaConsejo = Math.max(0, Math.min(limiteBocadillo, alto - abajo - 12));
                     const consejo = {left: Math.max(12, window.innerWidth - 272), right: window.innerWidth - 12,
                         top: alto - abajo - alturaConsejo, bottom: alto - abajo};
                     const puntaje = controles.reduce((total, rectangulo) => total + area(figura, rectangulo) +
-                        area(figuraExpandida, rectangulo) + area(consejo, rectangulo) * 0.4, 0);
+                        area(figuraExpandida, rectangulo) + area(consejo, rectangulo) * 0.4, 0) +
+                        protegidos.reduce((total, rect) => total + 4 * area(figuraExpandida, rect), 0);
                     if (puntaje < mejor.puntaje) mejor = { puntaje, izquierda, arriba };
+                    if (mensajeria && alturaConsejo >= 100 && (!mejorLibre || puntaje < mejorLibre.puntaje) &&
+                        protegidos.every(rect => !area(figuraExpandida, rect) && !area(consejo, rect))) {
+                        mejorLibre = { puntaje, izquierda, arriba };
+                    }
+                }
+                if (mejorLibre) mejor = mejorLibre;
+                else if (mensajeria && bocadilloActual && getComputedStyle(bocadilloActual).display !== "none") {
+                    agente.stop();
+                    globo.hide(true);
                 }
                 const x = mejor.izquierda - (124 - anchoFigura);
                 const y = mejor.arriba - (93 - altoFigura);
-                agente.moveTo(x, y, 0);
-                window.requestAnimationFrame(ajustarBocadillo);
+                if (mensajeria && figuraActual) {
+                    // moveTo encola el movimiento detrás del consejo que se está mostrando.
+                    figuraActual.style.left = `${x}px`;
+                    figuraActual.style.top = `${y}px`;
+                    ajustarBocadillo();
+                } else {
+                    agente.moveTo(x, y, 0);
+                    window.requestAnimationFrame(ajustarBocadillo);
+                }
+                return !mensajeria || Boolean(mejorLibre);
             };
             ubicar();
             agente.show(true);
@@ -129,6 +161,7 @@
             ubicar();
             const bocadillo = document.querySelector(".clippy-balloon");
             if (bocadillo) {
+                if (mensajeria) bocadillo.style.setProperty("--clippy-bocadillo-alto", `${limiteBocadillo}px`);
                 const cerrarConsejo = document.createElement("button");
                 cerrarConsejo.type = "button";
                 cerrarConsejo.className = "clippy-cerrar";
@@ -160,6 +193,21 @@
             }
             window.addEventListener("resize", ubicar);
             window.addEventListener("scroll", () => ubicar(), { passive: true });
+            if (compositor) {
+                const retirarConsejo = () => {
+                    if (bocadillo && getComputedStyle(bocadillo).display !== "none") {
+                        agente.stop();
+                        globo.hide(true);
+                        programarReposo();
+                    }
+                };
+                textoMensaje.addEventListener("focus", retirarConsejo);
+                document.addEventListener("input", retirarConsejo);
+                compositor.addEventListener("submit", retirarConsejo);
+                new ResizeObserver(ubicar).observe(compositor);
+                document.getElementById("mensajeria-campana")?.addEventListener("toggle", ubicar);
+                document.getElementById("mensajeria-acciones")?.addEventListener("toggle", ubicar);
+            }
 
             let sonidosDesbloqueados = false;
             const habilitarEfectos = () => {
@@ -284,6 +332,14 @@
                     "Revisa los datos y pulsa Subir documento. Después lo encontrarás en Biblioteca."
                 ]
             };
+            const guiaMensajeria = [
+                "Aquí puedes conversar y compartir documentos con otros usuarios de SIGED.",
+                "Para enviar un mensaje, adjunta un archivo o selecciona un documento de Biblioteca.",
+                "Puedes buscar conversaciones en la lista. En escritorio está en el panel izquierdo.",
+                "Los documentos de Biblioteca conservan sus restricciones de acceso al compartirlos.",
+                "Las conversaciones con mensajes pendientes aparecen con un contador verde en la lista.",
+                "Cerrar chat te devuelve a la lista y conserva tu borrador mientras sigas en Mensajería."
+            ];
             let pasoGuia = 0;
 
             let ultimoConsejo = 0;
@@ -294,7 +350,10 @@
             const dialogoBusqueda = document.getElementById("busqueda-asistida");
             let ultimaEscritura = 0;
             document.addEventListener("input", () => { ultimaEscritura = Date.now(); });
-            const dialogoOcupado = () => Boolean(dialogoConfirmacion?.open || dialogoBusqueda?.open);
+            const dialogoSelector = mensajeria && document.getElementById("mensajeria-selector");
+            const dialogoOcupado = () => Boolean(dialogoConfirmacion?.open || dialogoBusqueda?.open ||
+                dialogoSelector?.open || (textoMensaje && document.activeElement === textoMensaje) ||
+                enviarMensaje?.getAttribute("aria-busy") === "true");
             // Las nuevas reacciones no deben activar sonidos del personaje.
             const animador = agente._animator;
             const nuevasReacciones = ["Greeting", "Wave"];
@@ -326,7 +385,7 @@
                 }
             });
             const decirConsejo = (texto, forzar = false, mantener = false) => {
-                if (!texto || dialogoOcupado() || consejosMostrados.has(texto)) return false;
+                if (mensajeria || !texto || dialogoOcupado() || consejosMostrados.has(texto)) return false;
                 if (!forzar && ultimaEscritura && Date.now() - ultimaEscritura < 3000) return false;
                 if (!forzar && accionSaludo && !accionSaludo.hidden) return false;
                 if (!forzar && Date.now() - ultimoConsejo < (esHabitual ? 20000 : 5000)) return false;
@@ -416,6 +475,7 @@
 
             const lecturasProgramadas = new WeakMap();
             const programarLectura = (evento) => {
+                if (mensajeria) return;
                 const campo = evento.target;
                 if (!(campo instanceof HTMLInputElement) || !campo.hasAttribute("data-clippy-read")) return;
                 if (["password", "file", "hidden", "button", "submit", "checkbox", "radio"].includes(campo.type)) return;
@@ -452,10 +512,12 @@
                 });
                 personaje.addEventListener("blur", () => programarReposo());
                 const hablar = () => {
+                    if (mensajeria && (dialogoOcupado() || !ubicar())) return;
                     agente.stop();
-                    const guia = guias[ruta];
+                    const guia = mensajeria ? guiaMensajeria : guias[ruta];
                     if (guia) {
-                        agente.speak(`Guía, paso ${pasoGuia + 1} de ${guia.length}. ${guia[pasoGuia]} Pulsa de nuevo para continuar.`);
+                        agente.speak(mensajeria ? guia[pasoGuia] :
+                            `Guía, paso ${pasoGuia + 1} de ${guia.length}. ${guia[pasoGuia]} Pulsa de nuevo para continuar.`);
                         pasoGuia = (pasoGuia + 1) % guia.length;
                     } else {
                         agente.speak(ayudaDeEstaSeccion + " Enfoca un campo o marca una opción y te daré un consejo relacionado.");
@@ -475,6 +537,7 @@
             }
 
             window.sigedClippyPreferencias?.then(preferencias => {
+                if (mensajeria) return;
                 esHabitual = preferencias?.experiencia === "habitual";
                 const seccionFrecuente = preferencias?.secciones?.[0];
                 const nombresSeccion = { biblioteca: "Biblioteca", expedientes: "Expedientes", subir: "Subir documento", buscar: "Búsqueda global", papelera: "Papelera" };

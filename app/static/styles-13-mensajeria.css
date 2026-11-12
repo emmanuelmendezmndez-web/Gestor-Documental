@@ -19,6 +19,7 @@
 .mensajeria-campana .mensajeria-contador { position: absolute; inset: -5px -5px auto auto; }
 .mensajeria-campana summary,
 .mensajeria-chat-acciones summary {
+    position: relative;
     display: grid;
     min-width: 42px;
     min-height: 42px;
@@ -35,7 +36,7 @@
 .mensajeria-chat-acciones summary::-webkit-details-marker { display: none; }
 .mensajeria-campana summary:hover, .mensajeria-campana[open] summary,
 .mensajeria-chat-acciones summary:hover { background: #e3edf9; }
-.mensajeria-campana svg, .mensajeria svg:not(.icono-archivo) {
+.mensajeria-campana svg, .mensajeria svg:not(.icono-archivo), .mensajeria-inicio svg {
     width: 20px;
     height: 20px;
     fill: none;
@@ -49,20 +50,78 @@
     position: absolute;
     z-index: 4;
     inset: calc(100% + 8px) 0 auto auto;
-    width: min(19rem, calc(100vw - 32px));
-    padding: 1rem;
     border: 1px solid #d8e2ee;
     border-radius: 12px;
     background: #fff;
     color: #243247;
     box-shadow: 0 10px 30px #17365d21;
 }
-.mensajeria-notificaciones h2 { font-size: 1rem; }
-.mensajeria-notificaciones p { margin-block: .5rem; color: #4c6079; }
-.mensajeria-notificaciones ul { max-height: 45vh; overflow: auto; padding-inline-start: 1.25rem; }
+.mensajeria-notificaciones { width: min(23rem, calc(100vw - 24px)); padding: 0; }
+.mensajeria-notificaciones-cabecera {
+    display: flex;
+    align-items: center;
+    gap: .55rem;
+    padding: .85rem 1rem;
+    border-bottom: 1px solid #e5edf6;
+    color: #17365d;
+}
+.mensajeria-notificaciones h2 { margin: 0; font-size: 1rem; }
+.mensajeria-notificaciones-estado {
+    margin: .65rem;
+    padding: 1rem .75rem;
+    border-radius: 8px;
+    background: #f5f8fc;
+    color: #4c6079;
+    text-align: center;
+    font-size: .86rem;
+}
+.mensajeria-notificaciones ul { max-height: min(45dvh, 22rem); overflow: auto; margin: 0; padding: .45rem; list-style: none; }
 .mensajeria-notificaciones ul:empty { display: none; }
-.mensajeria-notificaciones a { color: #184ab6; font-weight: 650; }
-:is(.mensajeria, .mensajeria-campana) :is(button, summary, a, input, textarea, [tabindex="0"]):focus-visible {
+.mensajeria-notificacion {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: .65rem;
+    padding: .65rem .55rem;
+    border-radius: 8px;
+    color: #17365d;
+    text-decoration: none;
+}
+.mensajeria-notificacion:is(:hover, :focus-visible) { background: #eef4fb; }
+.mensajeria-notificacion-icono {
+    display: grid;
+    width: 2.35rem;
+    aspect-ratio: 1;
+    place-items: center;
+    border-radius: 9px;
+    background: #e8f0fb;
+    color: #254e8d;
+}
+.mensajeria-notificacion-texto { display: grid; gap: .12rem; overflow-wrap: anywhere; }
+.mensajeria-notificacion-texto strong { font-size: .9rem; }
+.mensajeria-notificacion-texto small, .mensajeria-notificacion-texto time { color: #4c6079; font-size: .76rem; }
+.mensajeria-notificacion-datos { display: flex; align-items: center; gap: .28rem; color: #4c6079; }
+.mensajeria-notificacion-datos svg { width: 15px; height: 15px; }
+.mensajeria-notificacion-punto { width: 8px; height: 8px; border-radius: 50%; background: #15803d; }
+.mensajeria-inicio {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    gap: .4rem;
+    padding: .4rem .7rem;
+    border-radius: 8px;
+    background: var(--color-primario);
+    color: #fff;
+    font-size: .84rem;
+    font-weight: 650;
+    text-decoration: none;
+    white-space: nowrap;
+}
+.mensajeria-inicio svg { width: 16px; height: 16px; }
+.mensajeria-inicio:hover { background: #1d4ed8; color: #fff; }
+.mensajeria-inicio:active { background: #1e40af; }
+:is(.mensajeria, .mensajeria-campana) :is(button, summary, a, input, textarea, [tabindex="0"]):focus-visible,
+.mensajeria-inicio:focus-visible {
     outline: 2px solid #2563eb;
     outline-offset: 2px;
 }
@@ -93,9 +152,9 @@
     box-shadow: 0 4px 16px #17365d0c;
 }
 .mensajeria [hidden], .mensajeria-contador[hidden] { display: none; }
-.mensajeria h1, .mensajeria h2, .mensajeria p { margin: 0; }
-.mensajeria h1 { font-size: 1.15rem; letter-spacing: -.02em; }
+.mensajeria h2, .mensajeria p { margin: 0; }
 .mensajeria h2 { font-size: 1.08rem; overflow-wrap: anywhere; }
+.mensajeria #mensajeria-bandeja-titulo { font-size: 1.15rem; letter-spacing: -.02em; }
 .mensajeria button { margin: 0; width: auto; font: inherit; font-weight: 650; }
 .mensajeria-bandeja, .mensajeria-chat { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 .mensajeria-bandeja { border-right: 1px solid var(--msj-borde); }
@@ -206,7 +265,6 @@
 .mensajeria-chat-acciones > div { display: grid; width: min(15rem, calc(100vw - 32px)); gap: .25rem; padding: .4rem; }
 .mensajeria-chat-acciones button { padding: .7rem; border-radius: 7px; background: #fff; color: var(--msj-azul); text-align: start; }
 .mensajeria-chat-acciones button:hover { background: #e3edf9; }
-.mensajeria .mensajeria-volver { display: none; }
 .mensajeria-historial { margin-inline-end: 20px; padding: .85rem clamp(.7rem, 2vw, 1.65rem); overflow-anchor: none; }
 .mensajeria-estado { padding: .65rem; color: var(--msj-secundario); font-size: .9rem; }
 .mensajeria-estado:empty { display: none; }
@@ -244,6 +302,7 @@
 .mensajeria-archivo-acciones { display: flex; flex-wrap: wrap; gap: .25rem; }
 .mensajeria-tarjeta a { color: #1749aa; padding: .55rem .25rem; font-weight: 700; }
 .mensajeria-compositor {
+    position: relative;
     display: grid;
     gap: .4rem;
     min-width: 0;
@@ -285,12 +344,72 @@
 .mensajeria button.mensajeria-secundario:hover { background: #e3edf9; }
 .mensajeria button.mensajeria-secundario[hidden] { display: none; }
 .mensajeria button.mensajeria-icono-boton { min-width: 42px; padding: 0; }
-.mensajeria button.mensajeria-enviar { min-height: 42px; padding: .55rem .9rem; border-radius: 8px; background: #2358cf; }
+.mensajeria button.mensajeria-enviar {
+    display: inline-flex;
+    min-width: 7.7rem;
+    min-height: 42px;
+    align-items: center;
+    justify-content: center;
+    gap: .4rem;
+    padding: .55rem .65rem;
+    border-radius: 8px;
+    background: #2358cf;
+}
+.mensajeria button.mensajeria-enviar[aria-busy="true"] { opacity: 1; cursor: progress; }
+.mensajeria-envio-giro {
+    width: .9rem;
+    height: .9rem;
+    flex: none;
+    border: 2px solid #ffffff66;
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: mensajeria-girar .7s linear infinite;
+}
+@keyframes mensajeria-girar { to { transform: rotate(1turn); } }
 .mensajeria button:disabled { opacity: .55; cursor: not-allowed; }
 .mensajeria button.mensajeria-mas { margin: .45rem auto; display: flex; }
-.mensajeria-compositor .aviso { margin: 0; padding: .45rem .65rem; font-size: .85rem; }
-.mensajeria-transferencia { display: grid; gap: .2rem; color: var(--msj-secundario); font-size: .82rem; }
-.mensajeria-transferencia progress { width: 100%; height: .55rem; accent-color: #2563eb; }
+.mensajeria-aviso-envio {
+    position: absolute;
+    z-index: 1;
+    inset-inline: .65rem auto;
+    inset-block-end: calc(100% + .55rem);
+    display: flex;
+    max-width: min(24rem, calc(100% - 1.3rem));
+    align-items: flex-start;
+    gap: .55rem;
+    padding: .55rem .7rem;
+    border: 1px solid #cfe5d6;
+    border-radius: 10px;
+    background: #f6fbf7;
+    color: #18492c;
+    box-shadow: 0 3px 12px #17365d16;
+    font-size: .86rem;
+    font-weight: 650;
+    overflow-wrap: anywhere;
+    pointer-events: none;
+    animation: mensajeria-aviso-entrada .16s ease-out;
+    transition: opacity .16s, transform .16s;
+}
+.mensajeria-aviso-envio[data-salida] { opacity: 0; transform: translateY(4px); }
+.mensajeria-aviso-icono {
+    display: grid;
+    width: 1.5rem;
+    height: 1.5rem;
+    flex: none;
+    place-items: center;
+    border-radius: 50%;
+    background: #dff2e5;
+    color: #13743b;
+}
+.mensajeria .mensajeria-aviso-icono svg { width: 16px; height: 16px; }
+.mensajeria-aviso-envio[data-tipo="error"] { border-color: #f1d0cd; background: #fff7f6; color: #81221c; }
+.mensajeria-aviso-envio[data-tipo="error"] .mensajeria-aviso-icono { background: #fce5e3; color: #a62b22; }
+.mensajeria-aviso-envio[data-tipo="error"] [data-tipo="exito"],
+.mensajeria-aviso-envio[data-tipo="exito"] [data-tipo="error"] { display: none; }
+@keyframes mensajeria-aviso-entrada {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
 .mensajeria-selector {
     width: min(34rem, calc(100vw - 28px));
     max-height: min(38rem, calc(100dvh - 28px));
@@ -306,9 +425,6 @@
 .mensajeria-selector header form { margin: 0; }
 .mensajeria-selector input { min-width: 0; }
 
-@media (min-width: 801px) {
-    .mensajeria button.mensajeria-volver { display: none; }
-}
 @media (max-width: 800px) {
     body:has(.mensajeria) { min-height: 0; }
     .app-shell:has(.mensajeria) { height: var(--mensajeria-viewport, 100dvh); min-height: 0; }
@@ -318,12 +434,14 @@
     .app-shell:has(.mensajeria) > .sidebar .marca-icono { width: 33px; height: 33px; }
     .app-shell:has(.mensajeria) > .sidebar:not(:has(.sidebar-menu[open])) .sidebar-cuenta { display: none; }
     .app-content:has(.mensajeria) > .app-topbar { padding-block: .45rem; gap: .35rem .55rem; }
-    .app-content:has(.mensajeria) .topbar-descripcion { display: none; }
     .app-main:has(.mensajeria) { padding: 0; }
     .mensajeria { grid-template-columns: minmax(0, 1fr); border-radius: 0; border-inline: 0; }
     .mensajeria-bandeja, .mensajeria-chat, .mensajeria-compositor { border-radius: 0; border-inline: 0; }
     .mensajeria .mensajeria-bienvenida, .mensajeria[data-abierta] .mensajeria-bandeja { display: none; }
-    .mensajeria-notificaciones { inset-inline: auto -20px; }
+    .mensajeria-notificaciones {
+        position: fixed;
+        inset: auto 12px max(12px, env(safe-area-inset-bottom)) auto;
+    }
     .mensajeria-chat-cabecera, .mensajeria-compositor { padding: .5rem .65rem; }
     .mensajeria-chat-cabecera { padding-inline-end: 3.4rem; }
     .mensajeria-compositor-acciones { padding-inline-end: 3.25rem; }
@@ -333,6 +451,9 @@
     .mensajeria-bandeja-filtros button, .mensajeria button.mensajeria-secundario,
     .mensajeria button.mensajeria-enviar, .mensajeria-campana summary { min-height: 44px; }
 }
+@media (max-width: 360px) {
+    .mensajeria-inicio { padding-inline: .42rem; }
+}
 @media (max-width: 460px) {
     .mensajeria .mensajeria-compositor-acciones { gap: .25rem; }
     .mensajeria-cuota { order: -1; flex: 0 0 100%; text-align: start; font-size: .73rem; }
@@ -341,4 +462,5 @@
 }
 @media (prefers-reduced-motion: reduce) {
     .mensajeria *, .mensajeria-campana * { animation: none; transition: none; scroll-behavior: auto; }
+    .mensajeria-aviso-envio[data-salida] { transform: none; }
 }

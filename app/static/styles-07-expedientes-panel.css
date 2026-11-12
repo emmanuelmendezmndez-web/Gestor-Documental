@@ -75,7 +75,7 @@
     margin-bottom: 24px;
 }
 
-.dashboard-encabezado h1 {
+.dashboard-encabezado h2 {
     margin: 0;
     font-size: clamp(1.7rem, 3vw, 2.2rem);
 }
@@ -466,13 +466,8 @@
 
 .dashboard-grid .resumen-resultados { margin-top: 0; }
 
-.resultados-globales > .sobrelinea,
-.resultados-globales h1 {
-    margin-top: 0;
-}
-
-.resultados-globales h1 {
-    margin-bottom: 8px;
+.resultados-globales-titulo {
+    margin: 0 0 8px;
     font-size: clamp(1.5rem, 3vw, 2rem);
     overflow-wrap: anywhere;
 }

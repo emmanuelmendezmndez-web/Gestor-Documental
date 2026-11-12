@@ -1,0 +1,22 @@
+{% set tono = tipo if tipo in ("exito", "error") else "advertencia" if tipo in ("advertencia", "aviso") else "info" %}
+{% set encabezado = {
+    "exito": "Operación completada", "error": "No se pudo completar la operación",
+    "advertencia": "Advertencia", "info": "Información"
+}[tono] %}
+<div class="aviso-operacion" id="aviso-operacion" data-aviso-operacion="{{ tono }}">
+    <div class="aviso-operacion-contenido" role="{{ 'alert' if tono == 'error' else 'status' }}">
+        <svg class="aviso-operacion-icono" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            {% if tono == "exito" %}<circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/>
+            {% elif tono == "advertencia" %}<path d="M12 3 2.5 20h19zM12 9v4m0 3h.01"/>
+            {% elif tono == "error" %}<circle cx="12" cy="12" r="9"/><path d="m9 9 6 6m0-6-6 6"/>
+            {% else %}<circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/>{% endif %}
+        </svg>
+        <div>
+            {% if mensaje != encabezado %}<strong>{{ encabezado }}</strong>{% endif %}
+            <p>{{ mensaje }}</p>
+        </div>
+    </div>
+    <button type="button" class="aviso-operacion-cerrar" data-cerrar-aviso aria-label="Cerrar aviso">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 6 12 12M18 6 6 18"/></svg>
+    </button>
+</div>

@@ -6,7 +6,7 @@
     <aside class="mensajeria-bandeja" aria-labelledby="mensajeria-bandeja-titulo">
         <header class="mensajeria-bandeja-cabecera">
             <div class="mensajeria-linea">
-                <h1 id="mensajeria-bandeja-titulo" tabindex="-1">Conversaciones</h1>
+                <h2 id="mensajeria-bandeja-titulo" tabindex="-1">Conversaciones</h2>
                 <button type="button" class="mensajeria-secundario mensajeria-icono-boton" id="mensajeria-nuevo" aria-label="Nueva conversación" title="Nueva conversación" aria-haspopup="dialog">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v12H9l-5 4zM12 7v6M9 10h6"/></svg>
                 </button>
@@ -39,7 +39,7 @@
     </section>
     <section class="mensajeria-chat" aria-labelledby="mensajeria-chat-titulo" hidden>
         <header class="mensajeria-chat-cabecera">
-            <button type="button" class="mensajeria-secundario mensajeria-icono-boton mensajeria-volver" id="mensajeria-volver" aria-label="Volver a conversaciones" title="Volver a conversaciones">
+            <button type="button" class="mensajeria-secundario mensajeria-icono-boton" id="mensajeria-volver" aria-label="Cerrar" title="Cerrar">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5m6-6-6 6 6 6"/></svg>
             </button>
             <span class="mensajeria-avatar" id="mensajeria-chat-avatar" aria-hidden="true"></span>
@@ -49,6 +49,7 @@
                 <div>
                     <button type="button" id="mensajeria-leer" hidden>Marcar como leídos</button>
                     <button type="button" id="mensajeria-archivar">Archivar conversación</button>
+                    <button type="button" id="mensajeria-cerrar-chat">Cerrar chat</button>
                 </div>
             </details>
         </header>
@@ -59,14 +60,19 @@
             <ol class="mensajeria-mensajes" id="mensajeria-mensajes"></ol>
         </div>
         <form class="mensajeria-compositor" id="mensajeria-compositor" autocomplete="off">
-            <div id="mensajeria-aviso" class="panel aviso" role="status" hidden></div>
-            <div id="mensajeria-adjunto-elegido" hidden></div>
-            <div class="mensajeria-transferencia" id="mensajeria-transferencia" hidden>
-                <span id="mensajeria-fase-envio" role="status"></span>
-                <progress id="mensajeria-progreso" aria-label="Progreso de subida" max="100" hidden></progress>
+            <div id="mensajeria-aviso" class="mensajeria-aviso-envio" aria-hidden="true" hidden>
+                <span class="mensajeria-aviso-icono">
+                    <svg data-tipo="exito" viewBox="0 0 24 24"><path d="m5 12 4 4 10-10"/></svg>
+                    <svg data-tipo="error" viewBox="0 0 24 24"><path d="M12 7v6m0 4v.1"/><circle cx="12" cy="12" r="9"/></svg>
+                </span>
+                <span id="mensajeria-aviso-texto"></span>
             </div>
+            <span class="sr-only" id="mensajeria-aviso-estado" role="status"></span>
+            <span class="sr-only" id="mensajeria-aviso-error" role="alert"></span>
+            <span class="sr-only" id="mensajeria-fase-envio" role="status"></span>
+            <div id="mensajeria-adjunto-elegido" hidden></div>
             <label class="sr-only" for="mensajeria-texto">Mensaje</label>
-            <textarea id="mensajeria-texto" rows="2" placeholder="Escribe un mensaje" aria-describedby="mensajeria-caracteres mensajeria-reglas mensajeria-aviso"></textarea>
+            <textarea id="mensajeria-texto" rows="2" placeholder="Escribe un mensaje" aria-describedby="mensajeria-caracteres mensajeria-reglas"></textarea>
             <div class="mensajeria-compositor-datos"><span id="mensajeria-reglas">Un adjunto por mensaje</span><span id="mensajeria-caracteres">0 / 300</span></div>
             <div class="mensajeria-compositor-acciones">
                 <input id="mensajeria-archivo" type="file" accept=".pdf,.docx,.xlsx,.pptx,.txt,.png,.jpg,.jpeg" hidden>
@@ -78,7 +84,10 @@
                 </button>
                 <span class="mensajeria-cuota" id="mensajeria-cuota"></span>
                 <button type="button" class="mensajeria-secundario" id="mensajeria-descartar" hidden>Descartar reintento</button>
-                <button type="submit" class="mensajeria-enviar" id="mensajeria-enviar" disabled>Enviar</button>
+                <button type="submit" class="mensajeria-enviar" id="mensajeria-enviar" disabled>
+                    <span class="mensajeria-envio-giro" aria-hidden="true" hidden></span>
+                    <span id="mensajeria-enviar-texto">Enviar</span>
+                </button>
             </div>
         </form>
     </section>

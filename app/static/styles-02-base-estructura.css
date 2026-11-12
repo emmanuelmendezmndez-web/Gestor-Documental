@@ -392,12 +392,12 @@ main {
     position: sticky;
     z-index: 2;
     top: 0;
-    display: flex;
-    min-height: 76px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    grid-template-areas: "busqueda titulo acciones";
     align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 16px clamp(24px, 4vw, 64px);
+    gap: 10px clamp(12px, 2vw, 24px);
+    padding: 14px clamp(16px, 2.6vw, 38px);
     border-bottom: 1px solid #dbe3ed;
     box-shadow: 0 2px 8px rgb(15 23 42 / 3%);
     background: rgb(255 255 255 / 96%);
@@ -405,11 +405,26 @@ main {
     font-size: 0.9rem;
 }
 
-.app-topbar-identidad {
-    display: grid;
-    flex: 1 1 220px;
+.app-topbar-titulo {
+    grid-area: titulo;
     min-width: 0;
-    gap: 3px;
+    margin: 0;
+    color: var(--color-texto);
+    font-size: clamp(1.15rem, 1.6vw, 1.45rem);
+    font-weight: 750;
+    line-height: 1.2;
+    text-align: center;
+    overflow-wrap: anywhere;
+}
+
+.app-topbar-acciones {
+    grid-area: acciones;
+    display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: .4rem;
 }
 
 .busqueda-global {
@@ -483,35 +498,6 @@ main {
     clip-path: inset(50%);
 }
 
-.migas-pan {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 9px;
-    color: var(--color-texto-suave);
-    font-size: 0.93rem;
-    font-weight: 600;
-}
-
-.migas-pan a {
-    color: var(--color-primario);
-    text-decoration: none;
-}
-
-.migas-pan a:hover {
-    text-decoration: underline;
-}
-
-.migas-pan [aria-current="page"] {
-    color: var(--color-texto);
-}
-
-.topbar-descripcion {
-    color: var(--color-texto-suave);
-    font-size: 0.76rem;
-    line-height: 1.35;
-}
-
 .rol-topbar {
     flex: 0 0 auto;
     padding: 6px 11px;
@@ -523,10 +509,6 @@ main {
     font-weight: 700;
 }
 
-.app-topbar-identidad > span:first-child {
-    min-width: 0;
-    flex: 1;
-}
 
 .app-main {
     width: 100%;

@@ -1,6 +1,6 @@
 (() => {
     const busquedaGlobal = document.getElementById("busqueda-global");
-    document.addEventListener("keydown", (evento) => {
+    if (busquedaGlobal) document.addEventListener("keydown", (evento) => {
         if ((evento.ctrlKey || evento.metaKey) && evento.key.toLowerCase() === "k") {
             evento.preventDefault();
             busquedaGlobal?.focus();
@@ -9,6 +9,64 @@
             busquedaGlobal.blur();
         }
     });
+
+    const aviso = document.getElementById("aviso-operacion");
+    if (aviso) {
+        const cerrar = aviso.querySelector("[data-cerrar-aviso]");
+        let posicionPendiente = false;
+        const ubicar = () => {
+            posicionPendiente = false;
+            if (aviso.hidden) return;
+            const caja = aviso.getBoundingClientRect();
+            const controles = [...document.querySelectorAll(
+                ".app-topbar, .sidebar, .auth-header, #contenido-principal :is(input, select, textarea, button, a[href], summary)"
+            )].filter(control => !aviso.contains(control))
+                .map(control => control.getBoundingClientRect())
+                .filter(rect => rect.height && rect.right > caja.left && rect.left < caja.right)
+                .sort((a, b) => b.bottom - a.bottom);
+            let borde = window.innerHeight - 12;
+            for (const rect of controles) {
+                if (rect.top < borde && rect.bottom > borde - caja.height) borde = rect.top - 8;
+            }
+            if (borde - caja.height >= 12) {
+                aviso.style.setProperty("--aviso-operacion-separacion", `${window.innerHeight - borde}px`);
+            } else {
+                aviso.style.removeProperty("--aviso-operacion-separacion");
+            }
+        };
+        const programarPosicion = () => {
+            if (posicionPendiente || aviso.hidden) return;
+            posicionPendiente = true;
+            window.requestAnimationFrame(ubicar);
+        };
+        programarPosicion();
+        window.addEventListener("load", programarPosicion, { once: true });
+        window.addEventListener("resize", programarPosicion);
+        window.addEventListener("scroll", programarPosicion, { passive: true });
+        document.getElementById("sidebar-principal")?.addEventListener("toggle", programarPosicion, true);
+        let temporizador;
+        const cancelar = () => window.clearTimeout(temporizador);
+        const ocultar = () => {
+            cancelar();
+            const teniaFoco = document.activeElement === cerrar;
+            aviso.hidden = true;
+            if (teniaFoco) document.getElementById("contenido-principal")?.focus({ preventScroll: true });
+        };
+        cerrar.addEventListener("click", ocultar);
+        if (aviso.dataset.avisoOperacion === "exito") {
+            const programar = () => {
+                cancelar();
+                if (!aviso.hidden && document.activeElement !== cerrar && !cerrar.matches(":hover")) {
+                    temporizador = window.setTimeout(ocultar, 7000);
+                }
+            };
+            cerrar.addEventListener("focus", cancelar);
+            cerrar.addEventListener("pointerenter", cancelar);
+            cerrar.addEventListener("blur", programar);
+            cerrar.addEventListener("pointerleave", programar);
+            programar();
+        }
+    }
 
     const sidebar = document.getElementById("sidebar-principal");
     const sidebarToggle = document.getElementById("sidebar-toggle");

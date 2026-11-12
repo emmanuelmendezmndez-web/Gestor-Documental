@@ -1,5 +1,5 @@
 /* Búsqueda compartida del encabezado */
-.app-topbar .busqueda-global { flex: 0 1 590px; min-width: 0; align-items: center; gap: 6px; }
+.app-topbar .busqueda-global { grid-area: busqueda; width: 100%; min-width: 0; align-items: center; gap: 6px; }
 .app-topbar .busqueda-global input[type="search"] { flex: 1 1 auto; min-width: 0; padding-right: 55px; }
 .app-topbar .busqueda-global kbd { position: static; transform: none; flex: 0 0 auto; margin-left: -52px; margin-right: 6px; z-index: 1; }
 .app-topbar .busqueda-global button { position: static; display: inline-flex; flex: 0 0 auto; width: auto; height: 42px; align-items: center; justify-content: center; gap: 5px; padding: 0 11px; border-radius: 8px; font: inherit; font-weight: 600; white-space: nowrap; }
@@ -11,11 +11,12 @@
 .consulta-asistida > span { color: #64748b; font-size: .85rem; }
 .consulta-asistida p { flex: 1 1 180px; overflow-wrap: anywhere; }
 .consulta-asistida button { padding: 6px 10px; font-size: .85rem; }
-@media (max-width: 900px) {
- .app-topbar .busqueda-global .boton-busqueda-asistida span { display: inline; }
+@media (max-width: 1180px) {
+ .app-topbar { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "titulo titulo" "busqueda acciones"; }
 }
-@media (max-width: 700px) {
- .app-topbar .busqueda-global { flex: 1 1 100%; }
+@media (max-width: 680px) {
+ .app-topbar { grid-template-columns: minmax(0, 1fr); grid-template-areas: "titulo" "busqueda" "acciones"; row-gap: 6px; }
+ .app-topbar .busqueda-global .boton-busqueda-asistida span { display: inline; }
  .app-topbar .busqueda-global kbd { display: none; }
  .app-topbar .busqueda-global input[type="search"] { padding-right: 12px; }
 }
@@ -23,6 +24,10 @@
  .app-topbar .busqueda-global { gap: 4px; }
  .app-topbar .busqueda-global button { padding: 0 8px; font-size: .78rem; }
  .app-topbar .busqueda-global .buscar-accion span { display: none; }
+}
+@media (max-width: 360px) {
+ .app-topbar .app-topbar-acciones { gap: .25rem; }
+ .app-topbar-acciones .rol-topbar { padding-inline: .45rem; }
 }
 
 /* Revisión de filtros de la búsqueda asistida */
