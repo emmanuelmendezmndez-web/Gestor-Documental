@@ -106,8 +106,22 @@ def lista_usuarios(request: Request, aviso: str | None = None):
             "titulo": "Gestor Documental",
             "pagina": "usuarios",
             "usuarios": usuarios,
-            "roles": ROLES_PARA_FORMULARIO,
             "nombres_rol": NOMBRES_ROL,
+            "mensaje": mensaje,
+            "tipo": tipo,
+        },
+    )
+
+
+@router.get("/usuarios/nuevo", response_class=HTMLResponse)
+def pagina_nuevo_usuario(request: Request, aviso: str | None = None):
+    tipo, mensaje = AVISOS_USUARIOS.get(aviso, (None, None))
+    return templates.TemplateResponse(
+        request=request,
+        name="usuario_nuevo.html",
+        context={
+            "pagina": "usuario_nuevo",
+            "roles": ROLES_PARA_FORMULARIO,
             "departamentos": DEPARTAMENTOS,
             "password_minimo": PASSWORD_MINIMO,
             "mensaje": mensaje,
@@ -130,20 +144,20 @@ def crear_usuario_web(
     nombre = nombre.strip()
 
     if not PATRON_USUARIO.fullmatch(usuario):
-        return redirigir("/usuarios", "usuario_invalido")
+        return redirigir("/usuarios/nuevo", "usuario_invalido")
 
     if not nombre or len(nombre) > 100:
-        return redirigir("/usuarios", "nombre_invalido")
+        return redirigir("/usuarios/nuevo", "nombre_invalido")
 
     if rol not in ROLES:
-        return redirigir("/usuarios", "rol_invalido")
+        return redirigir("/usuarios/nuevo", "rol_invalido")
 
     if departamento not in ("", *DEPARTAMENTOS):
-        return redirigir("/usuarios", "departamento_invalido")
+        return redirigir("/usuarios/nuevo", "departamento_invalido")
 
     error = validar_password(password, confirmacion)
     if error:
-        return redirigir("/usuarios", error)
+        return redirigir("/usuarios/nuevo", error)
 
     # Un nombre que ya tiene historial pero ya no existe perteneció a un usuario
     # eliminado: no se reutiliza, para no mezclar a dos personas en el registro.
@@ -158,7 +172,7 @@ def crear_usuario_web(
         ).fetchone()
 
     if existe is None and con_historial is not None:
-        return redirigir("/usuarios", "usuario_reservado")
+        return redirigir("/usuarios/nuevo", "usuario_reservado")
 
     password_hash = hashear_password(password)
 
@@ -179,12 +193,12 @@ def crear_usuario_web(
     except sqlite3.IntegrityError as error:
         # El campo usuario es UNIQUE (sin distinguir mayúsculas)
         if "usuarios.usuario" in str(error):
-            return redirigir("/usuarios", "usuario_existe")
+            return redirigir("/usuarios/nuevo", "usuario_existe")
         logger.exception("No se pudo crear el usuario")
-        return redirigir("/usuarios", "error")
+        return redirigir("/usuarios/nuevo", "error")
     except Exception:
         logger.exception("No se pudo crear el usuario")
-        return redirigir("/usuarios", "error")
+        return redirigir("/usuarios/nuevo", "error")
 
     return redirigir("/usuarios", "usuario_creado")
 

@@ -177,9 +177,14 @@ def inicializar_db():
                 departamento TEXT NOT NULL DEFAULT '',
                 autor_id INTEGER,
                 publicado INTEGER NOT NULL DEFAULT 1,
-                fecha_creacion TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                fecha_creacion TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                vence_en INTEGER
             )
         """)
+
+        columnas_avisos = {fila["name"] for fila in conexion.execute("PRAGMA table_info(avisos)")}
+        if "vence_en" not in columnas_avisos:
+            conexion.execute("ALTER TABLE avisos ADD COLUMN vence_en INTEGER")
 
         conexion.execute(
             "CREATE INDEX IF NOT EXISTS idx_avisos_publicado_area "

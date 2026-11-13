@@ -28,6 +28,15 @@ from aislamiento import exigir_directorio_temporal
 exigir_directorio_temporal('siged-csrf-')
 from app.database import inicializar_db, conectar
 from app.seguridad import hashear_password
+with conectar() as db:
+    db.execute("""CREATE TABLE avisos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT NOT NULL,
+        cuerpo TEXT NOT NULL DEFAULT '', imagen_guardada TEXT UNIQUE,
+        imagen_nombre TEXT, departamento TEXT NOT NULL DEFAULT '',
+        autor_id INTEGER, publicado INTEGER NOT NULL DEFAULT 1,
+        fecha_creacion TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )""")
+    db.execute("INSERT INTO avisos(titulo) VALUES ('Comunicado anterior a la migración')")
 inicializar_db()
 with conectar() as db:
     for usuario, rol in [('admincsrf','admin'), ('lectorcsrf','lector')]:
@@ -126,7 +135,7 @@ with conectar() as db:
         rutas = (
             "/salir", "/asistente/habito", "/cuenta/perfil", "/cuenta/password",
             "/usuarios", "/usuarios/1/editar", "/usuarios/1/password", "/usuarios/1/estado", "/usuarios/1/eliminar",
-            "/avisos", "/avisos/1/estado", "/avisos/1/eliminar", "/subir", "/documentos/1/editar",
+            "/avisos", "/avisos/1/estado", "/avisos/1/vencimiento", "/avisos/1/eliminar", "/subir", "/documentos/1/editar",
             "/documentos/1/eliminar", "/documentos/papelera", "/documentos/1/restaurar", "/papelera/restaurar",
             "/papelera/eliminar-seleccionados", "/papelera/vaciar", "/documentos/1/eliminar-definitivamente",
             "/expedientes", "/expedientes/1/eliminar", "/expedientes/1/documentos", "/expedientes/1/documentos/1",
@@ -168,8 +177,74 @@ with conectar() as db:
         self.assertEqual(post(f"/documentos/{ident}/eliminar").status_code, 303)
         self.assertEqual(post(f"/documentos/{ident}/eliminar-definitivamente").status_code, 303)
 
+    def test_vencimiento_de_avisos(self):
+        token = self.login()
+        anterior = "Comunicado anterior a la migración"
+        nuevo = "Comunicado con vencimiento"
+        datos = {"csrf_token": token, "titulo": nuevo, "departamento": "Tesorería"}
+        self.assertIn(anterior, self.cliente.get("/inicio").text)
+        for invalida in ("", "0", "-1", "1.5", "3651"):
+            r = self.cliente.post("/avisos", data={**datos, "duracion": "personalizada", "dias_personalizados": invalida})
+            self.assertEqual(r.headers["location"], "/avisos?aviso=aviso_duracion")
+        r = self.cliente.post("/avisos", data={**datos, "duracion": "3"})
+        self.assertEqual(r.headers["location"], "/avisos?aviso=aviso_creado")
+        with closing(sqlite_temporal(self.temp.name)) as db:
+            self.assertIsNone(db.execute("SELECT vence_en FROM avisos WHERE titulo = ?", (anterior,)).fetchone()[0])
+            filas = db.execute("SELECT id, vence_en - unixepoch('now') FROM avisos WHERE titulo = ?", (nuevo,)).fetchall()
+            [(ident, segundos)] = filas
+            self.assertAlmostEqual(segundos, 3 * 86400, delta=5)
+
+        inicio = self.cliente.get("/inicio").text
+        self.assertIn(nuevo, inicio)
+        self.assertIn('data-segundos-vigente="', inicio)
+        ruta = f"/avisos/{ident}/vencimiento"
+        r = self.cliente.post(ruta, data={"csrf_token": token, "duracion": "personalizada", "dias_personalizados": "2"})
+        self.assertEqual(r.headers["location"], "/avisos?aviso=aviso_vencimiento")
+        with closing(sqlite_temporal(self.temp.name)) as db, db:
+            segundos = db.execute("SELECT vence_en - unixepoch('now') FROM avisos WHERE id = ?", (ident,)).fetchone()[0]
+            self.assertAlmostEqual(segundos, 2 * 86400, delta=5)
+            db.execute("UPDATE avisos SET vence_en = unixepoch('now') WHERE id = ?", (ident,))
+        inicio = self.cliente.get("/inicio").text
+        self.assertNotIn(nuevo, inicio)
+        self.assertIn(anterior, inicio)
+        gestion = self.cliente.get("/avisos").text
+        self.assertIn(nuevo, gestion)
+        self.assertIn("Vencido", gestion)
+        r = self.cliente.post(ruta, data={"csrf_token": token, "duracion": "sin_vencimiento"})
+        self.assertEqual(r.headers["location"], "/avisos?aviso=aviso_vencimiento")
+        self.assertIn(nuevo, self.cliente.get("/inicio").text)
+
+    def test_creacion_de_usuario_en_pantalla_independiente(self):
+        self.login()
+        lista = self.cliente.get("/usuarios")
+        self.assertIn('href="/usuarios/nuevo"', lista.text)
+        self.assertNotIn('id="nuevo-usuario"', lista.text)
+        formulario = self.cliente.get("/usuarios/nuevo")
+        self.assertIn('action="/usuarios" method="post"', formulario.text)
+        self.assertIn("Volver a Usuarios", formulario.text)
+        datos = {
+            "usuario": "cuenta-nueva", "nombre": "Cuenta de prueba", "rol": "lector",
+            "departamento": "Tesorería", "password": "ClavePrueba123!",
+            "confirmacion": "ClavePrueba123!", "csrf_token": self.token("/usuarios/nuevo"),
+        }
+        error = self.cliente.post("/usuarios", data={**datos, "confirmacion": "ClaveDistinta!"})
+        self.assertEqual((error.status_code, error.headers["location"]),
+                         (303, "/usuarios/nuevo?aviso=password_distinta"))
+        self.assertIn("Las contraseñas no coinciden.", self.cliente.get(error.headers["location"]).text)
+        creada = self.cliente.post("/usuarios", data=datos)
+        self.assertEqual((creada.status_code, creada.headers["location"]),
+                         (303, "/usuarios?aviso=usuario_creado"))
+        confirmacion = self.cliente.get(creada.headers["location"])
+        self.assertIn("Usuario creado correctamente.", confirmacion.text)
+        self.assertIn("cuenta-nueva", confirmacion.text)
+        duplicada = self.cliente.post("/usuarios", data=datos)
+        self.assertEqual((duplicada.status_code, duplicada.headers["location"]),
+                         (303, "/usuarios/nuevo?aviso=usuario_existe"))
+
     def test_lector_sigue_sin_permiso(self):
         token = self.login("lectorcsrf")
+        self.assertEqual(self.cliente.get("/usuarios/nuevo").status_code, 403)
+        self.assertEqual(self.cliente.post("/avisos/1/vencimiento", data={"csrf_token": token, "duracion": "1"}).status_code, 403)
         r = self.cliente.post("/expedientes", data={"titulo": "No autorizado", "csrf_token": token})
         self.assertEqual(r.status_code, 403)
 

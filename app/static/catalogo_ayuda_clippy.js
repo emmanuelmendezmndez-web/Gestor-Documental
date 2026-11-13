@@ -15,7 +15,7 @@
         papelera: {pantallas:['papelera'], capacidades:['ver', 'papelera'], respuesta:'Abre Papelera desde el menú para consultar los documentos que ya no aparecen en Biblioteca.'},
         restaurar: {pantallas:['papelera'], capacidades:['ver', 'papelera', 'restaurar'], respuesta:'En Papelera selecciona los documentos y pulsa Restaurar selección para devolverlos a Biblioteca.'},
         eliminar_definitivamente: {pantallas:['papelera'], capacidades:['ver', 'papelera', 'eliminar'], respuesta:'En Papelera puedes seleccionar documentos y elegir Eliminar selección definitivamente. Esta acción no se puede deshacer.'},
-        usuarios: {pantallas:['usuarios'], capacidades:['ver', 'usuarios'], respuesta:'En Usuarios completa Crear usuario y asigna únicamente el rol y el área necesarios para sus tareas.'},
+        usuarios: {pantallas:['usuarios'], capacidades:['ver', 'usuarios'], respuesta:'Abre Nuevo usuario desde Usuarios. En el formulario asigna únicamente el rol y el área necesarios para sus tareas.'},
         permisos: {capacidades:['ver'], respuesta:'Las acciones disponibles dependen de tu cuenta. Consulta a una persona administradora si necesitas acceso.'}
     });
 

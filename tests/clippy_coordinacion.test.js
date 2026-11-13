@@ -18,6 +18,7 @@ function iniciar(ruta = '/inicio', config = {}, opciones = {}) {
             'mensajeria-texto':texto, 'mensajeria-enviar':envio, 'mensajeria-selector':selector} : {})};
     class Entrada { constructor(){ this.type='text'; this.value='ficticio'; this.dataset={clippyRead:'Búsqueda'}; } hasAttribute(){return true;} closest(){return null;} }
     const document = {readyState:'complete', addEventListener(tipo, fn){ (eventos[tipo] ||= []).push(fn); },
+        removeEventListener(tipo, fn){ eventos[tipo] = (eventos[tipo] || []).filter(handler => handler !== fn); },
         getElementById(id){return elementos[id] || null;},
         querySelector(q){return q === '.clippy' ? figura : null;},
         querySelectorAll(q){const rects = q.includes('#mensajeria-compositor') ? opciones.protegidos : opciones.controles;
@@ -45,6 +46,51 @@ test('Mensajería ofrece consejos propios aunque Biblioteca sea la sección habi
     assert.doesNotMatch(p.dichos.join(' '), /Sueles usar|Documento subido/);
     p.figura.click();
     assert.equal(p.dichos.at(-1), p.dichos[0]);
+});
+test('la ayuda solicitada solo habla del apartado, y el saludo no recomienda hábitos', () => {
+    const preferencias = {experiencia:'habitual', rutina:'biblioteca', secciones:['biblioteca']};
+    const p = iniciar('/inicio', {saludoEntrada:true}, {preferencias});
+    p.avanzar(3000);
+    p.ejecutar(3000);
+    p.figura.click();
+    assert.equal(p.dichos.length, 2);
+    assert.doesNotMatch(p.dichos[0], /Biblioteca|Sueles/);
+    assert.equal(p.dichos[1], 'En Inicio puedes consultar indicadores, avisos y los documentos recientes.');
+});
+test('un hábito se recomienda una sola vez tras superar tres minutos sin actividad', () => {
+    const p = iniciar('/inicio', {}, {preferencias:{experiencia:'habitual', secciones:['biblioteca']}});
+    p.avanzar(100000);
+    for (const fn of p.eventos.pointerdown) fn({});
+    p.avanzar(80001);
+    p.ejecutar(180001);
+    assert.deepEqual(p.dichos, []);
+    p.avanzar(99999);
+    p.ejecutar(100000);
+    assert.deepEqual(p.dichos, []);
+    p.avanzar(1);
+    p.ejecutar(1);
+    assert.deepEqual(p.dichos, ['Sueles usar Biblioteca. ¿Quieres volver?']);
+    p.avanzar(180001);
+    p.ejecutar(180001);
+    assert.equal(p.dichos.length, 1);
+});
+test('una recomendación espera a que la pestaña vuelva a estar visible y a que cierre el diálogo', () => {
+    const p = iniciar('/inicio', {}, {preferencias:{rutina:'biblioteca'}});
+    p.document.hidden = true;
+    for (const fn of p.eventos.visibilitychange) fn();
+    p.avanzar(200000);
+    p.ejecutar(180001);
+    assert.deepEqual(p.dichos, []);
+    p.document.hidden = false;
+    for (const fn of p.eventos.visibilitychange) fn();
+    p.busqueda.open = true;
+    p.avanzar(180001);
+    p.ejecutar(180001);
+    assert.deepEqual(p.dichos, []);
+    p.busqueda.open = false;
+    p.avanzar(15000);
+    p.ejecutar(15000);
+    assert.deepEqual(p.dichos, ['Sueles abrir Biblioteca. ¿Vamos?']);
 });
 test('Mensajería protege la edición, el envío y la posición del compositor', () => {
     const compositor = {left:0, right:390, top:510, bottom:844};

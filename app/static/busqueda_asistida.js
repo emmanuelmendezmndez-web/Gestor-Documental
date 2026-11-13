@@ -283,6 +283,7 @@
         const pantallaActual = () => {
             const ruta = window.location.pathname;
             if (ruta === "/") return "biblioteca";
+            if (ruta === "/usuarios/nuevo") return "usuarios";
             if (ruta === "/expedientes/nuevo") return "expediente_nuevo";
             if (/^\/expedientes\/[^/]+\/?$/.test(ruta)) return "expediente";
             const pantallas = {"/inicio":"inicio", "/buscar":"buscar", "/subir":"subir", "/expedientes":"expedientes", "/papelera":"papelera", "/usuarios":"usuarios", "/cuenta":"cuenta", "/actividad":"actividad"};

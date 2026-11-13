@@ -3,6 +3,7 @@
 {% block recursos_pagina %}
     <link rel="stylesheet" href="{{ url_for('static', path='estado-sistema.css') }}?v=3">
     <script src="{{ url_for('static', path='estado-sistema.js') }}?v=2" defer></script>
+    <script src="{{ url_for('static', path='vencimiento-avisos.js') }}?v=1" defer></script>
 {% endblock %}
 
 {% block contenido %}
@@ -58,14 +59,13 @@
 
 <div class="dashboard-grid">
     <div class="dashboard-principal">
-        <section class="panel avisos-dashboard">
+        <section class="panel avisos-dashboard" data-avisos-vigentes>
             <div class="titulo-panel">
                 <div><p class="sobrelinea">Comunicados internos</p><h2>Avisos y comunicados</h2></div>
                 {% if puede("avisos") %}<a href="/avisos" class="enlace-discreto">Administrar</a>{% endif %}
             </div>
-            {% if avisos %}
-                {% for aviso in avisos %}
-                <article class="aviso-card">
+            {% for aviso in avisos %}
+                <article class="aviso-card"{% if aviso["segundos_vigente"] is not none %} data-segundos-vigente="{{ aviso['segundos_vigente'] }}"{% endif %}>
                     {% if aviso["imagen_guardada"] %}
                     <img class="aviso-banner" src="/avisos/{{ aviso['id'] }}/imagen" alt="Imagen del aviso: {{ aviso['titulo'] }}">
                     {% endif %}
@@ -76,14 +76,12 @@
                     <h3>{{ aviso["titulo"] }}</h3>
                     {% if aviso["cuerpo"] %}<p class="aviso-cuerpo">{{ aviso["cuerpo"] }}</p>{% endif %}
                 </article>
-                {% endfor %}
-            {% else %}
-            <div class="estado-vacio">
+            {% endfor %}
+            <div class="estado-vacio" data-avisos-vacios{% if avisos %} hidden{% endif %}>
                 <span class="estado-vacio-icono" aria-hidden="true">✦</span>
                 <h3>Aún no hay avisos</h3>
                 <p class="nota">Cuando se publique un comunicado, aparecerá aquí.</p>
             </div>
-            {% endif %}
         </section>
 
         <section class="panel documentos-recientes">

@@ -10,7 +10,7 @@ from app.database import conectar
 from app.eliminaciones import encolar, procesar_tareas
 from app.mensajes import AVISOS
 from app.plantillas import templates
-from app.servicios.avisos import crear_aviso_servicio
+from app.servicios.avisos import DURACIONES_AVISO, MAX_DIAS_AVISO, calcular_vencimiento, crear_aviso_servicio
 from app.seguridad import requiere_permiso
 
 router = APIRouter()
@@ -27,6 +27,8 @@ def gestionar_avisos(request: Request, aviso: str | None = None):
             """
             SELECT a.id, a.titulo, a.cuerpo, a.imagen_guardada,
                    a.imagen_nombre, a.departamento, a.publicado,
+                   a.vence_en, a.vence_en <= unixepoch('now') AS vencido,
+                   datetime(a.vence_en, 'unixepoch', 'localtime') AS vencimiento_local,
                    datetime(a.fecha_creacion, 'localtime') AS fecha_creacion,
                    COALESCE(u.nombre, u.usuario, 'Administrador') AS autor
             FROM avisos a
@@ -43,6 +45,8 @@ def gestionar_avisos(request: Request, aviso: str | None = None):
             "pagina": "inicio",
             "avisos": avisos,
             "departamentos": DEPARTAMENTOS,
+            "duraciones": DURACIONES_AVISO,
+            "max_dias": MAX_DIAS_AVISO,
             "mensaje": mensaje,
             "tipo": tipo,
         },
@@ -54,9 +58,34 @@ def crear_aviso(
     request: Request, titulo: str = Form(...), cuerpo: str = Form(""),
     departamento: str = Form(""), publicado: int = Form(1),
     imagen: UploadFile | None = File(None),
+    duracion: str = Form("sin_vencimiento"), dias_personalizados: str = Form(""),
 ):
-    codigo = crear_aviso_servicio(request, titulo, cuerpo, departamento, publicado, imagen, AVISOS_DIR)
+    codigo = crear_aviso_servicio(
+        request, titulo, cuerpo, departamento, publicado, imagen, AVISOS_DIR,
+        duracion=duracion, dias_personalizados=dias_personalizados,
+    )
     return RedirectResponse(url=f"/avisos?aviso={codigo}", status_code=303)
+
+
+@router.post("/avisos/{aviso_id}/vencimiento", dependencies=[Depends(requiere_permiso("avisos"))])
+def cambiar_vencimiento_aviso(
+    request: Request, aviso_id: int, duracion: str = Form(...), dias_personalizados: str = Form(""),
+):
+    try:
+        vencimiento = calcular_vencimiento(duracion, dias_personalizados)
+    except ValueError:
+        return RedirectResponse(url="/avisos?aviso=aviso_duracion", status_code=303)
+    with conectar() as conexion:
+        aviso = conexion.execute(
+            "UPDATE avisos SET vence_en = ? WHERE id = ? RETURNING titulo",
+            (vencimiento, aviso_id),
+        ).fetchone()
+        if aviso is None:
+            raise HTTPException(status_code=404, detail="Aviso no encontrado.")
+        registrar(request, "aviso_vencimiento", entidad="aviso", entidad_id=aviso_id,
+                  entidad_nombre=aviso["titulo"], detalle=f"vence_en_utc: {vencimiento}" if vencimiento else "sin vencimiento",
+                  conexion=conexion)
+    return RedirectResponse(url="/avisos?aviso=aviso_vencimiento", status_code=303)
 
 
 @router.post(
@@ -118,7 +147,9 @@ def eliminar_aviso(request: Request, aviso_id: int):
 def imagen_aviso(request: Request, aviso_id: int):
     with conectar() as conexion:
         aviso = conexion.execute(
-            "SELECT imagen_guardada, imagen_nombre, departamento, publicado FROM avisos WHERE id = ?",
+            """SELECT imagen_guardada, imagen_nombre, departamento, publicado,
+                      vence_en IS NULL OR vence_en > unixepoch('now') AS vigente
+               FROM avisos WHERE id = ?""",
             (aviso_id,),
         ).fetchone()
 
@@ -126,7 +157,7 @@ def imagen_aviso(request: Request, aviso_id: int):
         raise HTTPException(status_code=404, detail="Imagen del aviso no encontrada.")
     usuario = request.state.usuario
     es_admin = usuario["rol"] == "admin"
-    visible = aviso["publicado"] and (
+    visible = aviso["publicado"] and aviso["vigente"] and (
         not aviso["departamento"]
         or aviso["departamento"] == usuario.get("departamento", "")
     )

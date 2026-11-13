@@ -26,7 +26,7 @@
     <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{% block titulo %}NexusGrid | Panel de Control{% endblock %}</title>
     <link rel="icon" type="image/png" href="{{ logo_nexusgrid }}">
-    <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}?v={% if pagina == 'biblioteca' %}43{% else %}39{% endif %}&busqueda=3">
+    <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}?v={% if pagina == 'biblioteca' %}44{% else %}40{% endif %}&busqueda=3">
     <link rel="stylesheet" href="{{ url_for('static', path='icons/phosphor/bold/style.css') }}">
     {% if usuario %}
     <link rel="stylesheet" href="{{ url_for('static', path='clippy/clippy.css') }}?v=9">
@@ -80,7 +80,7 @@
                     </a>
                     {% endif %}
                     {% if puede("usuarios") %}
-                    <a class="sidebar-link" href="/usuarios" title="Usuarios" aria-label="Usuarios" {% if pagina == "usuarios" %}aria-current="page"{% endif %} data-animar-icono>
+                    <a class="sidebar-link" href="/usuarios" title="Usuarios" aria-label="Usuarios" {% if pagina in ("usuarios", "usuario_nuevo") %}aria-current="page"{% endif %} data-animar-icono>
                         {{ icono_animado("users") }}
                         <span>Usuarios</span>
                     </a>
@@ -120,7 +120,7 @@
                     "inicio": "Inicio", "biblioteca": "Biblioteca", "expedientes": "Expedientes",
                     "expediente_nuevo": "Nuevo expediente", "mensajeria": "Mensajes", "buscar": "Búsqueda global",
                     "subir": "Subir documento", "papelera": "Papelera", "actividad": "Actividad",
-                    "usuarios": "Usuarios", "cuenta": "Mi cuenta"
+                    "usuarios": "Usuarios", "usuario_nuevo": "Nuevo usuario", "cuenta": "Mi cuenta"
                 }.get(pagina, "Error") }}{% endblock %}</h1>
                 <form action="/buscar" method="get" class="busqueda-global" role="search">
                     <label class="sr-only" for="busqueda-global">Buscar documentos o expedientes</label>
@@ -290,11 +290,11 @@
             <script src="{{ url_for('static', path='memoria_temporal.js') }}?v=2"></script>
             <script src="{{ url_for('static', path='interprete_contextual.js') }}?v=2"></script>
             <script src="{{ url_for('static', path='clasificador_ayuda_clippy.js') }}?v=1"></script>
-            <script src="{{ url_for('static', path='catalogo_ayuda_clippy.js') }}?v=2"></script>
-            <script src="{{ url_for('static', path='busqueda_asistida.js') }}?v=14"></script>
+            <script src="{{ url_for('static', path='catalogo_ayuda_clippy.js') }}?v=3"></script>
+            <script src="{{ url_for('static', path='busqueda_asistida.js') }}?v=15"></script>
             <script src="{{ url_for('static', path='clippy/jquery.min.js') }}"></script>
             <script src="{{ url_for('static', path='clippy/clippy.min.js') }}"></script>
-            <script src="{{ url_for('static', path='clippy_asistente.js') }}?v=9"></script>
+            <script src="{{ url_for('static', path='clippy_asistente.js') }}?v=11"></script>
             {% if request.app.state.mensajeria_interfaz and puede("ver") %}
             <script type="module" src="{{ url_for('static', path='mensajeria.js') }}?v=2"></script>
             {% endif %}

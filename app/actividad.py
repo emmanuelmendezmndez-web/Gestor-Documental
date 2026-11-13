@@ -24,6 +24,7 @@ ACCIONES = {
     "expediente_vincular": "Vinculación de documento a expediente",
     "aviso_crear": "Publicación de aviso",
     "aviso_estado": "Cambio de estado de aviso",
+    "aviso_vencimiento": "Cambio de duración de aviso",
     "aviso_eliminar": "Eliminación de aviso",
     "usuario_crear": "Creación de usuario",
     "usuario_editar": "Edición de usuario",

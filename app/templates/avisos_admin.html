@@ -1,5 +1,10 @@
 {% extends "base.html" %}
+{% from "_duracion_aviso.html" import selector_duracion %}
 {% block titulo_apartado %}Administración{% endblock %}
+
+{% block recursos_pagina %}
+    <script src="{{ url_for('static', path='vencimiento-avisos.js') }}?v=1" defer></script>
+{% endblock %}
 
 {% block contenido %}
 <section class="panel">
@@ -40,6 +45,7 @@
                 <option value="0">Guardar oculto</option>
             </select>
         </div>
+        {{ selector_duracion('nuevo', duraciones, max_dias) }}
         <button type="submit">Guardar aviso</button>
     </form>
 </section>
@@ -55,12 +61,22 @@
                     <span class="avatar avatar-pequeno" aria-hidden="true">{{ aviso["autor"][:1]|upper }}</span>
                     <span><strong>{{ aviso["autor"] }}</strong><small>{{ aviso["fecha_creacion"] }} · {{ aviso["departamento"] or "Todos" }}</small></span>
                     {% if aviso["publicado"] %}<span class="etiqueta activo">Publicado</span>{% else %}<span class="etiqueta inactivo">Oculto</span>{% endif %}
+                    {% if aviso["vencido"] %}<span class="etiqueta inactivo">Vencido</span>{% endif %}
                 </div>
                 <h3>{{ aviso["titulo"] }}</h3>
+                <p class="nota">{{ ('Vencimiento: ' ~ aviso["vencimiento_local"]) if aviso["vence_en"] is not none else 'Sin vencimiento' }}</p>
                 {% if aviso["cuerpo"] %}<p class="aviso-cuerpo">{{ aviso["cuerpo"] }}</p>{% endif %}
                 {% if aviso["imagen_guardada"] %}
                 <img class="aviso-banner aviso-banner-admin" src="/avisos/{{ aviso['id'] }}/imagen" alt="Imagen del aviso: {{ aviso['titulo'] }}">
                 {% endif %}
+                <details>
+                    <summary>Configurar duración</summary>
+                    <form action="/avisos/{{ aviso['id'] }}/vencimiento" method="post" class="formulario-aviso">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        {{ selector_duracion(aviso['id'], duraciones, max_dias, existente=true) }}
+                        <button type="submit" class="boton-secundario">Guardar duración</button>
+                    </form>
+                </details>
             </div>
             <div class="acciones-aviso">
                 <form action="/avisos/{{ aviso['id'] }}/estado" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">

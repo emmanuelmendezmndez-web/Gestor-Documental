@@ -241,7 +241,7 @@
             const ruta = window.location.pathname;
             // Consejos breves del personaje: pueden incluir el estado de la página.
             // Las preguntas explícitas se responden por separado con el catálogo.
-            let ayudaDeEstaSeccion = "Puedo orientarte sobre esta sección. Haz clic en mí cuando quieras otro consejo.";
+            let ayudaDeEstaSeccion = "";
             if (ruta === "/inicio") {
                 ayudaDeEstaSeccion = "En Inicio puedes consultar indicadores, avisos y los documentos recientes.";
             } else if (ruta === "/") {
@@ -266,10 +266,12 @@
                 }
             } else if (ruta === "/papelera") {
                 ayudaDeEstaSeccion = "En Papelera puedes seleccionar varios documentos y restaurarlos; la eliminación definitiva no se puede deshacer.";
+            } else if (ruta === "/usuarios/nuevo") {
+                ayudaDeEstaSeccion = "Al crear una cuenta, asigna el área correcta. Lector consulta documentos, Editor también registra y restaura, y Administrador gestiona usuarios y eliminaciones definitivas.";
             } else if (ruta.startsWith("/usuarios/")) {
                 ayudaDeEstaSeccion = "Desde la ficha de usuario puedes actualizar sus datos y administrar el acceso según su rol.";
             } else if (ruta === "/usuarios") {
-                ayudaDeEstaSeccion = "Al crear una cuenta, asigna el área correcta. Lector consulta documentos, Editor también registra y restaura, y Administrador gestiona usuarios y eliminaciones definitivas.";
+                ayudaDeEstaSeccion = "Pulsa Nuevo usuario para abrir el formulario de creación. Puedes administrar una cuenta existente desde su ficha.";
             } else if (ruta === "/cuenta") {
                 ayudaDeEstaSeccion = "En Mi cuenta puedes actualizar tus datos y foto; tu rol y área los administra un administrador.";
             } else if (ruta === "/actividad") {
@@ -278,6 +280,10 @@
                 ayudaDeEstaSeccion = "Aquí puedes redactar comunicados, dirigirlos a un área y publicarlos u ocultarlos.";
             } else if (ruta.endsWith("/editar") && ruta.startsWith("/documentos/")) {
                 ayudaDeEstaSeccion = "Al editar, guarda los metadatos correctos; el historial de versiones conserva las revisiones del archivo.";
+            } else if (/^\/documentos\/\d+\/eliminar$/.test(ruta)) {
+                ayudaDeEstaSeccion = "Comprueba el título antes de enviar el documento a Papelera.";
+            } else if (/^\/documentos\/\d+$/.test(ruta)) {
+                ayudaDeEstaSeccion = "En la ficha puedes consultar los datos del documento y su vista previa cuando esté disponible.";
             } else if (ruta === "/buscar") {
                 ayudaDeEstaSeccion = "La búsqueda global encuentra documentos y expedientes por título, folio u oficio.";
             }
@@ -324,7 +330,7 @@
             const formularioDocumento = ruta === "/subir" ||
                 (ruta.startsWith("/documentos/") && ruta.endsWith("/editar"));
             const formularioExpediente = ruta === "/expedientes/nuevo";
-            const formularioGestion = ruta === "/usuarios";
+            const formularioGestion = ruta === "/usuarios/nuevo";
             const guias = {
                 "/subir": [
                     "Para registrar un documento, selecciona primero el archivo.",
@@ -342,7 +348,7 @@
             ];
             let pasoGuia = 0;
 
-            let ultimoConsejo = 0;
+            let ultimoConsejo = -Infinity;
             let saludoPendiente = null;
             let esHabitual = false;
             const consejosMostrados = new Set();
@@ -513,14 +519,16 @@
                 personaje.addEventListener("blur", () => programarReposo());
                 const hablar = () => {
                     if (mensajeria && (dialogoOcupado() || !ubicar())) return;
-                    agente.stop();
                     const guia = mensajeria ? guiaMensajeria : guias[ruta];
+                    if (!guia && !ayudaDeEstaSeccion) return;
+                    window.clearTimeout(saludoPendiente);
+                    agente.stop();
                     if (guia) {
                         agente.speak(mensajeria ? guia[pasoGuia] :
-                            `Guía, paso ${pasoGuia + 1} de ${guia.length}. ${guia[pasoGuia]} Pulsa de nuevo para continuar.`);
+                            `Guía, paso ${pasoGuia + 1} de ${guia.length}. ${guia[pasoGuia]}`);
                         pasoGuia = (pasoGuia + 1) % guia.length;
                     } else {
-                        agente.speak(ayudaDeEstaSeccion + " Enfoca un campo o marca una opción y te daré un consejo relacionado.");
+                        agente.speak(ayudaDeEstaSeccion);
                     }
                     const exitos = ["subido", "editado", "restaurado", "documentos_restaurados", "expediente_creado"];
                     reaccionar(config.bibliotecaSinResultados || config.busquedaSinResultados
@@ -536,63 +544,95 @@
                 });
             }
 
+            function mostrarConAccion({ texto, etiqueta, destino }) {
+                if (!decirConsejo(texto, false, Boolean(etiqueta))) return false;
+                reaccionar("Greeting");
+                if (etiqueta && accionSaludo) {
+                    accionSaludo.textContent = etiqueta;
+                    accionSaludo.href = destino;
+                    accionSaludo.hidden = false;
+                    programarCierreSaludo(35000);
+                }
+                return true;
+            }
+
+            function recomendarEnInactividad(recomendacion) {
+                const espera = 180001;
+                let ultimaActividad = Date.now();
+                let temporizador;
+                const enPrimerPlano = () => !document.hidden && document.hasFocus?.() !== false;
+                const registrarActividad = () => { ultimaActividad = Date.now(); };
+                const eventos = ["pointermove", "pointerdown", "keydown", "input", "scroll"];
+
+                function revisar() {
+                    if (!enPrimerPlano()) return;
+                    const restante = espera - (Date.now() - ultimaActividad);
+                    if (restante > 0) {
+                        temporizador = window.setTimeout(revisar, restante);
+                        return;
+                    }
+                    const visible = bocadillo && getComputedStyle(bocadillo).display !== "none";
+                    if (visible || dialogoOcupado() || !mostrarConAccion(recomendacion)) {
+                        temporizador = window.setTimeout(revisar, 15000);
+                        return;
+                    }
+                    for (const evento of eventos) document.removeEventListener(evento, registrarActividad, true);
+                    document.removeEventListener("visibilitychange", reiniciar);
+                    window.removeEventListener("focus", reiniciar);
+                    window.removeEventListener("blur", reiniciar);
+                }
+
+                function reiniciar() {
+                    window.clearTimeout(temporizador);
+                    registrarActividad();
+                    if (enPrimerPlano()) temporizador = window.setTimeout(revisar, espera);
+                }
+
+                for (const evento of eventos) {
+                    document.addEventListener(evento, registrarActividad, { capture: true, passive: true });
+                }
+                document.addEventListener("visibilitychange", reiniciar);
+                window.addEventListener("focus", reiniciar);
+                window.addEventListener("blur", reiniciar);
+                reiniciar();
+            }
+
             window.sigedClippyPreferencias?.then(preferencias => {
                 if (mensajeria) return;
                 esHabitual = preferencias?.experiencia === "habitual";
                 const seccionFrecuente = preferencias?.secciones?.[0];
-                const nombresSeccion = { biblioteca: "Biblioteca", expedientes: "Expedientes", subir: "Subir documento", buscar: "Búsqueda global", papelera: "Papelera" };
-                if (esHabitual && nombresSeccion[seccionFrecuente] && seccionFrecuente !== ruta.slice(1)) {
-                    ayudaDeEstaSeccion += ` Sueles usar ${nombresSeccion[seccionFrecuente]}; puedes abrirla desde el menú lateral.`;
-                }
-                const esEntrada = config.saludoEntrada;
-                if (!esEntrada) return;
-                const nombre = config.nombre;
-                const aperturas = [`¡Hola, ${nombre}!`, `¡Buen día, ${nombre}!`, `¡Qué tal, ${nombre}!`, `¡Bienvenido, ${nombre}!`];
-                const apertura = aperturas[(new Date().getDate() + config.usuarioId) % aperturas.length];
-                const rutas = { inicio: "/inicio", biblioteca: "/", buscar: "/buscar", expedientes: "/expedientes", cuenta: "/cuenta",
+                const nombresSeccion = { inicio: "Inicio", biblioteca: "Biblioteca", expedientes: "Expedientes",
+                    subir: "Subir documento", buscar: "Búsqueda global", papelera: "Papelera",
+                    cuenta: "Mi cuenta", usuarios: "Usuarios", actividad: "Actividad" };
+                const rutas = { inicio: "/inicio", biblioteca: "/", buscar: "/buscar", cuenta: "/cuenta",
+                    ...(config.puedeVerExpedientes ? { expedientes: "/expedientes" } : {}),
                     ...(config.puedeSubir ? { subir: "/subir" } : {}),
                     ...(config.puedeRestaurar ? { papelera: "/papelera" } : {}),
                     ...(config.puedeUsuarios ? { usuarios: "/usuarios" } : {}),
                     ...(config.puedeActividad ? { actividad: "/actividad" } : {})
                 };
-                let texto = `${apertura} ¿Abrimos la Biblioteca?`;
-                let etiqueta = "Ir a Biblioteca";
-                let destino = "/";
-                if (config.discoLleno) {
-                    texto = `${apertura} El disco está casi lleno. ¿Lo revisamos?`;
-                    etiqueta = "Ver almacenamiento";
-                    destino = "/inicio#almacenamiento-titulo";
-                } else {
-                    const rutina = preferencias?.rutina;
-                    const ultimaFicha = preferencias?.expediente_reciente;
-                    if (rutina && rutas[rutina] && rutina !== "inicio") {
-                        texto = `${apertura} Sueles abrir ${nombresSeccion[rutina] || rutina}. ¿Vamos?`;
-                        etiqueta = "Ir ahí";
-                        destino = rutas[rutina];
-                    } else if (ultimaFicha?.id) {
-                        texto = `${apertura} ¿Seguimos en el expediente ${ultimaFicha.folio || ultimaFicha.id}?`;
-                        etiqueta = "Continuar";
-                        destino = `/expedientes/${ultimaFicha.id}`;
-                    } else if (preferencias?.dias_sin_entrar >= 7 && rutas[seccionFrecuente]) {
-                        texto = `${apertura} ¿Volvemos a ${nombresSeccion[seccionFrecuente] || "tu sección habitual"}?`;
-                        etiqueta = "Ir";
-                        destino = rutas[seccionFrecuente];
-                    } else if (!esHabitual && config.puedeSubir) {
-                        texto = `${apertura} ¿Te muestro cómo subir un documento?`;
-                        etiqueta = "Ver guía";
-                        destino = rutas.subir || "/";
-                    }
+                const fueraDeSeccion = destino => typeof destino === "string" && ruta !== destino && !ruta.startsWith(destino + "/");
+                const rutina = preferencias?.rutina;
+                const ficha = preferencias?.expediente_reciente;
+                if (rutina !== "inicio" && fueraDeSeccion(rutas[rutina])) {
+                    recomendarEnInactividad({ texto: `Sueles abrir ${nombresSeccion[rutina]}. ¿Vamos?`, etiqueta: "Ir ahí", destino: rutas[rutina] });
+                } else if (config.puedeVerExpedientes && ficha?.id && ruta !== `/expedientes/${ficha.id}`) {
+                    recomendarEnInactividad({ texto: `¿Seguimos en el expediente ${ficha.folio || ficha.id}?`,
+                        etiqueta: "Continuar", destino: `/expedientes/${ficha.id}` });
+                } else if ((esHabitual || preferencias?.dias_sin_entrar >= 7) && fueraDeSeccion(rutas[seccionFrecuente])) {
+                    recomendarEnInactividad({ texto: `Sueles usar ${nombresSeccion[seccionFrecuente]}. ¿Quieres volver?`,
+                        etiqueta: "Ir", destino: rutas[seccionFrecuente] });
                 }
-                saludoPendiente = window.setTimeout(() => {
-                    if (!decirConsejo(texto, false, true)) return;
-                    reaccionar("Greeting");
-                    if (accionSaludo) {
-                        accionSaludo.textContent = etiqueta;
-                        accionSaludo.href = destino;
-                        accionSaludo.hidden = false;
-                    }
-                    programarCierreSaludo(35000);
-                }, 3000);
+
+                if (!config.saludoEntrada) return;
+                const nombre = config.nombre;
+                const aperturas = [`¡Hola, ${nombre}!`, `¡Buen día, ${nombre}!`, `¡Qué tal, ${nombre}!`, `¡Bienvenido, ${nombre}!`];
+                const apertura = aperturas[(new Date().getDate() + config.usuarioId) % aperturas.length];
+                const saludo = config.discoLleno ? {
+                    texto: `${apertura} El disco está casi lleno. ¿Lo revisamos?`,
+                    etiqueta: "Ver almacenamiento", destino: "/inicio#almacenamiento-titulo",
+                } : { texto: apertura };
+                saludoPendiente = window.setTimeout(() => mostrarConAccion(saludo), 3000);
             });
         }, (error) => {
             console.warn("No se pudo cargar el asistente Clippy.", error);

@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block contenido %}
+<section class="panel">
+    <a href="/usuarios" class="enlace-volver"><span aria-hidden="true">←</span> Volver a Usuarios</a>
+    <h2>Crear usuario</h2>
+
+    <form action="/usuarios" method="post" data-clippy-tip="Al crear una cuenta, asigna únicamente el rol y el área necesarios para sus tareas."><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="campo">
+            <label for="nuevo-usuario">Usuario</label>
+            <input
+                type="text"
+                id="nuevo-usuario"
+                name="usuario"
+                maxlength="50"
+                pattern="[A-Za-z0-9._-]{3,50}"
+                title="De 3 a 50 caracteres: letras, números, punto, guion o guion bajo"
+                autocomplete="off"
+                data-clippy-read="Nombre de usuario"
+                required
+            >
+            <p class="nota">Con él iniciará sesión. De 3 a 50 caracteres: letras, números, punto, guion o guion bajo.</p>
+        </div>
+
+        <div class="campo">
+            <label for="nuevo-nombre">Nombre completo</label>
+            <input type="text" id="nuevo-nombre" name="nombre" maxlength="100" autocomplete="off" data-clippy-read="Nombre completo" required>
+        </div>
+
+        <div class="campo">
+            <label for="nuevo-rol">Rol</label>
+            <select id="nuevo-rol" name="rol" required>
+                {% for valor, etiqueta in roles %}
+                <option value="{{ valor }}">{{ etiqueta }}</option>
+                {% endfor %}
+            </select>
+            <p class="nota">
+                Lector: ver y descargar. Editor: además subir y editar.
+                Administrador: además eliminar y gestionar usuarios.
+            </p>
+        </div>
+
+        <div class="campo">
+            <label for="nuevo-departamento">Departamento</label>
+            <select id="nuevo-departamento" name="departamento">
+                <option value="">Sin asignar</option>
+                {% for departamento in departamentos %}
+                <option value="{{ departamento }}">{{ departamento }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="campo">
+            <label for="nuevo-password">Contraseña</label>
+            <input
+                type="password"
+                id="nuevo-password"
+                name="password"
+                minlength="{{ password_minimo }}"
+                maxlength="200"
+                autocomplete="new-password"
+                required
+            >
+            <p class="nota">Mínimo {{ password_minimo }} caracteres.</p>
+        </div>
+
+        <div class="campo">
+            <label for="nuevo-confirmacion">Repite la contraseña</label>
+            <input
+                type="password"
+                id="nuevo-confirmacion"
+                name="confirmacion"
+                minlength="{{ password_minimo }}"
+                maxlength="200"
+                autocomplete="new-password"
+                required
+            >
+        </div>
+
+        <button type="submit">Crear usuario</button>
+    </form>
+</section>
+{% endblock %}

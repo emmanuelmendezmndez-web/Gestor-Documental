@@ -25,6 +25,8 @@ AVISOS = {
     "error_expediente": ("error", "No se pudo guardar el expediente. Inténtalo de nuevo."),
     "aviso_creado": ("exito", "Aviso guardado correctamente."),
     "aviso_estado": ("exito", "El estado del aviso se actualizó."),
+    "aviso_vencimiento": ("exito", "La duración del aviso se actualizó."),
+    "aviso_duracion": ("error", "Selecciona una duración válida o indica un número entero de días dentro del rango permitido."),
     "aviso_eliminado": ("exito", "Aviso eliminado correctamente."),
     "aviso_campos": ("error", "El título es obligatorio (máximo 200 caracteres) y el cuerpo admite hasta 5000."),
     "aviso_area": ("error", "Selecciona un área válida."),

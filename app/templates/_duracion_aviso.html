@@ -1,0 +1,19 @@
+{% macro selector_duracion(id, duraciones, max_dias, existente=false) %}
+<div class="campo" data-duracion-aviso>
+    <label for="duracion-{{ id }}"><i class="ph-bold ph-clock" aria-hidden="true"></i> Duración del aviso</label>
+    <select id="duracion-{{ id }}" name="duracion" required>
+        {% if existente %}<option value="" selected disabled>Selecciona la nueva duración</option>{% endif %}
+        <option value="sin_vencimiento">Sin vencimiento</option>
+        {% for dias in duraciones %}
+        <option value="{{ dias }}">{{ dias }} {{ 'día' if dias == 1 else 'días' }}</option>
+        {% endfor %}
+        <option value="personalizada">Personalizada</option>
+    </select>
+    <div data-dias-personalizados>
+        <label for="dias-{{ id }}">Días para la duración personalizada</label>
+        <input id="dias-{{ id }}" type="text" inputmode="numeric" name="dias_personalizados" pattern="[0-9]{1,4}" maxlength="4" aria-describedby="rango-dias-{{ id }}">
+        <p class="nota" id="rango-dias-{{ id }}">Entre 1 y {{ max_dias }} días.</p>
+    </div>
+    <p class="nota">Los días cuentan desde que guardas la duración.</p>
+</div>
+{% endmacro %}

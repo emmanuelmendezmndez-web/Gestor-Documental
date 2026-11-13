@@ -118,12 +118,13 @@ def dashboard_datos(usuario: dict, storage_dir: Path) -> dict:
         avisos = conexion.execute(
             """
             SELECT a.id, a.titulo, a.cuerpo, a.imagen_guardada,
-                   a.imagen_nombre, a.departamento,
+                   a.imagen_nombre, a.departamento, a.vence_en - unixepoch('now') AS segundos_vigente,
                    datetime(a.fecha_creacion, 'localtime') AS fecha_creacion,
                    COALESCE(u.nombre, u.usuario, 'Administrador') AS autor
             FROM avisos a
             LEFT JOIN usuarios u ON u.id = a.autor_id
             WHERE a.publicado = 1
+              AND (a.vence_en IS NULL OR a.vence_en > unixepoch('now'))
               AND (a.departamento = '' OR a.departamento = ?)
             ORDER BY a.fecha_creacion DESC, a.id DESC
             LIMIT 10
