@@ -107,6 +107,75 @@ class BusquedaClippyHTTPTest(unittest.TestCase):
             self.assertIn('Ficticio Humano', admin.get('/buscar', params={'q': 'Ficticio'}).text)
             self.assertNotIn('Ficticio Papelera', admin.get('/buscar', params={'q': 'Ficticio'}).text)
 
+    def test_rutinas_y_expedientes_son_privados_y_respetan_ajustes(self):
+        with closing(sqlite3.connect(Path(self.fixture.temp.name) / "gestor.db")) as db:
+            expediente = db.execute("SELECT id FROM expedientes WHERE folio = 'EXP-TEST'").fetchone()[0]
+        token = self.login('editorcsrf')
+        cabeceras = {'X-CSRF-Token': token}
+        for habito in [
+            *[{'tipo': 'rutina', 'valor': 'expedientes', 'hora': 12}] * 3,
+            {'tipo': 'expediente', 'valor': expediente},
+        ]:
+            self.assertTrue(self.client.post('/asistente/habito', headers=cabeceras, json=habito).json()['guardado'])
+        respuesta = self.client.get('/asistente/preferencias?hora=12')
+        self.assertIn('no-store', respuesta.headers['Cache-Control'])
+        editor = respuesta.json()
+        self.assertEqual(editor['rutina'], 'expedientes')
+        self.assertEqual(editor['expediente_reciente']['id'], expediente)
+        self.assertTrue(editor['consejos_personalizados'])
+        self.assertEqual(self.client.post('/ajustes', data={
+            'csrf_token': token, 'clippy_visible': '1', 'clippy_habitos': '1',
+        }).status_code, 303)
+        self.assertFalse(self.client.get('/asistente/preferencias?hora=12').json()['consejos_personalizados'])
+        self.assertEqual(self.client.post('/ajustes', data={
+            'csrf_token': token, 'clippy_consejos': '1', 'clippy_habitos': '1',
+        }).status_code, 303)
+        self.assertFalse(self.client.get('/asistente/preferencias?hora=12').json()['consejos_personalizados'])
+        self.assertEqual(self.client.post('/ajustes', data={'csrf_token': token}).status_code, 303)
+        editor_pausado = self.client.get('/asistente/preferencias?hora=12').json()
+        self.assertFalse(editor_pausado['aprendizaje'])
+        self.assertIsNone(editor_pausado['rutina'])
+        self.assertIsNone(editor_pausado['expediente_reciente'])
+        self.assertFalse(self.client.post('/asistente/habito', headers=cabeceras, json={
+            'tipo': 'expediente', 'valor': expediente,
+        }).json()['guardado'])
+        self.client.post('/salir', data={'csrf_token': token})
+        self.login('lectorcsrf')
+        lector = self.client.get('/asistente/preferencias?hora=12').json()
+        self.assertNotEqual(lector['usuario_id'], editor['usuario_id'])
+        self.assertIsNone(lector['rutina'])
+        self.assertIsNone(lector['expediente_reciente'])
+
+    def test_diagnostico_respeta_sesion_area_y_rol(self):
+        ruta = '/asistente/diagnostico'
+        self.assertEqual(self.client.get(ruta, params={'tema': 'sistema'}).status_code, 303)
+        token = self.login('lectorcsrf')
+        with closing(sqlite3.connect(Path(self.fixture.temp.name) / 'gestor.db')) as db:
+            visibles = dict(db.execute("SELECT titulo, id FROM documentos"))
+        parametros = {'tema': 'documento', 'registro': visibles['Ficticio Humano']}
+        denegado = self.client.get(ruta, params=parametros)
+        inexistente = self.client.get(ruta, params={**parametros, 'registro': 999999})
+        eliminado = self.client.get(ruta, params={**parametros, 'registro': visibles['Ficticio Papelera']})
+        self.assertEqual(denegado.status_code, 200)
+        self.assertIn('no-store', denegado.headers['Cache-Control'])
+        self.assertEqual(denegado.json(), inexistente.json())
+        self.assertEqual(denegado.json(), eliminado.json())
+        permiso = self.client.get(ruta, params={'tema': 'permisos', 'accion': 'usuarios'}).json()
+        self.assertIn('no permite', permiso['mensaje'])
+        self.assertEqual(self.client.get(ruta, params={'tema': 'permisos', 'accion': 'cambiar_rol'}).status_code, 400)
+        self.assertEqual(self.client.get(ruta, params={'tema': 'cuentas_ajenas'}).status_code, 422)
+        self.assertIn('número de registro', self.client.get(ruta, params={'tema': 'documento'}).json()['mensaje'])
+        self.assertIn('no está habilitado', self.client.get(ruta, params={'tema': 'mensajeria'}).json()['mensaje'])
+        self.assertIn('Estado del sistema:', self.client.get(ruta, params={'tema': 'sistema'}).json()['mensaje'])
+        self.assertIn('Almacenamiento documental:', self.client.get(ruta, params={'tema': 'almacenamiento'}).json()['mensaje'])
+
+        self.assertEqual(self.client.post('/salir', data={'csrf_token': token}).status_code, 303)
+        self.login('admincsrf')
+        permitido = self.client.get(ruta, params={**parametros, 'usuario_id': denegado.json()['usuario_id']}).json()
+        self.assertNotEqual(permitido['usuario_id'], denegado.json()['usuario_id'])
+        self.assertIn('registro es visible', permitido['mensaje'])
+        self.assertNotIn('Ficticio Humano', permitido['mensaje'])
+
 
 if __name__ == '__main__':
     unittest.main()

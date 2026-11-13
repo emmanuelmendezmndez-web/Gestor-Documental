@@ -567,18 +567,41 @@
                 const registrarActividad = () => { ultimaActividad = Date.now(); };
                 const eventos = ["pointermove", "pointerdown", "keydown", "input", "scroll"];
 
-                function revisar() {
+                async function revisar() {
                     if (!enPrimerPlano()) return;
                     const restante = espera - (Date.now() - ultimaActividad);
                     if (restante > 0) {
                         temporizador = window.setTimeout(revisar, restante);
                         return;
                     }
+                    if (window.sigedConsultarHabitos) {
+                        const actividad = ultimaActividad;
+                        const vigentes = await window.sigedConsultarHabitos();
+                        if (!vigentes?.consejos_personalizados) {
+                            esHabitual = false;
+                            retirarEscuchas();
+                            return;
+                        }
+                        if (!enPrimerPlano() || actividad !== ultimaActividad) {
+                            reiniciar();
+                            return;
+                        }
+                        recomendacion = recomendacionPersonal(vigentes);
+                        if (!recomendacion) {
+                            retirarEscuchas();
+                            return;
+                        }
+                    }
                     const visible = bocadillo && getComputedStyle(bocadillo).display !== "none";
                     if (visible || dialogoOcupado() || !mostrarConAccion(recomendacion)) {
                         temporizador = window.setTimeout(revisar, 15000);
                         return;
                     }
+                    retirarEscuchas();
+                }
+
+                function retirarEscuchas() {
+                    window.clearTimeout(temporizador);
                     for (const evento of eventos) document.removeEventListener(evento, registrarActividad, true);
                     document.removeEventListener("visibilitychange", reiniciar);
                     window.removeEventListener("focus", reiniciar);
@@ -600,8 +623,7 @@
                 reiniciar();
             }
 
-            window.sigedClippyPreferencias?.then(preferencias => {
-                if (!consejosAutomaticos || mensajeria) return;
+            function recomendacionPersonal(preferencias) {
                 esHabitual = preferencias?.experiencia === "habitual";
                 const seccionFrecuente = preferencias?.secciones?.[0];
                 const nombresSeccion = { inicio: "Inicio", biblioteca: "Biblioteca", expedientes: "Expedientes",
@@ -618,15 +640,23 @@
                 const rutina = preferencias?.rutina;
                 const ficha = preferencias?.expediente_reciente;
                 if (rutina !== "inicio" && fueraDeSeccion(rutas[rutina])) {
-                    recomendarEnInactividad({ texto: `Sueles abrir ${nombresSeccion[rutina]}. ¿Vamos?`, etiqueta: "Ir ahí", destino: rutas[rutina] });
-                } else if (config.puedeVerExpedientes && ficha?.id && ruta !== `/expedientes/${ficha.id}`) {
-                    recomendarEnInactividad({ texto: `¿Seguimos en el expediente ${ficha.folio || ficha.id}?`,
-                        etiqueta: "Continuar", destino: `/expedientes/${ficha.id}` });
-                } else if ((esHabitual || preferencias?.dias_sin_entrar >= 7) && fueraDeSeccion(rutas[seccionFrecuente])) {
-                    recomendarEnInactividad({ texto: `Sueles usar ${nombresSeccion[seccionFrecuente]}. ¿Quieres volver?`,
-                        etiqueta: "Ir", destino: rutas[seccionFrecuente] });
+                    return { texto: `Sueles abrir ${nombresSeccion[rutina]}. ¿Vamos?`, etiqueta: "Ir ahí", destino: rutas[rutina] };
                 }
+                if (config.puedeVerExpedientes && ficha?.id && ruta !== `/expedientes/${ficha.id}`) {
+                    return { texto: `¿Seguimos en el expediente ${ficha.folio || ficha.id}?`,
+                        etiqueta: "Continuar", destino: `/expedientes/${ficha.id}` };
+                }
+                if ((esHabitual || preferencias?.dias_sin_entrar >= 7) && fueraDeSeccion(rutas[seccionFrecuente])) {
+                    return { texto: `Sueles usar ${nombresSeccion[seccionFrecuente]}. ¿Quieres volver?`,
+                        etiqueta: "Ir", destino: rutas[seccionFrecuente] };
+                }
+                return null;
+            }
 
+            window.sigedClippyPreferencias?.then(preferencias => {
+                if (!consejosAutomaticos || mensajeria) return;
+                const recomendacion = recomendacionPersonal(preferencias);
+                if (recomendacion) recomendarEnInactividad(recomendacion);
                 if (!config.saludoEntrada) return;
                 const nombre = config.nombre;
                 const aperturas = [`¡Hola, ${nombre}!`, `¡Buen día, ${nombre}!`, `¡Qué tal, ${nombre}!`, `¡Bienvenido, ${nombre}!`];

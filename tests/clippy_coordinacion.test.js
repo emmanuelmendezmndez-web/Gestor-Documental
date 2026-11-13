@@ -29,6 +29,7 @@ function iniciar(ruta = '/inicio', config = {}, opciones = {}) {
     const window = {clippy:true, sigedClippyConfig:{basePath:'', usuarioId:1, nombre:'Prueba', ...config}, location:{pathname:ruta, search:opciones.search || ''},
         innerHeight:opciones.alto || 800, innerWidth:opciones.ancho || 1200, matchMedia:()=>movimiento, requestAnimationFrame(){}, addEventListener(){}, removeEventListener(){},
         sigedClippyPreferencias:opciones.preferencias && {then(fn){fn(opciones.preferencias);}},
+        sigedConsultarHabitos:opciones.consultarHabitos,
         setTimeout(fn, ms){const id=++secuencia; timers.set(id,{fn, ms}); return id;}, clearTimeout(id){timers.delete(id);}};
     class Fecha extends Date { static now(){return reloj;} }
     const ctx = {window, document, clippy:{Animator:{States:{EXITED:'exited'}}, load(_nombre, fn){fn(agente);}}, Date:Fecha, URLSearchParams, HTMLElement:Entrada, HTMLInputElement:Entrada, getComputedStyle:()=>({display:'none'}), ResizeObserver:class {observe(){}}, console};
@@ -68,6 +69,16 @@ test('desactivar consejos automáticos conserva la ayuda al pulsar el personaje'
     assert.equal(p.eventos.pointerdown, undefined);
     p.figura.click();
     assert.equal(p.dichos.length, 1);
+    assert.match(p.dichos[0], /En Inicio/);
+});
+
+test('un consejo por inactividad se descarta si los hábitos se desactivaron en otra pestaña', async () => {
+    const p = iniciar('/inicio', {}, {preferencias:{rutina:'biblioteca'}, consultarHabitos:async () => null});
+    p.avanzar(180001);
+    p.ejecutar(180001);
+    await new Promise(setImmediate);
+    assert.deepEqual(p.dichos, []);
+    p.figura.click();
     assert.match(p.dichos[0], /En Inicio/);
 });
 test('un hábito se recomienda una sola vez tras superar tres minutos sin actividad', () => {

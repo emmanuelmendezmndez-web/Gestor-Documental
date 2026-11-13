@@ -1,17 +1,48 @@
 """Preferencias locales de Clippy, aisladas por usuario y sin leer archivos."""
 
 import json
-from typing import Annotated
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Body, Depends, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, Response
 
 from app.catalogos import CATEGORIAS, DEPARTAMENTOS
 from app.database import conectar
 from app.seguridad import requiere_permiso
+from app.servicios.diagnostico_clippy import (
+    ACCIONES,
+    diagnosticar_almacenamiento,
+    diagnosticar_documento,
+    diagnosticar_estado,
+    diagnosticar_permisos,
+)
 
 router = APIRouter(prefix="/asistente", dependencies=[Depends(requiere_permiso("ver"))])
 SECCIONES = {"inicio", "biblioteca", "buscar", "subir", "expedientes", "papelera", "usuarios", "actividad", "cuenta"}
 CLAVES_FILTRO = {"buscar", "categoria", "departamento", "oficio", "desde", "hasta"}
+
+
+@router.get("/diagnostico")
+def diagnostico(
+    request: Request,
+    response: Response,
+    tema: Literal["sistema", "mensajeria", "almacenamiento", "documento", "permisos"],
+    registro: Annotated[int | None, Query(ge=1, le=10**18 - 1)] = None,
+    accion: str | None = None,
+):
+    usuario = request.state.usuario
+    response.headers["Cache-Control"] = "private, no-store"
+    if tema == "documento":
+        mensaje = diagnosticar_documento(usuario, registro)
+    elif tema == "permisos":
+        if accion is not None and accion not in ACCIONES:
+            raise HTTPException(status_code=400, detail="Acción no reconocida.")
+        mensaje = diagnosticar_permisos(usuario, accion)
+    elif tema == "almacenamiento":
+        mensaje = diagnosticar_almacenamiento()
+    else:
+        mensajeria = bool(getattr(request.app.state, "mensajeria_http_instalada", False))
+        mensaje = diagnosticar_estado(request.session, mensajeria, tema)
+    return {"usuario_id": usuario["id"], "mensaje": mensaje}
 
 
 def _filtros_seguros(datos: dict, usuario: dict) -> dict[str, str]:
@@ -70,12 +101,19 @@ def registrar_habito(request: Request, datos: Annotated[dict, Body()]):
 
 
 @router.get("/preferencias")
-def preferencias(request: Request, hora: int | None = None):
+def preferencias(request: Request, response: Response, hora: int | None = None):
     usuario = request.state.usuario
-    if not usuario["clippy_habitos"]:
-        return {"experiencia": "nuevo", "busquedas": [], "secciones": [], "rutina": None,
-                "expediente_reciente": None, "dias_sin_entrar": None}
+    response.headers["Cache-Control"] = "private, no-store"
     with conectar() as conexion:
+        conexion.execute("BEGIN")
+        aprendizaje = conexion.execute(
+            "SELECT clippy_habitos, clippy_visible, clippy_consejos FROM usuarios WHERE id = ? AND activo = 1",
+            (usuario["id"],),
+        ).fetchone()
+        if not aprendizaje or not aprendizaje["clippy_habitos"]:
+            return {"usuario_id": usuario["id"], "aprendizaje": False,
+                    "experiencia": "nuevo", "busquedas": [], "secciones": [],
+                    "rutina": None, "expediente_reciente": None, "dias_sin_entrar": None}
         total = conexion.execute(
             "SELECT COALESCE(SUM(veces), 0) FROM asistente_habitos WHERE usuario_id = ?",
             (usuario["id"],),
@@ -117,7 +155,9 @@ def preferencias(request: Request, hora: int | None = None):
             habituales.append(filtros)
         if len(habituales) == 3:
             break
-    return {"experiencia": "habitual" if total >= 12 else "nuevo", "busquedas": habituales,
+    return {"usuario_id": usuario["id"], "aprendizaje": True,
+            "consejos_personalizados": bool(aprendizaje["clippy_visible"] and aprendizaje["clippy_consejos"]),
+            "experiencia": "habitual" if total >= 12 else "nuevo", "busquedas": habituales,
             "secciones": [fila["valor"] for fila in secciones],
             "rutina": rutina["valor"].split(":", 1)[1] if rutina and rutina["veces"] >= 3 else None,
             "expediente_reciente": dict(expediente) if expediente else None,

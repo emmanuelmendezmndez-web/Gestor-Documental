@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
 
-function iniciar(config = {}, ruta = '/inicio') {
+function iniciar(config = {}, ruta = '/inicio', habitos = {}) {
     const controles = {};
     for (const id of ['busqueda-asistida', 'abrir-busqueda-asistida', 'cerrar-busqueda-asistida',
         'busqueda-global', 'consulta-asistida-texto', 'editar-consulta-asistida', 'filtros-sugeridos', 'form-busqueda-asistida',
@@ -15,6 +15,7 @@ function iniciar(config = {}, ruta = '/inicio') {
     }
     const dialogo = controles['busqueda-asistida'];
     const rapidos = ['contratos', 'obras', 'mes'].map(clave => ({dataset:{busquedaRapida:clave}, textContent:clave,
+        getAttribute() { return this.title ?? null; }, removeAttribute() { delete this.title; },
         listeners:{}, addEventListener(tipo, fn) { this.listeners[tipo] = fn; }}));
     dialogo.querySelector = () => null;
     dialogo.querySelectorAll = () => rapidos;
@@ -40,7 +41,8 @@ function iniciar(config = {}, ruta = '/inicio') {
     let destino;
     const window = {
         sigedOpcionesBusqueda: { categorias: ['Contratos', 'Actas', 'Informes', 'Certificados', 'Bitacoras', 'Inventarios', 'Otros'],
-            areas: ['Tesorería', 'Obras Públicas', 'Recursos Humanos'], areaUsuario: 'Tesorería', rol: 'lector', usuarioId: 10 },
+            areas: ['Tesorería', 'Obras Públicas', 'Recursos Humanos'], areaUsuario: 'Tesorería', rol: 'lector', usuarioId: 10,
+            registrarHabitos: habitos.activos },
         sigedClippyConfig: config,
         location: { pathname: ruta, assign: valor => { destino = valor; } },
         listeners: {}, addEventListener(tipo, fn) { this.listeners[tipo] = fn; },
@@ -50,9 +52,9 @@ function iniciar(config = {}, ruta = '/inicio') {
     }
     const eventosDocumento = {};
     class FormularioGlobal { constructor() { this.method = 'get'; this.action = 'http://localhost/buscar'; } }
-    const contexto = { window, Date: Fecha, URLSearchParams, URL, console, HTMLFormElement:FormularioGlobal, FormData:class { get(){ return 'contratos'; } },
+    const contexto = { window, Date: Fecha, URLSearchParams, URL, AbortController, console, HTMLFormElement:FormularioGlobal, FormData:class { get(){ return 'contratos'; } },
         sessionStorage: { getItem: () => '1', setItem() {} },
-        fetch: async () => ({ ok: true, json: async () => ({}) }),
+        fetch: habitos.fetch || (async () => ({ ok: true, json: async () => ({}) })),
         document: { getElementById: id => controles[id], querySelector: () => null, addEventListener(tipo, fn) { eventosDocumento[tipo] = fn; }, createElement: () => ({
             children: [], listeners: {}, style: {}, setAttribute() {}, focus() {}, append(...items) { this.children.push(...items); },
             replaceChildren() { this.children = []; }, addEventListener(tipo, fn) { this.listeners[tipo] = fn; },
@@ -71,6 +73,56 @@ function iniciar(config = {}, ruta = '/inicio') {
         texto, window.sigedOpcionesBusqueda.categorias, window.sigedOpcionesBusqueda.areas))), controles, destino: () => destino,
         memoria: window.memoriaPrueba, eventosVentana: window.listeners, eventosDocumento, FormularioGlobal, rapidos };
 }
+
+test('los atajos consultan el permiso vigente y descartan respuestas de otra cuenta', async () => {
+    let preferencias = { usuario_id: 10, aprendizaje: true, busquedas: [{ buscar: 'Informe privado' }] };
+    const p = iniciar({}, '/inicio', {fetch: async () => ({ok: true, json: async () => preferencias})});
+    const abrir = p.controles['abrir-busqueda-asistida'].listeners.click;
+    abrir();
+    await new Promise(setImmediate);
+    assert.match(p.rapidos[0].textContent, /Informe privado/);
+    preferencias = { usuario_id: 10, aprendizaje: false, busquedas: [{ buscar: 'Informe privado' }] };
+    await p.rapidos[0].listeners.click();
+    assert.equal(p.rapidos[0].dataset.busquedaRapida, 'contratos');
+    assert.equal(p.controles['asistido-buscar'].value, '');
+    preferencias = { usuario_id: 11, aprendizaje: true, busquedas: [{ buscar: 'Otra cuenta' }] };
+    abrir();
+    await new Promise(setImmediate);
+    assert.equal(p.rapidos[0].dataset.busquedaRapida, 'contratos');
+});
+
+test('desactivar hábitos mantiene los atajos generales y omite las consultas de personalización', async () => {
+    const llamadas = [];
+    const p = iniciar({}, '/inicio', {activos:false, fetch: async (...args) => { llamadas.push(args); }});
+    p.controles['abrir-busqueda-asistida'].listeners.click();
+    await new Promise(setImmediate);
+    assert.deepEqual(llamadas, []);
+    assert.equal(p.rapidos[0].dataset.busquedaRapida, 'contratos');
+});
+
+test('el diagnóstico pide un registro y solo muestra respuestas de la cuenta activa', async () => {
+    let cuenta = 11;
+    const llamadas = [];
+    const p = iniciar({puedeVer:true}, '/ajustes', {activos:false, fetch:async ruta => {
+        llamadas.push(ruta);
+        return {ok:true, json:async () => ({usuario_id:cuenta, mensaje:'Resultado privado'})};
+    }});
+    const c = p.controles;
+    c['busqueda-global'].value = 'No encuentro el documento';
+    c['abrir-busqueda-asistida'].listeners.click();
+    assert.match(c['propuesta-contextual'].textContent, /número de registro interno/);
+    assert.deepEqual(llamadas, []);
+    c['instruccion-contextual'].value = '123';
+    c['proponer-contexto'].listeners.click();
+    await new Promise(setImmediate);
+    assert.match(c['propuesta-contextual'].textContent, /No pude completar/);
+    assert.match(llamadas[0], /tema=documento&registro=123/);
+    cuenta = 10;
+    c['instruccion-contextual'].value = '¿Por qué no aparece el documento 123?';
+    c['proponer-contexto'].listeners.click();
+    await new Promise(setImmediate);
+    assert.equal(c['propuesta-contextual'].textContent, 'Resultado privado');
+});
 
 test('Con Clippy clasifica ayuda desde la barra sin generar filtros', () => {
     const p = iniciar({puedeVer:true, puedeSubir:true}, '/inicio'), c = p.controles;

@@ -289,18 +289,18 @@
             </dialog>
             <div id="siged-configuracion" hidden
                 data-opciones='{{ dict(categorias=asistente_categorias, areas=asistente_areas, usuarioId=usuario["id"], rol=usuario["rol"], areaUsuario=usuario["departamento"], registrarHabitos=(usuario["clippy_habitos"] == 1))|tojson }}'
-                data-clippy='{{ dict(basePath=url_for("static", path="clippy/agents") ~ "/", cantidadExpediente=(documentos|length if expediente is defined and documentos is defined else none), bibliotecaSinResultados=(pagina == "biblioteca" and hay_filtros|default(false) and total|default(0) == 0), busquedaSinResultados=(pagina == "buscar" and not buscar_vacio|default(true) and not documentos_encontrados|default([]) and not expedientes_encontrados|default([])), discoLleno=disco_lleno, saludoEntrada=saludo_clippy_entrada|default(false), nombre=(usuario["nombre"].split()|first|default("Usuario", true)), usuarioId=usuario["id"], puedeSubir=puede("subir"), puedeRestaurar=puede("restaurar"), puedeUsuarios=puede("usuarios"), puedeActividad=puede("actividad"), puedeVer=puede("ver"), puedeVerExpedientes=puede("ver_expedientes"), puedeGestionarExpedientes=puede("gestionar_expedientes"), puedePapelera=puede("papelera"), puedeEliminar=puede("eliminar"))|tojson }}'></div>
+                data-clippy='{{ dict(basePath=url_for("static", path="clippy/agents") ~ "/", cantidadExpediente=(documentos|length if expediente is defined and documentos is defined else none), bibliotecaSinResultados=(pagina == "biblioteca" and hay_filtros|default(false) and total|default(0) == 0), busquedaSinResultados=(pagina == "buscar" and not buscar_vacio|default(true) and not documentos_encontrados|default([]) and not expedientes_encontrados|default([])), discoLleno=disco_lleno, saludoEntrada=saludo_clippy_entrada|default(false), nombre=(usuario["nombre"].split()|first|default("Usuario", true)), usuarioId=usuario["id"], puedeSubir=puede("subir"), puedeRestaurar=puede("restaurar"), puedeUsuarios=puede("usuarios"), puedeActividad=puede("actividad"), puedeVer=puede("ver"), puedeVerExpedientes=puede("ver_expedientes"), puedeGestionarExpedientes=puede("gestionar_expedientes"), puedePapelera=puede("papelera"), puedeEliminar=puede("eliminar"), puedeEditar=puede("editar"), puedeDescargar=puede("descargar"), puedeAvisos=puede("avisos"))|tojson }}'></div>
             <script src="{{ url_for('static', path='siged_configuracion.js') }}?v=1"></script>
             <script src="{{ url_for('static', path='interprete_busqueda.js') }}?v=1"></script>
             <script src="{{ url_for('static', path='memoria_temporal.js') }}?v=2"></script>
             <script src="{{ url_for('static', path='interprete_contextual.js') }}?v=2"></script>
-            <script src="{{ url_for('static', path='clasificador_ayuda_clippy.js') }}?v=1"></script>
-            <script src="{{ url_for('static', path='catalogo_ayuda_clippy.js') }}?v=3"></script>
-            <script src="{{ url_for('static', path='busqueda_asistida.js') }}?v=16"></script>
+            <script src="{{ url_for('static', path='clasificador_ayuda_clippy.js') }}?v=2"></script>
+            <script src="{{ url_for('static', path='catalogo_ayuda_clippy.js') }}?v=4"></script>
+            <script src="{{ url_for('static', path='busqueda_asistida.js') }}?v=18"></script>
             {% if usuario["clippy_visible"] %}
             <script src="{{ url_for('static', path='clippy/jquery.min.js') }}"></script>
             <script src="{{ url_for('static', path='clippy/clippy.min.js') }}"></script>
-            <script src="{{ url_for('static', path='clippy_asistente.js') }}?v=12" data-consejos-automaticos="{{ usuario['clippy_consejos'] }}"></script>
+            <script src="{{ url_for('static', path='clippy_asistente.js') }}?v=13" data-consejos-automaticos="{{ usuario['clippy_consejos'] }}"></script>
             {% endif %}
             {% if request.app.state.mensajeria_interfaz and puede("ver") %}
             <script type="module" src="{{ url_for('static', path='mensajeria.js') }}?v=2"></script>

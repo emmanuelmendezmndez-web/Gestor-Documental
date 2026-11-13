@@ -60,3 +60,14 @@ test('el catálogo no ejecuta acciones ni incorpora datos del contexto', () => {
     vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../app/static/catalogo_ayuda_clippy.js'), 'utf8'), aislado);
     assert.equal(aislado.sigedConsultarAyuda('biblioteca', c), consultar('biblioteca', c));
 });
+
+test('la ayuda general funciona en los módulos nuevos y reserva los procedimientos por capacidad', () => {
+    for (const pantalla of ['ajustes','avisos','mensajeria','documentos']) {
+        const lector = contexto(pantalla, {ver:true});
+        for (const tema of ['inicio','avisos','ajustes','mensajeria','documentos','almacenamiento','sesion','errores']) {
+            assert.notEqual(consultar(tema, lector), general);
+        }
+        for (const tema of ['gestionar_avisos','actividad','editar']) assert.equal(consultar(tema, lector), general);
+    }
+    assert.match(consultar('gestionar_avisos', contexto('mensajeria', {ver:true, avisos:true})), /duración/);
+});

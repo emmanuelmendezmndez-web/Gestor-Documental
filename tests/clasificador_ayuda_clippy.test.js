@@ -30,3 +30,33 @@ test('clasificación no modifica estado ni aplica propuestas', () => {
     assert.equal(clasificar('Quita Tesorería', ctx).tipo, 'correccion_contextual');
     assert.deepEqual(ctx, antes);
 });
+
+test('reconoce formas alternativas de pedir orientación sobre cada módulo', () => {
+    for (const [texto, tema] of [
+        ['Explícame los indicadores del panel principal', 'inicio'],
+        ['¿Cómo veo la vista previa?', 'documentos'],
+        ['¿Dónde descargo el archivo?', 'descargar'],
+        ['¿Cómo cambio el tema a modo oscuro?', 'ajustes'],
+        ['¿Cómo funciona el chat?', 'mensajeria'],
+        ['¿Dónde veo los comunicados?', 'avisos'],
+        ['¿Cómo cambio la duración de un aviso?', 'gestionar_avisos'],
+        ['¿Dónde reviso el registro de operaciones?', 'actividad'],
+        ['¿Qué hago si caducó la sesión?', 'sesion'],
+        ['¿Dónde se muestra el almacenamiento?', 'almacenamiento'],
+        ['Me sale formato no permitido al cargar el documento', 'formato_subida'],
+        ['¿Cuánto puede pesar el archivo?', 'limite_subida'],
+    ]) assert.deepEqual(clasificar(texto), {tipo:'ayuda', tema}, texto);
+});
+
+test('separa comprobaciones de ayuda, búsquedas y cambios en el diálogo', () => {
+    for (const [texto, tema, extra] of [
+        ['¿Está operativo el servidor?', 'sistema', {}],
+        ['Mensajería no carga', 'mensajeria', {}],
+        ['¿Cuánto espacio queda en disco?', 'almacenamiento', {}],
+        ['¿Tengo permiso para subir documentos?', 'permisos', {accion:'subir'}],
+        ['¿Por qué no puedo descargar el documento 123?', 'documento', {registro:'123'}],
+        ['No encuentro el documento', 'documento', {registro:undefined}],
+    ]) assert.deepEqual(clasificar(texto), {tipo:'diagnostico', tema, ...extra}, texto);
+    assert.equal(clasificar('Comunicados de 2025').tipo, 'busqueda_documental');
+    assert.equal(clasificar('Quita el filtro de fecha').tipo, 'correccion_contextual');
+});

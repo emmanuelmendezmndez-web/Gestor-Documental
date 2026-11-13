@@ -35,6 +35,8 @@
     let cambioPendiente = null;
     let editandoConsulta = false;
     let propuestaContextual = null;
+    let diagnosticoPendiente;
+    let esperandoRegistro = false;
     let aclaracionIntencion = false;
     let revisarDesdeBarra = null;
     const memoria = window.crearMemoriaTemporal();
@@ -67,13 +69,34 @@
         if (!token) return;
         fetch("/asistente/habito", { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": token }, body: JSON.stringify(datos), keepalive: true }).catch(() => {});
     };
-    window.sigedClippyPreferencias = registrarHabitos
-        ? fetch(`/asistente/preferencias?hora=${new Date().getHours()}`, { credentials: "same-origin" })
-            .then(respuesta => respuesta.ok ? respuesta.json() : null).catch(() => null)
-        : Promise.resolve(null);
-    window.sigedClippyPreferencias.then(preferencias => {
+    const usuarioId = window.sigedOpcionesBusqueda.usuarioId;
+    window.sigedConsultarHabitos = async () => {
+        if (!registrarHabitos) return null;
+        try {
+            const respuesta = await fetch(`/asistente/preferencias?hora=${new Date().getHours()}`, {
+                credentials: "same-origin", cache: "no-store",
+            });
+            const preferencias = respuesta.ok ? await respuesta.json() : null;
+            return preferencias?.usuario_id === usuarioId && preferencias.aprendizaje ? preferencias : null;
+        } catch {
+            return null;
+        }
+    };
+    window.sigedClippyPreferencias = window.sigedConsultarHabitos();
+    const botonesRapidos = [...dialogo.querySelectorAll("[data-busqueda-rapida]")];
+    const atajosBase = botonesRapidos.map(boton => ({
+        clave: boton.dataset.busquedaRapida, texto: boton.textContent, titulo: boton.getAttribute("title"),
+    }));
+    function mostrarAtajos(preferencias) {
+        botonesRapidos.forEach((boton, indice) => {
+            const base = atajosBase[indice];
+            boton.textContent = base.texto;
+            boton.dataset.busquedaRapida = base.clave;
+            if (base.titulo === null) boton.removeAttribute("title");
+            else boton.title = base.titulo;
+            delete filtrosRapidos[`habitual${indice}`];
+        });
         if (!preferencias?.busquedas?.length) return;
-        const botones = [...dialogo.querySelectorAll("[data-busqueda-rapida]")];
         const vistas = new Set();
         preferencias.busquedas.filter(filtros => {
             const firma = JSON.stringify(Object.fromEntries(Object.entries(filtros)
@@ -83,14 +106,16 @@
             vistas.add(firma);
             return true;
         }).slice(0, 3).forEach((filtros, indice) => {
+            const boton = botonesRapidos[indice];
+            if (!boton) return;
             const clave = `habitual${indice}`;
             filtrosRapidos[clave] = () => filtros;
             const resumen = filtros.buscar || filtros.oficio || filtros.categoria || filtros.departamento || "Búsqueda habitual";
-            botones[indice].textContent = `✦ ${resumen.slice(0, 28)}`;
-            botones[indice].dataset.busquedaRapida = clave;
-            botones[indice].title = "Usar filtros de una búsqueda habitual";
+            boton.textContent = `✦ ${resumen.slice(0, 28)}`;
+            boton.dataset.busquedaRapida = clave;
+            boton.title = "Usar filtros de una búsqueda habitual";
         });
-    });
+    }
 
     document.addEventListener("submit", evento => {
         const form = evento.target;
@@ -104,11 +129,15 @@
         if (Object.keys(filtros).length) guardarHabito({ tipo: "busqueda", filtros });
     });
     const seccion = window.location.pathname.split("/")[1] || "biblioteca";
-    const claveSeccion = `siged-clippy-${window.sigedOpcionesBusqueda.usuarioId}-${seccion}`;
-    if (registrarHabitos && !sessionStorage.getItem(claveSeccion)) {
-        sessionStorage.setItem(claveSeccion, "1");
+    const claveSeccion = `siged-clippy-${usuarioId}-${seccion}`;
+    const ahora = Date.now();
+    const hora = new Date().getHours();
+    const [ultimaVisita, ultimaHora] = registrarHabitos
+        ? (sessionStorage.getItem(claveSeccion) || "").split(":").map(Number) : [];
+    if (registrarHabitos && (ultimaHora !== hora || ahora - ultimaVisita >= 30 * 60 * 1000)) {
+        sessionStorage.setItem(claveSeccion, `${ahora}:${hora}`);
         guardarHabito({ tipo: "seccion", valor: seccion });
-        guardarHabito({ tipo: "rutina", valor: seccion, hora: new Date().getHours() });
+        guardarHabito({ tipo: "rutina", valor: seccion, hora });
     }
     const expedienteVisitado = window.location.pathname.match(/^\/expedientes\/(\d+)$/);
     if (expedienteVisitado) guardarHabito({ tipo: "expediente", valor: expedienteVisitado[1] });
@@ -257,6 +286,7 @@
     }
     function borrarInteraccion() {
         descartarPropuesta();
+        esperandoRegistro = false;
         if (instruccionContextual) instruccionContextual.value = "";
         memoria.cancelar();
         editandoConsulta = false;
@@ -267,6 +297,8 @@
         adicionalesActivos.textContent = "";
     }
     function descartarPropuesta() {
+        diagnosticoPendiente?.abort();
+        diagnosticoPendiente = undefined;
         propuestaContextual = null;
         aclaracionIntencion = false;
         if (panelContextual) { panelContextual.replaceChildren(); panelContextual.hidden = true; }
@@ -287,34 +319,71 @@
         const pantallaActual = () => {
             const ruta = window.location.pathname;
             if (ruta === "/") return "biblioteca";
-            if (ruta === "/usuarios/nuevo") return "usuarios";
+            if (ruta.startsWith("/usuarios/")) return "usuarios";
+            if (ruta.startsWith("/documentos/")) return "documentos";
             if (ruta === "/expedientes/nuevo") return "expediente_nuevo";
             if (/^\/expedientes\/[^/]+\/?$/.test(ruta)) return "expediente";
-            const pantallas = {"/inicio":"inicio", "/buscar":"buscar", "/subir":"subir", "/expedientes":"expedientes", "/papelera":"papelera", "/usuarios":"usuarios", "/cuenta":"cuenta", "/actividad":"actividad"};
+            const pantallas = {"/inicio":"inicio", "/buscar":"buscar", "/subir":"subir", "/expedientes":"expedientes", "/papelera":"papelera", "/usuarios":"usuarios", "/cuenta":"cuenta", "/actividad":"actividad", "/mensajeria":"mensajeria", "/avisos":"avisos", "/ajustes":"ajustes"};
             return pantallas[ruta] || "desconocida";
         };
         const mostrarAyuda = tema => {
             descartarPropuesta(); panelContextual.hidden = false;
             const c = window.sigedClippyConfig || {};
             const capacidades = {ver:c.puedeVer, ver_expedientes:c.puedeVerExpedientes, gestionar_expedientes:c.puedeGestionarExpedientes,
-                subir:c.puedeSubir, papelera:c.puedePapelera, restaurar:c.puedeRestaurar, eliminar:c.puedeEliminar, usuarios:c.puedeUsuarios};
+                subir:c.puedeSubir, papelera:c.puedePapelera, restaurar:c.puedeRestaurar, eliminar:c.puedeEliminar, usuarios:c.puedeUsuarios,
+                editar:c.puedeEditar, descargar:c.puedeDescargar, avisos:c.puedeAvisos, actividad:c.puedeActividad};
             panelContextual.textContent = window.sigedConsultarAyuda(tema, {pantalla:pantallaActual(), capacidades});
         };
+        async function mostrarDiagnostico({tema, registro, accion}) {
+            if (tema === "documento" && !registro) {
+                esperandoRegistro = true;
+                panelContextual.textContent = "Escribe el número de registro interno del documento y vuelve a pulsar el botón.";
+                return;
+            }
+            const consulta = new URLSearchParams({tema});
+            if (registro) consulta.set("registro", registro);
+            if (accion) consulta.set("accion", accion);
+            const control = new AbortController();
+            diagnosticoPendiente = control;
+            panelContextual.textContent = "Estoy comprobándolo…";
+            const sinResultado = "No pude completar la comprobación. Inténtalo de nuevo o indica la pantalla, la acción y el mensaje que aparece.";
+            try {
+                const respuesta = await fetch(`/asistente/diagnostico?${consulta}`, {
+                    credentials: "same-origin", cache: "no-store", signal: control.signal,
+                });
+                const datos = respuesta.ok && !respuesta.redirected ? await respuesta.json() : null;
+                if (!control.signal.aborted) {
+                    panelContextual.textContent = datos?.usuario_id === usuarioId && typeof datos.mensaje === "string"
+                        ? datos.mensaje : sinResultado;
+                }
+            } catch {
+                if (!control.signal.aborted) panelContextual.textContent = sinResultado;
+            } finally {
+                if (diagnosticoPendiente === control) diagnosticoPendiente = undefined;
+            }
+        }
         function revisarInstruccion(forzarBusqueda = false) {
             descartarPropuesta();
             const estado = memoria.consultar();
             panelContextual.hidden = false;
+            const registro = esperandoRegistro && !forzarBusqueda &&
+                instruccionContextual.value.trim().match(/^(?:registro\s+)?([1-9]\d{0,17})$/i)?.[1];
+            esperandoRegistro = false;
+            if (registro) { mostrarDiagnostico({tema:"documento", registro}); return; }
             if (!forzarBusqueda && typeof window.sigedClasificarAyuda === "function" && typeof window.sigedConsultarAyuda === "function") {
                 const clasificacion = window.sigedClasificarAyuda(instruccionContextual.value, {estado, categorias, areas});
+                if (clasificacion.tipo === "diagnostico") { mostrarDiagnostico(clasificacion); return; }
                 if (clasificacion.tipo === "ayuda") { mostrarAyuda(clasificacion.tema); return; }
                 if (clasificacion.tipo === "aclaracion") {
                     aclaracionIntencion = true;
-                    const pregunta = document.createElement("p"); pregunta.textContent = "¿Quieres ayuda o iniciar una búsqueda documental?";
+                    const pregunta = document.createElement("p"); pregunta.textContent = clasificacion.motivo === "varios_temas"
+                        ? "Encontré varios temas. Elige cuál quieres revisar o prepara una búsqueda documental."
+                        : "¿Quieres ayuda o iniciar una búsqueda documental?";
                     const ayuda = document.createElement("button"); ayuda.type = "button"; ayuda.className = "boton-secundario"; ayuda.textContent = "Quiero ayuda";
                     const buscar = document.createElement("button"); buscar.type = "button"; buscar.className = "boton-secundario"; buscar.textContent = "Preparar búsqueda";
                     ayuda.addEventListener("click", () => {
                         const temas = clasificacion.motivo === "varios_temas" ? clasificacion.alternativas : [];
-                        if (!temas.length) { mostrarAyuda(""); return; }
+                        if (!temas.length) { mostrarAyuda("errores"); return; }
                         const nombres = {permisos:"Permisos", biblioteca:"Biblioteca", busqueda:"Búsqueda", subida:"Subida", expedientes:"Expedientes", gestionar_expedientes:"Crear expediente", vincular_documentos:"Vincular documentos", papelera:"Papelera", restaurar:"Restaurar", eliminar_definitivamente:"Eliminación definitiva", usuarios:"Usuarios"};
                         panelContextual.replaceChildren();
                         const elegir = document.createElement("p"); elegir.textContent = "¿Sobre qué tema necesitas ayuda?"; panelContextual.append(elegir);
@@ -391,6 +460,10 @@
         aclaracion.append(continuar, volver); continuar.focus();
     }
     abrir.addEventListener("click", () => {
+        mostrarAtajos(null);
+        window.sigedConsultarHabitos().then(preferencias => {
+            if (dialogo.open) mostrarAtajos(preferencias);
+        });
         // El evento close del navegador puede llegar después de una reapertura.
         // Solo la transición explícita de edición conserva la interacción.
         if (memoria.consultar() && !dialogo.open && !editandoConsulta) borrarInteraccion();
@@ -426,9 +499,21 @@
         if (dialogo.open || editandoConsulta) return;
         borrarInteraccion();
     });
-    window.addEventListener("pagehide", borrarInteraccion);
+    window.addEventListener("pagehide", () => {
+        borrarInteraccion();
+        mostrarAtajos(null);
+    });
     dialogo.querySelectorAll("[data-busqueda-rapida]").forEach(boton => {
-        boton.addEventListener("click", () => {
+        boton.addEventListener("click", async () => {
+            const clave = boton.dataset.busquedaRapida;
+            if (clave.startsWith("habitual")) {
+                const anterior = filtrosRapidos[clave]?.();
+                const preferencias = await window.sigedConsultarHabitos();
+                if (!dialogo.open) return;
+                mostrarAtajos(preferencias);
+                if (boton.dataset.busquedaRapida !== clave ||
+                    JSON.stringify(filtrosRapidos[clave]?.()) !== JSON.stringify(anterior)) return;
+            }
             const siguiente = {rapida: boton.dataset.busquedaRapida, consulta: boton.textContent.trim().replace(/^[^\p{L}]+/u, "")};
             if (memoria.consultar()?.manuales.length) { cambioPendiente = siguiente; mostrarCambio(); return; }
             busquedaRapida = siguiente.rapida; consulta = siguiente.consulta; actualizar();
