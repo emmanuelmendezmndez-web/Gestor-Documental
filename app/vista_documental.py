@@ -18,7 +18,7 @@ def pagina(request, nombre, extension, *, texto=None, error=None, headers=None):
         context={"nombre_archivo": nombre, "extension": extension, "texto": texto, "error": error},
         headers={
             **CABECERAS_PRIVADAS,
-            "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'self'",
+            "Content-Security-Policy": "default-src 'none'; style-src 'self' 'unsafe-inline'; base-uri 'none'; frame-ancestors 'self'",
             **(headers or {}),
         },
     )

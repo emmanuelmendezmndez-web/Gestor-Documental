@@ -2,7 +2,7 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
@@ -143,6 +143,36 @@ def borrar_archivo_foto(ruta: Path | None, conexion=None) -> None:
         procesar_tareas([tarea])
     except Exception:
         logger.exception("No se pudo programar la limpieza de una foto de perfil")
+
+
+@router.get("/ajustes", response_class=HTMLResponse)
+def ajustes(request: Request, guardado: bool = False):
+    return templates.TemplateResponse(
+        request=request,
+        name="ajustes.html",
+        context={
+            "pagina": "ajustes",
+            "mensaje": "Tus ajustes se guardaron." if guardado else None,
+            "tipo": "exito",
+        },
+    )
+
+
+@router.post("/ajustes")
+def guardar_ajustes(
+    request: Request,
+    clippy_visible: Annotated[bool, Form()] = False,
+    clippy_consejos: Annotated[bool, Form()] = False,
+    clippy_habitos: Annotated[bool, Form()] = False,
+    tema: Annotated[Literal["claro", "oscuro", "automatico"] | None, Form()] = None,
+):
+    with conectar() as conexion:
+        conexion.execute(
+            "UPDATE usuarios SET clippy_visible = ?, clippy_consejos = ?, clippy_habitos = ?, "
+            "tema = COALESCE(?, tema) WHERE id = ?",
+            (clippy_visible, clippy_consejos, clippy_habitos, tema, request.state.usuario["id"]),
+        )
+    return RedirectResponse(url="/ajustes?guardado=1", status_code=303)
 
 
 @router.get("/cuenta", response_class=HTMLResponse)

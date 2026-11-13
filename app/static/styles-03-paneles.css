@@ -1,7 +1,7 @@
 /* ---------- Paneles y avisos ---------- */
 
 .panel {
-    background: white;
+    background: var(--color-superficie);
     padding: 30px;
     border-radius: 10px;
     box-shadow: 0 3px 12px rgb(0 0 0 / 5%);
@@ -15,15 +15,15 @@
 .estado {
     display: inline-block;
     background: var(--color-primario-suave);
-    color: var(--color-primario);
+    color: var(--color-enlace);
     padding: 8px 12px;
     border-radius: 6px;
     font-weight: 600;
 }
 
 .aviso-operacion {
-    --aviso-tono: #1e40af;
-    --aviso-fondo: #eff6ff;
+    --aviso-tono: var(--color-enlace-intenso);
+    --aviso-fondo: var(--color-primario-suave);
     position: fixed;
     z-index: 4;
     inset-inline: 12px;
@@ -38,16 +38,16 @@
     border: 1px solid var(--color-borde);
     border-inline-start: 4px solid var(--aviso-tono);
     border-radius: 11px;
-    background: #fff;
+    background: var(--color-superficie);
     color: var(--color-texto);
     box-shadow: 0 6px 22px rgb(15 23 42 / 11%);
     pointer-events: none;
 }
 .aviso-operacion[hidden] { display: none; }
 .aviso-operacion[data-salida] .aviso-operacion-cerrar { pointer-events: none; }
-.aviso-operacion[data-aviso-operacion="exito"] { --aviso-tono: #166534; --aviso-fondo: #e8f6ee; }
-.aviso-operacion[data-aviso-operacion="error"] { --aviso-tono: #9f261c; --aviso-fondo: #fdecec; }
-.aviso-operacion[data-aviso-operacion="advertencia"] { --aviso-tono: #854d0e; --aviso-fondo: #fef3c7; }
+.aviso-operacion[data-aviso-operacion="exito"] { --aviso-tono: var(--color-exito); --aviso-fondo: var(--color-exito-fondo); }
+.aviso-operacion[data-aviso-operacion="error"] { --aviso-tono: var(--color-error); --aviso-fondo: var(--color-error-fondo); }
+.aviso-operacion[data-aviso-operacion="advertencia"] { --aviso-tono: var(--color-alerta); --aviso-fondo: var(--color-alerta-fondo); }
 .aviso-operacion-contenido { display: flex; min-width: 0; align-items: flex-start; gap: .65rem; }
 .aviso-operacion-contenido strong { color: var(--aviso-tono); font-size: .9rem; line-height: 1.4; }
 .aviso-operacion-contenido p { margin: .16rem 0 0; font-size: .86rem; line-height: 1.45; overflow-wrap: anywhere; }

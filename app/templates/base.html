@@ -19,19 +19,20 @@
 {% set logo_nexusgrid = url_for('static', path='img/nexusgrid-isotipo.png') ~ '?v=2' -%}
 {% set eslogan_nexusgrid = 'El núcleo de la transformación digital.' -%}
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-tema="{{ usuario['tema'] if usuario else 'automatico' }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="{{ {'claro': 'light', 'oscuro': 'dark'}.get(usuario['tema'] if usuario else 'automatico', 'light dark') }}">
     <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{% block titulo %}NexusGrid | Panel de Control{% endblock %}</title>
     <link rel="icon" type="image/png" href="{{ logo_nexusgrid }}">
-    <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}?v={% if pagina == 'biblioteca' %}44{% else %}40{% endif %}&busqueda=3">
+    <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}?v={% if pagina == 'biblioteca' %}44{% else %}40{% endif %}&busqueda=3&ajustes=1&tema=2">
     <link rel="stylesheet" href="{{ url_for('static', path='icons/phosphor/bold/style.css') }}">
     {% if usuario %}
-    <link rel="stylesheet" href="{{ url_for('static', path='clippy/clippy.css') }}?v=9">
+    <link rel="stylesheet" href="{{ url_for('static', path='clippy/clippy.css') }}?v=10">
     {% if request.app.state.mensajeria_interfaz and puede("ver") %}
-    <link rel="stylesheet" href="{{ url_for('static', path='styles-13-mensajeria.css') }}?v=5">
+    <link rel="stylesheet" href="{{ url_for('static', path='styles-13-mensajeria.css') }}?v=6">
     {% endif %}
     {% endif %}
     {% block recursos_pagina %}{% endblock %}
@@ -105,6 +106,10 @@
                     {{ avatar_usuario(usuario) }}
                     <span class="usuario-info"><strong>{{ usuario["nombre"] }}</strong><small>{{ usuario["rol_nombre"] }}</small></span>
                 </a>
+                <a class="sidebar-link ajustes-link" href="/ajustes" title="Ajustes" aria-label="Ajustes" {% if pagina == "ajustes" %}aria-current="page"{% endif %} data-animar-icono>
+                    <i class="ph-bold ph-gear-six" aria-hidden="true"></i>
+                    <span>Ajustes</span>
+                </a>
                 <form action="/salir" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button type="submit" class="boton-cerrar-sesion" title="Cerrar sesión" aria-label="Cerrar sesión" data-animar-icono>
                         {{ icono_animado("sign-out") }}
@@ -120,7 +125,7 @@
                     "inicio": "Inicio", "biblioteca": "Biblioteca", "expedientes": "Expedientes",
                     "expediente_nuevo": "Nuevo expediente", "mensajeria": "Mensajes", "buscar": "Búsqueda global",
                     "subir": "Subir documento", "papelera": "Papelera", "actividad": "Actividad",
-                    "usuarios": "Usuarios", "usuario_nuevo": "Nuevo usuario", "cuenta": "Mi cuenta"
+                    "usuarios": "Usuarios", "usuario_nuevo": "Nuevo usuario", "cuenta": "Mi cuenta", "ajustes": "Ajustes"
                 }.get(pagina, "Error") }}{% endblock %}</h1>
                 <form action="/buscar" method="get" class="busqueda-global" role="search">
                     <label class="sr-only" for="busqueda-global">Buscar documentos o expedientes</label>
@@ -283,7 +288,7 @@
                 </form>
             </dialog>
             <div id="siged-configuracion" hidden
-                data-opciones='{{ dict(categorias=asistente_categorias, areas=asistente_areas, usuarioId=usuario["id"], rol=usuario["rol"], areaUsuario=usuario["departamento"])|tojson }}'
+                data-opciones='{{ dict(categorias=asistente_categorias, areas=asistente_areas, usuarioId=usuario["id"], rol=usuario["rol"], areaUsuario=usuario["departamento"], registrarHabitos=(usuario["clippy_habitos"] == 1))|tojson }}'
                 data-clippy='{{ dict(basePath=url_for("static", path="clippy/agents") ~ "/", cantidadExpediente=(documentos|length if expediente is defined and documentos is defined else none), bibliotecaSinResultados=(pagina == "biblioteca" and hay_filtros|default(false) and total|default(0) == 0), busquedaSinResultados=(pagina == "buscar" and not buscar_vacio|default(true) and not documentos_encontrados|default([]) and not expedientes_encontrados|default([])), discoLleno=disco_lleno, saludoEntrada=saludo_clippy_entrada|default(false), nombre=(usuario["nombre"].split()|first|default("Usuario", true)), usuarioId=usuario["id"], puedeSubir=puede("subir"), puedeRestaurar=puede("restaurar"), puedeUsuarios=puede("usuarios"), puedeActividad=puede("actividad"), puedeVer=puede("ver"), puedeVerExpedientes=puede("ver_expedientes"), puedeGestionarExpedientes=puede("gestionar_expedientes"), puedePapelera=puede("papelera"), puedeEliminar=puede("eliminar"))|tojson }}'></div>
             <script src="{{ url_for('static', path='siged_configuracion.js') }}?v=1"></script>
             <script src="{{ url_for('static', path='interprete_busqueda.js') }}?v=1"></script>
@@ -291,10 +296,12 @@
             <script src="{{ url_for('static', path='interprete_contextual.js') }}?v=2"></script>
             <script src="{{ url_for('static', path='clasificador_ayuda_clippy.js') }}?v=1"></script>
             <script src="{{ url_for('static', path='catalogo_ayuda_clippy.js') }}?v=3"></script>
-            <script src="{{ url_for('static', path='busqueda_asistida.js') }}?v=15"></script>
+            <script src="{{ url_for('static', path='busqueda_asistida.js') }}?v=16"></script>
+            {% if usuario["clippy_visible"] %}
             <script src="{{ url_for('static', path='clippy/jquery.min.js') }}"></script>
             <script src="{{ url_for('static', path='clippy/clippy.min.js') }}"></script>
-            <script src="{{ url_for('static', path='clippy_asistente.js') }}?v=11"></script>
+            <script src="{{ url_for('static', path='clippy_asistente.js') }}?v=12" data-consejos-automaticos="{{ usuario['clippy_consejos'] }}"></script>
+            {% endif %}
             {% if request.app.state.mensajeria_interfaz and puede("ver") %}
             <script type="module" src="{{ url_for('static', path='mensajeria.js') }}?v=2"></script>
             {% endif %}

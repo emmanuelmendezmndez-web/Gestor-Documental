@@ -41,6 +41,8 @@ def _filtros_seguros(datos: dict, usuario: dict) -> dict[str, str]:
 def registrar_habito(request: Request, datos: Annotated[dict, Body()]):
     tipo = datos.get("tipo")
     usuario = request.state.usuario
+    if not usuario["clippy_habitos"]:
+        return {"guardado": False}
     if tipo == "busqueda":
         filtros = _filtros_seguros(datos.get("filtros", {}) if isinstance(datos.get("filtros"), dict) else {}, usuario)
         if not filtros:
@@ -58,17 +60,21 @@ def registrar_habito(request: Request, datos: Annotated[dict, Body()]):
     else:
         return {"guardado": False}
     with conectar() as conexion:
-        conexion.execute(
-            "INSERT INTO asistente_habitos (usuario_id, tipo, valor) VALUES (?, ?, ?) "
+        cambio = conexion.execute(
+            "INSERT INTO asistente_habitos (usuario_id, tipo, valor) "
+            "SELECT id, ?, ? FROM usuarios WHERE id = ? AND activo = 1 AND clippy_habitos = 1 "
             "ON CONFLICT(usuario_id, tipo, valor) DO UPDATE SET veces = veces + 1, ultima_vez = CURRENT_TIMESTAMP",
-            (usuario["id"], tipo, valor),
+            (tipo, valor, usuario["id"]),
         )
-    return {"guardado": True}
+    return {"guardado": cambio.rowcount == 1}
 
 
 @router.get("/preferencias")
 def preferencias(request: Request, hora: int | None = None):
     usuario = request.state.usuario
+    if not usuario["clippy_habitos"]:
+        return {"experiencia": "nuevo", "busquedas": [], "secciones": [], "rutina": None,
+                "expediente_reciente": None, "dias_sin_entrar": None}
     with conectar() as conexion:
         total = conexion.execute(
             "SELECT COALESCE(SUM(veces), 0) FROM asistente_habitos WHERE usuario_id = ?",

@@ -115,7 +115,11 @@ def inicializar_db():
                 departamento TEXT NOT NULL DEFAULT '',
                 activo INTEGER NOT NULL DEFAULT 1,
                 fecha_creacion TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                version_sesion INTEGER NOT NULL DEFAULT 0
+                version_sesion INTEGER NOT NULL DEFAULT 0,
+                clippy_visible INTEGER NOT NULL DEFAULT 1 CHECK (clippy_visible IN (0, 1)),
+                clippy_consejos INTEGER NOT NULL DEFAULT 1 CHECK (clippy_consejos IN (0, 1)),
+                clippy_habitos INTEGER NOT NULL DEFAULT 1 CHECK (clippy_habitos IN (0, 1)),
+                tema TEXT NOT NULL DEFAULT 'automatico' CHECK (tema IN ('claro', 'oscuro', 'automatico'))
             )
         """)
 
@@ -135,6 +139,10 @@ def inicializar_db():
             "correo": "TEXT NOT NULL DEFAULT ''",
             "telefono": "TEXT NOT NULL DEFAULT ''",
             "foto_perfil": "TEXT",
+            "clippy_visible": "INTEGER NOT NULL DEFAULT 1 CHECK (clippy_visible IN (0, 1))",
+            "clippy_consejos": "INTEGER NOT NULL DEFAULT 1 CHECK (clippy_consejos IN (0, 1))",
+            "clippy_habitos": "INTEGER NOT NULL DEFAULT 1 CHECK (clippy_habitos IN (0, 1))",
+            "tema": "TEXT NOT NULL DEFAULT 'automatico' CHECK (tema IN ('claro', 'oscuro', 'automatico'))",
         }.items():
             if nombre not in columnas_usuarios:
                 conexion.execute(

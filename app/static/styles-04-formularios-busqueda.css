@@ -23,6 +23,10 @@ textarea {
     font: inherit;
 }
 
+.campo input[type="file"] {
+    max-width: 100%;
+}
+
 input[type="text"]:focus,
 input[type="email"]:focus,
 input[type="tel"]:focus,
@@ -69,7 +73,7 @@ th,
 td {
     text-align: left;
     padding: 10px 12px;
-    border-bottom: 1px solid #e2e8f0;
+    border-bottom: 1px solid var(--color-borde-suave);
 }
 
 th {
@@ -121,29 +125,29 @@ input[type="search"]:focus {
     padding: 10px 18px;
     border: 1px solid var(--color-borde);
     border-radius: 6px;
-    background: #f1f5f9;
-    color: #475569;
+    background: var(--color-fondo-interactivo);
+    color: var(--color-texto-suave);
     font-weight: 600;
     text-decoration: none;
 }
 
 .boton-secundario:hover {
-    background: #e2e8f0;
+    background: light-dark(#e2e8f0, #344861);
 }
 
 .boton-expedientes {
     display: inline-flex;
     align-items: center;
     gap: 9px;
-    border-color: #bfdbfe;
+    border-color: var(--color-azul-borde);
     border-radius: 10px;
-    background: #f8fbff;
-    color: #1d4ed8;
+    background: var(--color-primario-suave);
+    color: var(--color-enlace-intenso);
     transition: background-color 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
 }
 
 .boton-expedientes:hover {
     transform: translateY(-1px);
-    border-color: #93c5fd;
-    background: #eff6ff;
+    border-color: var(--color-foco);
+    background: var(--color-primario-suave);
 }

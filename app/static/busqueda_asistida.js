@@ -60,13 +60,17 @@
         obras: () => areaRapida && areas.includes(areaRapida) ? { departamento: areaRapida } : { categoria: "Otros" },
         mes: ultimoMes
     };
+    const registrarHabitos = window.sigedOpcionesBusqueda?.registrarHabitos !== false;
     const guardarHabito = datos => {
+        if (!registrarHabitos) return;
         const token = document.querySelector('meta[name="csrf-token"]')?.content;
         if (!token) return;
         fetch("/asistente/habito", { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": token }, body: JSON.stringify(datos), keepalive: true }).catch(() => {});
     };
-    window.sigedClippyPreferencias = fetch(`/asistente/preferencias?hora=${new Date().getHours()}`, { credentials: "same-origin" })
-        .then(respuesta => respuesta.ok ? respuesta.json() : null).catch(() => null);
+    window.sigedClippyPreferencias = registrarHabitos
+        ? fetch(`/asistente/preferencias?hora=${new Date().getHours()}`, { credentials: "same-origin" })
+            .then(respuesta => respuesta.ok ? respuesta.json() : null).catch(() => null)
+        : Promise.resolve(null);
     window.sigedClippyPreferencias.then(preferencias => {
         if (!preferencias?.busquedas?.length) return;
         const botones = [...dialogo.querySelectorAll("[data-busqueda-rapida]")];
@@ -101,7 +105,7 @@
     });
     const seccion = window.location.pathname.split("/")[1] || "biblioteca";
     const claveSeccion = `siged-clippy-${window.sigedOpcionesBusqueda.usuarioId}-${seccion}`;
-    if (!sessionStorage.getItem(claveSeccion)) {
+    if (registrarHabitos && !sessionStorage.getItem(claveSeccion)) {
         sessionStorage.setItem(claveSeccion, "1");
         guardarHabito({ tipo: "seccion", valor: seccion });
         guardarHabito({ tipo: "rutina", valor: seccion, hora: new Date().getHours() });

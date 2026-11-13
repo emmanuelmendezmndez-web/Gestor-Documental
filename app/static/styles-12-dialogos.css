@@ -10,7 +10,7 @@
     overflow-y: auto;
     border: 0;
     border-radius: 16px;
-    color: #243247;
+    color: var(--color-texto);
     background: transparent;
     box-shadow: 0 24px 64px rgb(15 23 42 / 24%), 0 4px 16px rgb(15 23 42 / 10%);
 }
@@ -29,9 +29,9 @@
 
 .dialogo-confirmacion-contenido {
     padding: 30px;
-    border: 1px solid #dbe4ef;
+    border: 1px solid var(--color-borde-suave);
     border-radius: 16px;
-    background: white;
+    background: var(--color-superficie);
 }
 
 .dialogo-confirmacion-encabezado { display: flex; align-items: center; gap: 15px; margin-bottom: 18px; }
@@ -42,13 +42,13 @@
     height: 48px;
     place-items: center;
     flex: none;
-    border: 1px solid #bfdbfe;
+    border: 1px solid var(--color-azul-borde);
     border-radius: 12px;
-    color: #1d4ed8;
-    background: #e3edf9;
+    color: var(--color-enlace-intenso);
+    background: var(--color-azul-seleccion);
 }
 
-.dialogo-confirmacion[data-estado="advertencia"] .dialogo-confirmacion-icono { color: #854d0e; background: #fef3c7; border-color: #fde68a; }
+.dialogo-confirmacion[data-estado="advertencia"] .dialogo-confirmacion-icono { color: var(--color-alerta); background: var(--color-alerta-fondo); border-color: light-dark(#fde68a, #86673e); }
 .dialogo-confirmacion-icono .ph-bold { font-size: 25px; }
 .dialogo-confirmacion:not([data-estado="advertencia"]) .dialogo-confirmacion-icono .ph-warning-octagon,
 .dialogo-confirmacion[data-estado="advertencia"] .dialogo-confirmacion-icono .ph-question { display: none; }
@@ -71,12 +71,12 @@
     overflow-wrap: anywhere;
 }
 
-.dialogo-confirmacion-contenido p strong { color: #1e293b; font-weight: 600; }
+.dialogo-confirmacion-contenido p strong { color: var(--color-texto); font-weight: 600; }
 
-.dialogo-confirmacion-afectado { display: grid; gap: 5px; margin-top: 18px; padding: 12px 14px; border: 1px solid #e2e8f0; border-radius: 9px; background: #f8fafc; overflow-wrap: anywhere; }
+.dialogo-confirmacion-afectado { display: grid; gap: 5px; margin-top: 18px; padding: 12px 14px; border: 1px solid var(--color-borde-suave); border-radius: 9px; background: var(--color-fondo-secundario); overflow-wrap: anywhere; }
 .dialogo-confirmacion-afectado[hidden] { display: none; }
-.dialogo-confirmacion-afectado span { color: #64748b; font-size: 12px; font-weight: 600; }
-.dialogo-confirmacion-afectado strong { color: #243247; font-size: 15px; font-weight: 600; line-height: 1.45; }
+.dialogo-confirmacion-afectado span { color: var(--color-texto-suave); font-size: 12px; font-weight: 600; }
+.dialogo-confirmacion-afectado strong { color: var(--color-texto); font-size: 15px; font-weight: 600; line-height: 1.45; }
 .dialogo-confirmacion-afectado-detalle { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .dialogo-confirmacion-afectado-detalle strong { min-width: 0; }
 .dialogo-confirmacion-afectado-icono { display: flex; flex: none; }
@@ -89,7 +89,7 @@
     gap: 10px;
     margin-top: 26px;
     padding-top: 20px;
-    border-top: 1px solid #e8edf4;
+    border-top: 1px solid var(--color-borde-suave);
 }
 
 .dialogo-confirmacion-acciones .boton-secundario,
@@ -97,10 +97,10 @@
 .dialogo-confirmacion-acciones .boton-peligro { min-height: 44px; border-radius: 9px; font-family: inherit; }
 
 .dialogo-confirmacion-acciones button { transition: background-color 0.15s ease, border-color 0.15s ease; }
-.dialogo-confirmacion-acciones button:focus-visible { outline: 3px solid #60a5fa; outline-offset: 2px; }
+.dialogo-confirmacion-acciones button:focus-visible { outline: 3px solid var(--color-foco); outline-offset: 2px; }
 .dialogo-confirmacion-acciones button:active { filter: brightness(.92); }
-.dialogo-confirmacion-acciones .boton-secundario { background: #f8fafc; border: 1px solid #cbd5e1; color: #243247; }
-.dialogo-confirmacion-acciones .boton-secundario:hover { background: #e3edf9; border-color: #94a3b8; }
+.dialogo-confirmacion-acciones .boton-secundario { background: var(--color-fondo-secundario); border: 1px solid var(--color-borde); color: var(--color-texto); }
+.dialogo-confirmacion-acciones .boton-secundario:hover { background: var(--color-azul-seleccion); border-color: var(--color-borde); }
 
 @media (max-width: 420px) {
     .dialogo-confirmacion-contenido { padding: 22px; }

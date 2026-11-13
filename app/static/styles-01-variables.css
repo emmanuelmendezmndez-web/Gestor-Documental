@@ -1,9 +1,40 @@
 :root {
+    color-scheme: light;
     --color-primario: #2563eb;
-    --color-primario-suave: #eff6ff;
-    --color-fondo: #f8fafc;
-    --color-texto: #1e293b;
-    --color-texto-suave: #64748b;
-    --color-borde: #cbd5e1;
     --ancho-contenido: 1000px;
+    --color-fondo: light-dark(#f8fafc, #121927);
+    --color-texto: light-dark(#1e293b, #edf2fa);
+    --color-texto-suave: light-dark(#64748b, #b1bfd1);
+    --color-borde: light-dark(#cbd5e1, #65778f);
+    --color-enlace: light-dark(#2563eb, #93c5fd);
+    --color-primario-suave: light-dark(#eff6ff, #203657);
+    --color-superficie: light-dark(#fff, #1c2738);
+    --color-entrada: light-dark(#fff, #141e2d);
+    --color-fondo-secundario: light-dark(#f8fafc, #162132);
+    --color-fondo-interactivo: light-dark(#e2e8f0, #2a3b53);
+    --color-borde-suave: light-dark(#e2e8f0, #394a62);
+    --color-enlace-intenso: light-dark(#1d4ed8, #a8d0ff);
+    --color-azul-borde: light-dark(#bfdbfe, #4e729c);
+    --color-azul-seleccion: light-dark(#dbeafe, #2a456a);
+    --color-foco: light-dark(#2563eb, #93c5fd);
+    --color-lateral: light-dark(#1d2a3c, #0e1725);
+    --color-exito: light-dark(#166534, #86e6a9);
+    --color-exito-fondo: light-dark(#e8f6ee, #183b30);
+    --color-error: light-dark(#9f261c, #ffb4ab);
+    --color-error-fondo: light-dark(#fdecec, #43272d);
+    --color-alerta: light-dark(#854d0e, #ffda88);
+    --color-alerta-fondo: light-dark(#fef3c7, #433622);
+    --color-violeta: light-dark(#7258a8, #d5c5ff);
+    --color-violeta-fondo: light-dark(#eee9fb, #352a50);
+}
+
+/* Automático se actualiza al cambiar la preferencia del sistema. */
+:root[data-tema="oscuro"] {
+    color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root[data-tema="automatico"] {
+        color-scheme: dark;
+    }
 }

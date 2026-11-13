@@ -133,7 +133,7 @@ with conectar() as db:
     def test_todas_las_rutas_post_rechazan_sin_token(self):
         self.login()
         rutas = (
-            "/salir", "/asistente/habito", "/cuenta/perfil", "/cuenta/password",
+            "/salir", "/ajustes", "/asistente/habito", "/cuenta/perfil", "/cuenta/password",
             "/usuarios", "/usuarios/1/editar", "/usuarios/1/password", "/usuarios/1/estado", "/usuarios/1/eliminar",
             "/avisos", "/avisos/1/estado", "/avisos/1/vencimiento", "/avisos/1/eliminar", "/subir", "/documentos/1/editar",
             "/documentos/1/eliminar", "/documentos/papelera", "/documentos/1/restaurar", "/papelera/restaurar",
@@ -240,6 +240,60 @@ with conectar() as db:
         duplicada = self.cliente.post("/usuarios", data=datos)
         self.assertEqual((duplicada.status_code, duplicada.headers["location"]),
                          (303, "/usuarios/nuevo?aviso=usuario_existe"))
+
+    def test_ajustes_de_clippy_persisten_y_son_individuales(self):
+        self.assertEqual(self.cliente.get("/ajustes").status_code, 303)
+        token = self.login("lectorcsrf")
+        habito = {"tipo": "seccion", "valor": "biblioteca"}
+        cabeceras = {"X-CSRF-Token": token}
+        self.assertTrue(self.cliente.post("/asistente/habito", json=habito, headers=cabeceras).json()["guardado"])
+        self.assertIn("biblioteca", self.cliente.get("/asistente/preferencias").json()["secciones"])
+
+        guardado = self.cliente.post("/ajustes", data={"csrf_token": token, "clippy_consejos": "1"})
+        self.assertEqual((guardado.status_code, guardado.headers["location"]), (303, "/ajustes?guardado=1"))
+        self.assertIn("Tus ajustes se guardaron.", self.cliente.get(guardado.headers["location"]).text)
+        self.assertFalse(self.cliente.post("/asistente/habito", json=habito, headers=cabeceras).json()["guardado"])
+        self.assertEqual(self.cliente.get("/asistente/preferencias").json()["secciones"], [])
+        self.assertEqual(self.cliente.post("/salir", data={"csrf_token": token}).status_code, 303)
+
+        token = self.login("lectorcsrf")
+        inicio = self.cliente.get("/inicio").text
+        self.assertNotIn("clippy_asistente.js", inicio)
+        self.assertIn('id="abrir-busqueda-asistida"', inicio)
+        self.assertIn('"registrarHabitos": false', inicio)
+        with closing(sqlite_temporal(self.temp.name)) as db:
+            ajustes = db.execute(
+                "SELECT usuario, clippy_visible, clippy_consejos, clippy_habitos FROM usuarios "
+                "WHERE usuario IN ('admincsrf', 'lectorcsrf') ORDER BY usuario"
+            ).fetchall()
+            self.assertEqual(ajustes, [("admincsrf", 1, 1, 1), ("lectorcsrf", 0, 1, 0)])
+            self.assertEqual(db.execute(
+                "SELECT veces FROM asistente_habitos JOIN usuarios ON usuarios.id = usuario_id "
+                "WHERE usuario = 'lectorcsrf' AND tipo = 'seccion' AND valor = 'biblioteca'"
+            ).fetchone()[0], 1)
+
+        guardado = self.cliente.post("/ajustes", data={"csrf_token": token, "clippy_visible": "1", "clippy_habitos": "1"})
+        self.assertEqual(guardado.status_code, 303)
+        self.assertIn('data-consejos-automaticos="0"', self.cliente.get("/inicio").text)
+        self.assertIn("biblioteca", self.cliente.get("/asistente/preferencias").json()["secciones"])
+
+    def test_tema_se_guarda_por_usuario_y_se_renderiza_desde_el_inicio(self):
+        token = self.login()
+        datos = {"csrf_token": token, "clippy_visible": "1", "clippy_consejos": "1", "clippy_habitos": "1"}
+        self.assertIn('data-tema="automatico"', self.cliente.get("/ajustes").text)
+        for tema in ("claro", "automatico", "oscuro"):
+            r = self.cliente.post("/ajustes", data={**datos, "tema": tema})
+            self.assertEqual(r.status_code, 303)
+            ajustes = self.cliente.get(r.headers["location"]).text
+            self.assertIn(f'data-tema="{tema}"', ajustes)
+            self.assertIn(f'value="{tema}" selected', ajustes)
+        self.assertEqual(self.cliente.post("/ajustes", data={**datos, "tema": "invalido"}).status_code, 422)
+        self.assertEqual(self.cliente.post("/salir", data={"csrf_token": token}).status_code, 303)
+        token = self.login()
+        self.assertIn('<html lang="es" data-tema="oscuro">', self.cliente.get("/inicio").text)
+        self.assertEqual(self.cliente.post("/salir", data={"csrf_token": token}).status_code, 303)
+        self.login("lectorcsrf")
+        self.assertIn('<html lang="es" data-tema="automatico">', self.cliente.get("/inicio").text)
 
     def test_lector_sigue_sin_permiso(self):
         token = self.login("lectorcsrf")

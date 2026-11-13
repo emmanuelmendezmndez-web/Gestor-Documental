@@ -174,7 +174,7 @@ def usuario_actual(request: Request):
         fila = conexion.execute(
             """
             SELECT id, usuario, nombre, correo, telefono, foto_perfil,
-                   rol, departamento, version_sesion
+                   rol, departamento, version_sesion, clippy_visible, clippy_consejos, clippy_habitos, tema
             FROM usuarios
             WHERE id = ? AND activo = 1
             """,

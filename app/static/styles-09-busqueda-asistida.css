@@ -1,11 +1,11 @@
-.boton-busqueda-asistida { white-space: nowrap; border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8; border-radius: 10px; padding: 10px 12px; cursor: pointer; }
-.boton-busqueda-asistida:hover { background: #dbeafe; }
-.busqueda-asistida-dialogo { width: min(560px, calc(100vw - 32px)); border: 0; border-radius: 16px; padding: 26px; color: #1e293b; box-shadow: 0 20px 60px #0f172a44; }
+.boton-busqueda-asistida { white-space: nowrap; border: 1px solid var(--color-azul-borde); background: var(--color-primario-suave); color: var(--color-enlace-intenso); border-radius: 10px; padding: 10px 12px; cursor: pointer; }
+.boton-busqueda-asistida:hover { background: var(--color-azul-seleccion); }
+.busqueda-asistida-dialogo { width: min(560px, calc(100vw - 32px)); border: 0; border-radius: 16px; padding: 26px; color: var(--color-texto); box-shadow: 0 20px 60px #0f172a44; }
 .busqueda-asistida-dialogo::backdrop { background: #0f172a99; }
 .busqueda-asistida-dialogo[open] { animation: dialogo-aparece 0.2s cubic-bezier(0.2, 0.75, 0.25, 1) both; }
 .busqueda-asistida-dialogo[open]::backdrop { animation: fondo-dialogo-aparece 0.15s ease-out both; }
 .busqueda-asistida-acciones button { transition: background-color 0.15s ease, border-color 0.15s ease; }
-.busqueda-asistida-acciones button:focus-visible { outline: 3px solid #60a5fa; outline-offset: 2px; }
+.busqueda-asistida-acciones button:focus-visible { outline: 3px solid var(--color-foco); outline-offset: 2px; }
 .busqueda-asistida-acciones button:active { filter: brightness(.92); }
 @media (prefers-reduced-motion: reduce) {
  .busqueda-asistida-dialogo[open], .busqueda-asistida-dialogo[open]::backdrop { animation: none; }
@@ -13,15 +13,15 @@
 }
 .busqueda-asistida-dialogo form { display: grid; gap: 14px; }
 .busqueda-asistida-dialogo h2, .busqueda-asistida-dialogo p { margin: 0; }
-.busqueda-asistida-dialogo input { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; }
-.campo-busqueda-asistida { display: flex; align-items: center; gap: 9px; padding-left: 12px; border: 1px solid #cbd5e1; border-radius: 10px; background: #fff; }
-.campo-busqueda-asistida:focus-within { border-color: #2563eb; box-shadow: 0 0 0 3px #dbeafe; }
+.busqueda-asistida-dialogo input { width: 100%; padding: 12px; border: 1px solid var(--color-borde); border-radius: 8px; }
+.campo-busqueda-asistida { display: flex; align-items: center; gap: 9px; padding-left: 12px; border: 1px solid var(--color-borde); border-radius: 10px; background: var(--color-superficie); }
+.campo-busqueda-asistida:focus-within { border-color: var(--color-enlace); box-shadow: 0 0 0 3px #dbeafe; }
 .campo-busqueda-asistida > span { flex: 0 0 auto; font-size: 1.1rem; }
 .busqueda-asistida-dialogo .campo-busqueda-asistida input { min-width: 0; border: 0; outline: 0; box-shadow: none; }
 .busquedas-rapidas { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 3px; }
-.busquedas-rapidas button { flex: 0 0 auto; padding: 7px 10px; border: 1px solid #bfdbfe; border-radius: 999px; background: #eff6ff; color: #1d4ed8; font: inherit; font-weight: 600; font-size: .82rem; cursor: pointer; }
-.busquedas-rapidas button:hover, .busquedas-rapidas button:focus-visible { background: #dbeafe; border-color: #60a5fa; }
-.busqueda-asistida-dialogo #filtros-sugeridos { padding: 10px 12px; border-left: 3px solid #60a5fa; background: #f8fafc; border-radius: 6px; font-size: .85rem; }
+.busquedas-rapidas button { flex: 0 0 auto; padding: 7px 10px; border: 1px solid var(--color-azul-borde); border-radius: 999px; background: var(--color-primario-suave); color: var(--color-enlace-intenso); font: inherit; font-weight: 600; font-size: .82rem; cursor: pointer; }
+.busquedas-rapidas button:hover, .busquedas-rapidas button:focus-visible { background: var(--color-azul-seleccion); border-color: var(--color-foco); }
+.busqueda-asistida-dialogo #filtros-sugeridos { padding: 10px 12px; border-left: 3px solid var(--color-foco); background: var(--color-fondo-secundario); border-radius: 6px; font-size: .85rem; }
 .busqueda-asistida-dialogo #filtros-sugeridos[hidden] { display: none; }
 .busqueda-asistida-acciones { display: flex; justify-content: flex-end; gap: 8px; }
 @media (max-width: 900px) { .boton-busqueda-asistida span { display: none; } }

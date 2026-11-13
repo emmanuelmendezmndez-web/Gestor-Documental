@@ -10,8 +10,8 @@
 .pestanas a {
     padding: 8px 16px;
     border-radius: 6px;
-    background: white;
-    color: var(--color-primario);
+    background: var(--color-superficie);
+    color: var(--color-enlace);
     font-weight: 600;
     text-decoration: none;
 }
@@ -46,16 +46,16 @@
     padding: 8px 22px;
     border: 2px solid var(--color-primario);
     border-radius: 999px;
-    background: white;
-    color: var(--color-primario);
+    background: var(--color-superficie);
+    color: var(--color-enlace);
     box-shadow: 0 3px 6px rgb(0 0 0 / 18%);
     text-decoration: none;
     transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
 }
 
 .boton-descargar {
-    border-color: #059669;
-    color: #047857;
+    border-color: var(--color-exito);
+    color: var(--color-exito);
 }
 
 .boton-ver:hover,
@@ -65,7 +65,7 @@
 }
 
 .boton-descargar:hover {
-    background: #ecfdf5;
+    background: var(--color-exito-fondo);
     transform: translateY(-1px);
 }
 
@@ -85,7 +85,7 @@
 /* ---------- Ficha del documento ---------- */
 
 .enlace-titulo {
-    color: var(--color-primario);
+    color: var(--color-enlace);
     font-weight: 600;
     text-decoration: none;
 }
@@ -97,14 +97,14 @@
 .enlace-volver {
     display: inline-block;
     margin-bottom: 20px;
-    color: var(--color-primario);
+    color: var(--color-enlace);
     font-weight: 600;
     text-decoration: none;
     transition: color 0.16s ease, transform 0.16s ease;
 }
 
 .enlace-volver:hover {
-    color: #1d4ed8;
+    color: var(--color-enlace-intenso);
     text-decoration: underline;
     transform: translateX(-3px);
 }
@@ -112,9 +112,9 @@
 .vista-previa-integrada {
     margin: 28px 0 8px;
     padding: 18px;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--color-borde-suave);
     border-radius: 12px;
-    background: #f8fafc;
+    background: var(--color-fondo-secundario);
 }
 
 .vista-previa-encabezado {
@@ -136,7 +136,7 @@
 
 .enlace-abrir-vista {
     flex: 0 0 auto;
-    color: #2563eb;
+    color: var(--color-enlace);
     font-size: 0.9rem;
     font-weight: 600;
     text-decoration: none;
@@ -151,7 +151,7 @@
     width: 100%;
     height: min(72vh, 860px);
     min-height: 420px;
-    border: 1px solid #cbd5e1;
+    border: 1px solid var(--color-borde);
     border-radius: 8px;
     background: white;
 }
@@ -175,10 +175,10 @@
 .ficha-alerta {
     margin-bottom: 24px;
     padding: 12px 16px;
-    border-left: 5px solid #c0392b;
+    border-left: 5px solid var(--color-error);
     border-radius: 6px;
-    background: #fdecec;
-    color: #8a1f14;
+    background: var(--color-error-fondo);
+    color: var(--color-error);
 }
 
 .ficha-datos {
@@ -217,7 +217,7 @@
     gap: 12px;
     margin-top: 28px;
     padding-top: 20px;
-    border-top: 1px solid #e2e8f0;
+    border-top: 1px solid var(--color-borde-suave);
 }
 
 /* ---------- Eliminar ---------- */
@@ -228,17 +228,17 @@
     justify-content: center;
     min-width: 64px;
     padding: 8px 22px;
-    border: 2px solid #c0392b;
+    border: 2px solid var(--color-error);
     border-radius: 999px;
-    background: white;
-    color: #c0392b;
+    background: var(--color-superficie);
+    color: var(--color-error);
     box-shadow: 0 3px 6px rgb(0 0 0 / 18%);
     text-decoration: none;
     transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
 }
 
 .boton-eliminar:hover {
-    background: #fdecec;
+    background: var(--color-error-fondo);
     transform: translateY(-1px);
 }
 
@@ -256,9 +256,9 @@
 }
 
 .accion-seleccion-papelera:disabled {
-    border-color: #cbd5e1;
-    background: #cbd5e1;
-    color: #64748b;
+    border-color: var(--color-borde);
+    background: var(--color-borde);
+    color: var(--color-texto-suave);
     opacity: 0.58;
     box-shadow: none;
     cursor: not-allowed;
@@ -271,7 +271,7 @@
 }
 
 .confirmacion {
-    border-top: 5px solid #c0392b;
+    border-top: 5px solid var(--color-error);
 }
 
 .boton-peligro {
@@ -338,9 +338,9 @@
 }
 
 [data-requires-selection]:disabled {
-    border-color: #cbd5e1;
-    background: #cbd5e1;
-    color: #64748b;
+    border-color: var(--color-borde);
+    background: var(--color-borde);
+    color: var(--color-texto-suave);
     opacity: 0.58;
     box-shadow: none;
     cursor: not-allowed;

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block titulo %}Ajustes | NexusGrid{% endblock %}
+
+{% block recursos_pagina %}
+    <script src="{{ url_for('static', path='tema-ajustes.js') }}?v=1" defer></script>
+{% endblock %}
+
+{% block contenido %}
+<section class="panel" aria-label="Preferencias personales">
+    <form action="/ajustes" method="post" class="formulario-cuenta-perfil ajustes-clippy">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="campo">
+            <label for="tema-ajustes">Tema</label>
+            <select id="tema-ajustes" name="tema" aria-describedby="tema-ajustes-nota">
+                {% for valor, etiqueta in [('claro', 'Claro'), ('oscuro', 'Oscuro'), ('automatico', 'Automático')] %}
+                <option value="{{ valor }}"{% if usuario['tema'] == valor %} selected{% endif %}>{{ etiqueta }}</option>
+                {% endfor %}
+            </select>
+            <p class="nota" id="tema-ajustes-nota">Automático sigue la preferencia del sistema. Guarda los ajustes para conservar tu elección.</p>
+        </div>
+        <h2>Clippy</h2>
+        <div class="campo">
+            <label class="ajuste-clippy">
+                <input type="checkbox" name="clippy_visible" value="1" aria-describedby="ajuste-clippy-visible" {% if usuario["clippy_visible"] %}checked{% endif %}>
+                Mostrar Clippy
+            </label>
+            <p class="nota" id="ajuste-clippy-visible">Muestra el personaje en pantalla. Puedes pedir ayuda desde «Con Clippy» aunque lo ocultes.</p>
+        </div>
+        <div class="campo">
+            <label class="ajuste-clippy">
+                <input type="checkbox" name="clippy_consejos" value="1" aria-describedby="ajuste-clippy-consejos" {% if usuario["clippy_consejos"] %}checked{% endif %}>
+                Activar consejos automáticos
+            </label>
+            <p class="nota" id="ajuste-clippy-consejos">Permite que el personaje muestre saludos, consejos y recordatorios por iniciativa propia.</p>
+        </div>
+        <div class="campo">
+            <label class="ajuste-clippy">
+                <input type="checkbox" name="clippy_habitos" value="1" aria-describedby="ajuste-clippy-habitos" {% if usuario["clippy_habitos"] %}checked{% endif %}>
+                Permitir el registro de hábitos
+            </label>
+            <p class="nota" id="ajuste-clippy-habitos">Usa tu actividad para personalizar sugerencias. Al desactivarlo, se pausa el registro y el uso de tu historial.</p>
+        </div>
+        <button type="submit">Guardar ajustes</button>
+    </form>
+</section>
+{% endblock %}

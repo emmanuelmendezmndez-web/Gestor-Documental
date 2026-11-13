@@ -17,7 +17,7 @@ function iniciar(ruta = '/inicio', config = {}, opciones = {}) {
         ...(opciones.mensajeria ? {mensajeria:{}, 'mensajeria-compositor':compositor,
             'mensajeria-texto':texto, 'mensajeria-enviar':envio, 'mensajeria-selector':selector} : {})};
     class Entrada { constructor(){ this.type='text'; this.value='ficticio'; this.dataset={clippyRead:'Búsqueda'}; } hasAttribute(){return true;} closest(){return null;} }
-    const document = {readyState:'complete', addEventListener(tipo, fn){ (eventos[tipo] ||= []).push(fn); },
+    const document = {readyState:'complete', currentScript:{dataset:{consejosAutomaticos: opciones.consejosAutomaticos}}, addEventListener(tipo, fn){ (eventos[tipo] ||= []).push(fn); },
         removeEventListener(tipo, fn){ eventos[tipo] = (eventos[tipo] || []).filter(handler => handler !== fn); },
         getElementById(id){return elementos[id] || null;},
         querySelector(q){return q === '.clippy' ? figura : null;},
@@ -56,6 +56,19 @@ test('la ayuda solicitada solo habla del apartado, y el saludo no recomienda há
     assert.equal(p.dichos.length, 2);
     assert.doesNotMatch(p.dichos[0], /Biblioteca|Sueles/);
     assert.equal(p.dichos[1], 'En Inicio puedes consultar indicadores, avisos y los documentos recientes.');
+});
+test('desactivar consejos automáticos conserva la ayuda al pulsar el personaje', () => {
+    const p = iniciar('/inicio', {saludoEntrada:true}, {consejosAutomaticos:'0',
+        preferencias:{experiencia:'habitual', rutina:'biblioteca', secciones:['biblioteca']}});
+    for (const fn of p.eventos.input) fn({target: new p.Entrada()});
+    p.avanzar(180001);
+    p.ejecutar(3000);
+    p.ejecutar(180001);
+    assert.deepEqual(p.dichos, []);
+    assert.equal(p.eventos.pointerdown, undefined);
+    p.figura.click();
+    assert.equal(p.dichos.length, 1);
+    assert.match(p.dichos[0], /En Inicio/);
 });
 test('un hábito se recomienda una sola vez tras superar tres minutos sin actividad', () => {
     const p = iniciar('/inicio', {}, {preferencias:{experiencia:'habitual', secciones:['biblioteca']}});

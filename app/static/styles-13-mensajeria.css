@@ -27,17 +27,17 @@
     min-height: 42px;
     padding: 0;
     place-items: center;
-    border: 1px solid #d6e1ed;
+    border: 1px solid var(--color-borde-suave);
     border-radius: 10px;
-    background: #f3f7fc;
-    color: #17365d;
+    background: var(--color-fondo-secundario);
+    color: var(--color-enlace-intenso);
     cursor: pointer;
     list-style: none;
 }
 .mensajeria-campana summary::-webkit-details-marker,
 .mensajeria-chat-acciones summary::-webkit-details-marker { display: none; }
 .mensajeria-campana summary:hover, .mensajeria-campana[open] summary,
-.mensajeria-chat-acciones summary:hover { background: #e3edf9; }
+.mensajeria-chat-acciones summary:hover { background: var(--color-azul-seleccion); }
 .mensajeria-campana svg, .mensajeria svg:not(.icono-archivo) {
     width: 20px;
     height: 20px;
@@ -54,10 +54,10 @@
     position: absolute;
     z-index: 4;
     inset: calc(100% + 8px) 0 auto auto;
-    border: 1px solid #d8e2ee;
+    border: 1px solid var(--color-borde-suave);
     border-radius: 12px;
-    background: #fff;
-    color: #243247;
+    background: var(--color-superficie);
+    color: var(--color-texto);
     box-shadow: 0 10px 30px #17365d21;
 }
 .mensajeria-notificaciones { width: min(23rem, calc(100vw - 24px)); padding: 0; }
@@ -66,16 +66,16 @@
     align-items: center;
     gap: .55rem;
     padding: .85rem 1rem;
-    border-bottom: 1px solid #e5edf6;
-    color: #17365d;
+    border-bottom: 1px solid var(--color-borde-suave);
+    color: var(--color-enlace-intenso);
 }
 .mensajeria-notificaciones h2 { margin: 0; font-size: 1rem; }
 .mensajeria-notificaciones-estado {
     margin: .65rem;
     padding: 1rem .75rem;
     border-radius: 8px;
-    background: #f5f8fc;
-    color: #4c6079;
+    background: var(--color-fondo-secundario);
+    color: var(--color-texto-suave);
     text-align: center;
     font-size: .86rem;
 }
@@ -88,27 +88,27 @@
     gap: .65rem;
     padding: .65rem .55rem;
     border-radius: 8px;
-    color: #17365d;
+    color: var(--color-enlace-intenso);
     text-decoration: none;
 }
-.mensajeria-notificacion:is(:hover, :focus-visible) { background: #eef4fb; }
+.mensajeria-notificacion:is(:hover, :focus-visible) { background: var(--color-fondo-interactivo); }
 .mensajeria-notificacion-icono {
     display: grid;
     width: 2.35rem;
     aspect-ratio: 1;
     place-items: center;
     border-radius: 9px;
-    background: #e8f0fb;
-    color: #254e8d;
+    background: var(--color-primario-suave);
+    color: var(--color-enlace-intenso);
 }
 .mensajeria-notificacion-texto { display: grid; gap: .12rem; overflow-wrap: anywhere; }
 .mensajeria-notificacion-texto strong { font-size: .9rem; }
-.mensajeria-notificacion-texto small, .mensajeria-notificacion-texto time { color: #4c6079; font-size: .76rem; }
-.mensajeria-notificacion-datos { display: flex; align-items: center; gap: .28rem; color: #4c6079; }
+.mensajeria-notificacion-texto small, .mensajeria-notificacion-texto time { color: var(--color-texto-suave); font-size: .76rem; }
+.mensajeria-notificacion-datos { display: flex; align-items: center; gap: .28rem; color: var(--color-texto-suave); }
 .mensajeria-notificacion-datos svg { width: 15px; height: 15px; }
 .mensajeria-notificacion-punto { width: 8px; height: 8px; border-radius: 50%; background: #15803d; }
 :is(.mensajeria, .mensajeria-campana) :is(button, summary, a, input, textarea, [tabindex="0"]):focus-visible {
-    outline: 2px solid #2563eb;
+    outline: 2px solid var(--color-foco);
     outline-offset: 2px;
 }
 
@@ -122,10 +122,10 @@
     padding: clamp(12px, 2vw, 28px);
 }
 .mensajeria {
-    --msj-texto: #243247;
-    --msj-secundario: #4c6079;
-    --msj-borde: #d9e3ee;
-    --msj-azul: #17365d;
+    --msj-texto: var(--color-texto);
+    --msj-secundario: var(--color-texto-suave);
+    --msj-borde: var(--color-borde-suave);
+    --msj-azul: var(--color-enlace-intenso);
     display: grid;
     width: 100%;
     min-width: 0;
@@ -133,7 +133,7 @@
     grid-template-columns: minmax(232px, 31%) minmax(0, 1fr);
     border: 1px solid var(--msj-borde);
     border-radius: 16px;
-    background: #fff;
+    background: var(--color-superficie);
     color: var(--msj-texto);
     box-shadow: 0 4px 16px #17365d0c;
 }
@@ -153,20 +153,20 @@
     padding-inline: .65rem;
     border: 1px solid var(--msj-borde);
     border-radius: 9px;
-    background: #f5f8fc;
+    background: var(--color-fondo-secundario);
     color: var(--msj-secundario);
 }
 .mensajeria-buscador input { background: transparent; border: 0; padding-inline: 0; }
-.mensajeria-buscador:focus-within { outline: 2px solid #2563eb; }
+.mensajeria-buscador:focus-within { outline: 2px solid var(--color-foco); }
 .mensajeria-bandeja-filtros { display: flex; gap: .4rem; }
 .mensajeria-bandeja-filtros button {
     padding: .55rem .65rem;
     border-radius: 7px;
-    background: #f3f6fa;
+    background: var(--color-fondo-interactivo);
     color: var(--msj-secundario);
     font-size: .83rem;
 }
-.mensajeria-bandeja-filtros button[aria-pressed="true"] { background: #e3edf9; color: var(--msj-azul); }
+.mensajeria-bandeja-filtros button[aria-pressed="true"] { background: var(--color-azul-seleccion); color: var(--msj-azul); }
 .mensajeria-bandeja-listado, .mensajeria-historial {
     min-height: 0;
     flex: 1;
@@ -190,8 +190,8 @@
     color: var(--msj-texto);
     text-align: start;
 }
-.mensajeria-conversaciones button:hover, .mensajeria-opciones button:hover { background: #f0f5fb; }
-.mensajeria-conversaciones button[aria-current="true"] { background: #e3edf9; border-inline-start-color: #2563eb; }
+.mensajeria-conversaciones button:hover, .mensajeria-opciones button:hover { background: var(--color-fondo-interactivo); }
+.mensajeria-conversaciones button[aria-current="true"] { background: var(--color-azul-seleccion); border-inline-start-color: var(--color-enlace); }
 .mensajeria-avatar {
     display: grid;
     width: 2.55rem;
@@ -199,8 +199,8 @@
     flex: none;
     place-items: center;
     border-radius: 50%;
-    background: #dce8f6;
-    color: #17365d;
+    background: var(--color-azul-seleccion);
+    color: var(--color-enlace-intenso);
     font-size: .82rem;
     font-weight: 750;
 }
@@ -220,7 +220,7 @@
     padding: clamp(1rem, 3vw, 3rem);
     overflow: auto;
     border-radius: 0 16px 16px 0;
-    background: #f7fafd;
+    background: var(--color-fondo-secundario);
     text-align: center;
 }
 .mensajeria-bienvenida img { width: min(300px, 82%); height: auto; margin-bottom: .3rem; }
@@ -233,8 +233,8 @@
     margin-top: .2rem;
     font-size: .84rem;
 }
-.mensajeria-permisos svg { color: #15803d; }
-.mensajeria-chat { border-radius: 0 16px 16px 0; background: #ecf2f8; }
+.mensajeria-permisos svg { color: var(--color-exito); }
+.mensajeria-chat { border-radius: 0 16px 16px 0; background: var(--color-fondo-secundario); }
 .mensajeria-chat-cabecera {
     display: flex;
     align-items: center;
@@ -244,13 +244,13 @@
     border-radius: inherit;
     border-bottom-left-radius: 0;
     border-bottom-right-radius: 0;
-    background: #f6f9fd;
+    background: var(--color-fondo-secundario);
 }
 .mensajeria-chat-identidad { min-width: 0; flex: 1; }
 .mensajeria-chat-acciones { position: relative; flex: none; }
 .mensajeria-chat-acciones > div { display: grid; width: min(15rem, calc(100vw - 32px)); gap: .25rem; padding: .4rem; }
-.mensajeria-chat-acciones button { padding: .7rem; border-radius: 7px; background: #fff; color: var(--msj-azul); text-align: start; }
-.mensajeria-chat-acciones button:hover { background: #e3edf9; }
+.mensajeria-chat-acciones button { padding: .7rem; border-radius: 7px; background: var(--color-superficie); color: var(--msj-azul); text-align: start; }
+.mensajeria-chat-acciones button:hover { background: var(--color-azul-seleccion); }
 .mensajeria-historial { margin-inline-end: 20px; padding: .85rem clamp(.7rem, 2vw, 1.65rem); overflow-anchor: none; }
 .mensajeria-estado { padding: .65rem; color: var(--msj-secundario); font-size: .9rem; }
 .mensajeria-estado:empty { display: none; }
@@ -261,11 +261,11 @@
     display: grid;
     gap: .5rem;
     padding: .65rem .8rem;
-    border: 1px solid #dce6ef;
+    border: 1px solid var(--color-borde-suave);
     border-radius: 4px 13px 13px 13px;
-    background: #fff;
+    background: var(--color-superficie);
 }
-.enviado .mensajeria-burbuja { background: #dce8f5; border-color: #d1deed; border-radius: 13px 4px 13px 13px; }
+.enviado .mensajeria-burbuja { background: var(--color-azul-seleccion); border-color: var(--color-azul-borde); border-radius: 13px 4px 13px 13px; }
 .mensajeria-texto { white-space: pre-wrap; overflow-wrap: anywhere; }
 .mensajeria-hora { justify-self: end; color: var(--msj-secundario); font-size: .73rem; }
 .mensajeria-tarjeta {
@@ -275,9 +275,9 @@
     gap: .45rem .6rem;
     min-width: 0;
     padding: .55rem;
-    border: 1px solid #d4e0ed;
+    border: 1px solid var(--color-borde-suave);
     border-radius: 8px;
-    background: #f8fafc;
+    background: var(--color-fondo-secundario);
     font-size: .85rem;
 }
 .mensajeria-tarjeta > svg { flex: none; }
@@ -286,7 +286,7 @@
 .mensajeria-archivo-datos small { color: var(--msj-secundario); }
 .mensajeria-archivo-datos select { min-width: 0; max-width: 100%; }
 .mensajeria-archivo-acciones { display: flex; flex-wrap: wrap; gap: .25rem; }
-.mensajeria-tarjeta a { color: #1749aa; padding: .55rem .25rem; font-weight: 600; }
+.mensajeria-tarjeta a { color: var(--color-enlace-intenso); padding: .55rem .25rem; font-weight: 600; }
 .mensajeria-compositor {
     position: relative;
     display: grid;
@@ -296,7 +296,7 @@
     padding: .72rem 1rem;
     border-top: 1px solid var(--msj-borde);
     border-radius: 0 0 16px 0;
-    background: #fff;
+    background: var(--color-superficie);
 }
 .mensajeria-compositor textarea {
     width: 100%;
@@ -321,13 +321,13 @@
     justify-content: center;
     gap: .36rem;
     padding: .42rem .65rem;
-    border: 1px solid #cfdbeb;
+    border: 1px solid var(--color-borde-suave);
     border-radius: 8px;
-    background: #f4f8fc;
+    background: var(--color-fondo-secundario);
     color: var(--msj-azul);
     font-size: .85rem;
 }
-.mensajeria button.mensajeria-secundario:hover { background: #e3edf9; }
+.mensajeria button.mensajeria-secundario:hover { background: var(--color-azul-seleccion); }
 .mensajeria button.mensajeria-secundario[hidden] { display: none; }
 .mensajeria button.mensajeria-icono-boton { min-width: 42px; padding: 0; }
 .mensajeria button.mensajeria-enviar {
@@ -364,10 +364,10 @@
     align-items: flex-start;
     gap: .55rem;
     padding: .55rem .7rem;
-    border: 1px solid #cfe5d6;
+    border: 1px solid light-dark(#cfe5d6, #426854);
     border-radius: 10px;
-    background: #f6fbf7;
-    color: #18492c;
+    background: var(--color-exito-fondo);
+    color: var(--color-exito);
     box-shadow: 0 3px 12px #17365d16;
     font-size: .86rem;
     font-weight: 600;
@@ -382,12 +382,12 @@
     flex: none;
     place-items: center;
     border-radius: 50%;
-    background: #dff2e5;
-    color: #13743b;
+    background: var(--color-exito-fondo);
+    color: var(--color-exito);
 }
 .mensajeria-aviso-icono .ph-bold { font-size: 16px; }
-.mensajeria-aviso-envio[data-tipo="error"] { border-color: #f1d0cd; background: #fff7f6; color: #81221c; }
-.mensajeria-aviso-envio[data-tipo="error"] .mensajeria-aviso-icono { background: #fce5e3; color: #a62b22; }
+.mensajeria-aviso-envio[data-tipo="error"] { border-color: light-dark(#f1d0cd, #80535a); background: var(--color-error-fondo); color: var(--color-error); }
+.mensajeria-aviso-envio[data-tipo="error"] .mensajeria-aviso-icono { background: var(--color-error-fondo); color: var(--color-error); }
 .mensajeria-aviso-envio[data-tipo="error"] [data-tipo="exito"],
 .mensajeria-aviso-envio[data-tipo="exito"] [data-tipo="error"] { display: none; }
 @keyframes mensajeria-aviso-entrada {
@@ -404,7 +404,7 @@
     padding: 1rem;
     border: 1px solid var(--msj-borde);
     border-radius: 14px;
-    background: #fff;
+    background: var(--color-superficie);
     color: var(--msj-texto);
     box-shadow: 0 16px 50px #17365d30;
 }

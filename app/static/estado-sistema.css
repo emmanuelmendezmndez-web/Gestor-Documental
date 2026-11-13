@@ -2,17 +2,17 @@
     width: fit-content;
     max-width: 100%;
     margin-top: .85rem;
-    color: #854d0e;
+    color: var(--color-alerta);
     font-size: .85rem;
     overflow-wrap: anywhere;
 }
 
 .estado-sistema[data-estado="operativo"] {
-    color: #166534;
+    color: var(--color-exito);
 }
 
 .estado-sistema[data-estado="critico"] {
-    color: #991b1b;
+    color: var(--color-error);
 }
 
 .estado-sistema-encabezado {

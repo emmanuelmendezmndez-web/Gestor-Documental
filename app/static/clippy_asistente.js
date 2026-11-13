@@ -2,6 +2,7 @@
     if (!window.clippy) return;
     const config = window.sigedClippyConfig;
     if (!config) return;
+    const consejosAutomaticos = document.currentScript?.dataset.consejosAutomaticos !== "0";
     clippy.BASE_PATH = config.basePath;
 
     function cargarAsistente() {
@@ -274,6 +275,8 @@
                 ayudaDeEstaSeccion = "Pulsa Nuevo usuario para abrir el formulario de creación. Puedes administrar una cuenta existente desde su ficha.";
             } else if (ruta === "/cuenta") {
                 ayudaDeEstaSeccion = "En Mi cuenta puedes actualizar tus datos y foto; tu rol y área los administra un administrador.";
+            } else if (ruta === "/ajustes") {
+                ayudaDeEstaSeccion = "En Ajustes puedes configurar mi visibilidad, los consejos automáticos y el uso de tus hábitos.";
             } else if (ruta === "/actividad") {
                 ayudaDeEstaSeccion = "El registro de actividad permite revisar quién realizó cambios y cuándo.";
             } else if (ruta === "/avisos") {
@@ -391,7 +394,7 @@
                 }
             });
             const decirConsejo = (texto, forzar = false, mantener = false) => {
-                if (mensajeria || !texto || dialogoOcupado() || consejosMostrados.has(texto)) return false;
+                if (!consejosAutomaticos || mensajeria || !texto || dialogoOcupado() || consejosMostrados.has(texto)) return false;
                 if (!forzar && ultimaEscritura && Date.now() - ultimaEscritura < 3000) return false;
                 if (!forzar && accionSaludo && !accionSaludo.hidden) return false;
                 if (!forzar && Date.now() - ultimoConsejo < (esHabitual ? 20000 : 5000)) return false;
@@ -481,7 +484,7 @@
 
             const lecturasProgramadas = new WeakMap();
             const programarLectura = (evento) => {
-                if (mensajeria) return;
+                if (!consejosAutomaticos || mensajeria) return;
                 const campo = evento.target;
                 if (!(campo instanceof HTMLInputElement) || !campo.hasAttribute("data-clippy-read")) return;
                 if (["password", "file", "hidden", "button", "submit", "checkbox", "radio"].includes(campo.type)) return;
@@ -598,7 +601,7 @@
             }
 
             window.sigedClippyPreferencias?.then(preferencias => {
-                if (mensajeria) return;
+                if (!consejosAutomaticos || mensajeria) return;
                 esHabitual = preferencias?.experiencia === "habitual";
                 const seccionFrecuente = preferencias?.secciones?.[0];
                 const nombresSeccion = { inicio: "Inicio", biblioteca: "Biblioteca", expedientes: "Expedientes",
