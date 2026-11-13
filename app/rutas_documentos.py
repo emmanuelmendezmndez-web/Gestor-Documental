@@ -2,6 +2,7 @@
 
 import logging
 from pathlib import Path
+from typing import Annotated
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
@@ -30,6 +31,7 @@ from app.vista_documental import pagina as pagina_vista_documental
 
 logger = logging.getLogger("gestor")
 router = APIRouter()
+ARCHIVO_REQUERIDO = File(...)
 
 def fallo_subida(
     request: Request,
@@ -87,7 +89,7 @@ def subir(
     departamento: str = Form(""),
     fecha_documento: str = Form(""),
     autor: str = Form(""),
-    archivo: UploadFile = File(...),
+    archivo: UploadFile = ARCHIVO_REQUERIDO,
 ):
     datos, error = limpiar_metadatos(
         titulo, categoria, descripcion, numero_oficio,
@@ -541,7 +543,7 @@ def eliminar_documento(request: Request, documento_id: int):
 )
 def enviar_documentos_papelera(
     request: Request,
-    documento_ids: list[int] = Form(default=[]),
+    documento_ids: Annotated[list[int], Form(default_factory=list)],
 ):
     ids, placeholders, error = leer_seleccion(documento_ids)
     if error:

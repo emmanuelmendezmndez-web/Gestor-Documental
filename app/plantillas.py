@@ -1,9 +1,9 @@
 from fastapi.templating import Jinja2Templates
 
+from app.catalogos import CATEGORIAS, DEPARTAMENTOS
 from app.configuracion import APP_DIR
 from app.csrf import token_csrf
 from app.seguridad import contexto_usuario
-from app.catalogos import CATEGORIAS, DEPARTAMENTOS
 
 templates = Jinja2Templates(
     directory=APP_DIR / "templates",

@@ -41,7 +41,7 @@ def analizar(datos):
         raise ValueError("Respaldo fuera de la ubicación permitida")
     estado, paso = datos["estado"], datos["paso"]
     if not isinstance(estado, str) or not isinstance(paso, str):
-        raise ValueError("Estado inválido")
+        raise TypeError("Estado inválido")
     if not ((estado, paso) in {("iniciada", "preparada"), ("pendiente", "verificacion"), ("finalizada", "verificada")}
             or (estado in {"pendiente", "confirmada"} and paso in CAMBIOS)):
         raise ValueError("Estado y paso contradictorios")

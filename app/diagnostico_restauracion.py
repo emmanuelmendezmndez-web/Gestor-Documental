@@ -1,15 +1,15 @@
 """Informe administrativo conservador; no abre SQLite ni modifica evidencias."""
-import hashlib
 import argparse
+import hashlib
 import json
 import os
-from pathlib import Path
 import re
 import stat
+from pathlib import Path
 
-from app import registro_restauracion as registro
 from app import inventario_restauracion as inv
-from app.configuracion import DB_PATH, STORAGE_DIR, SECRET_PATH
+from app import registro_restauracion as registro
+from app.configuracion import DB_PATH, SECRET_PATH, STORAGE_DIR
 
 
 def _seguro(raiz, partes):

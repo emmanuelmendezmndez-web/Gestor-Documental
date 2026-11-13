@@ -1,8 +1,11 @@
 """Rutas de SIGED."""
 
 from pathlib import Path
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+
 from app.actividad import registrar
 from app.catalogos import DEPARTAMENTOS
 from app.configuracion import AVISOS_DIR
@@ -10,8 +13,13 @@ from app.database import conectar
 from app.eliminaciones import encolar, procesar_tareas
 from app.mensajes import AVISOS
 from app.plantillas import templates
-from app.servicios.avisos import DURACIONES_AVISO, MAX_DIAS_AVISO, calcular_vencimiento, crear_aviso_servicio
 from app.seguridad import requiere_permiso
+from app.servicios.avisos import (
+    DURACIONES_AVISO,
+    MAX_DIAS_AVISO,
+    calcular_vencimiento,
+    crear_aviso_servicio,
+)
 
 router = APIRouter()
 
@@ -57,7 +65,7 @@ def gestionar_avisos(request: Request, aviso: str | None = None):
 def crear_aviso(
     request: Request, titulo: str = Form(...), cuerpo: str = Form(""),
     departamento: str = Form(""), publicado: int = Form(1),
-    imagen: UploadFile | None = File(None),
+    imagen: Annotated[UploadFile | None, File()] = None,
     duracion: str = Form("sin_vencimiento"), dias_personalizados: str = Form(""),
 ):
     codigo = crear_aviso_servicio(

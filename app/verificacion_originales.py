@@ -7,18 +7,18 @@ presupuestos GESTOR_INVENTARIO_* y GESTOR_SELECCION_MAX_BYTES. El plazo es
 cooperativo: no puede cancelar una llamada al sistema bloqueada. Una caída
 abrupta puede dejar el directorio temporal, pero nunca autoriza recuperación.
 """
-from contextlib import closing
 import hashlib
 import json
 import os
 import shutil
 import sqlite3
 import stat
-from app.temporal_privado import directorio_privado
+from contextlib import closing
 
-from app import seleccion_originales as sel
 from app import inventario_restauracion as inv
 from app import registro_restauracion as r
+from app import seleccion_originales as sel
+from app.temporal_privado import directorio_privado
 
 
 def _verificar(preparar=False, persistente=False):
@@ -101,9 +101,15 @@ def _verificar(preparar=False, persistente=False):
                     raise ValueError('Relaciones inválidas')
                 # Relaciones de expedientes incluso si una base dañada perdió sus FK.
                 tablas = {x[0] for x in conexion.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-                if 'expediente_documentos' in tablas:
-                    if conexion.execute('SELECT 1 FROM expediente_documentos e LEFT JOIN documentos d ON d.id=e.documento_id LEFT JOIN expedientes x ON x.id=e.expediente_id WHERE d.id IS NULL OR x.id IS NULL LIMIT 1').fetchone():
-                        raise ValueError('Expediente inconsistente')
+                if (
+                    'expediente_documentos' in tablas
+                    and conexion.execute(
+                        'SELECT 1 FROM expediente_documentos e LEFT JOIN documentos d ON d.id=e.documento_id '
+                        'LEFT JOIN expedientes x ON x.id=e.expediente_id '
+                        'WHERE d.id IS NULL OR x.id IS NULL LIMIT 1'
+                    ).fetchone()
+                ):
+                    raise ValueError('Expediente inconsistente')
                 # Mismas referencias físicas de respaldo._referencias_archivos,
                 # recorridas en flujo sobre esta conexión acotada, incluida papelera.
                 referenciados = set()
@@ -130,7 +136,7 @@ def _verificar(preparar=False, persistente=False):
                     ruta.startswith('storage/') and fila['tipo'] == 'archivo' and ruta not in referenciados
                     for ruta, fila in entradas.items())
             if preparar:
-                from app.preparacion_cola import transformar_copia, evaluar_clave
+                from app.preparacion_cola import evaluar_clave, transformar_copia
                 preparacion = transformar_copia(db, destino / 'base-candidata', presupuesto)
                 preparacion['operacion'] = evidencia['registro']['operacion']
                 preparacion['inventario_sha256'] = evidencia['registro']['inventario']['sha256']
@@ -141,7 +147,7 @@ def _verificar(preparar=False, persistente=False):
                 raise ValueError('Evidencia final cambió')
             presupuesto.comprobar()
             if persistente:
-                from app.preparacion_persistente import publicar, _inspeccionar
+                from app.preparacion_persistente import _inspeccionar, publicar
                 publicar(destino, evidencia, preparacion, presupuesto)
                 comprobacion = _inspeccionar()
                 if comprobacion['estado'] != 'preparación íntegra':

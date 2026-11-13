@@ -8,9 +8,9 @@ con acceso directo al sistema de archivos no participan en el bloqueo SQLite.
 
 import json
 import logging
-from pathlib import Path, PureWindowsPath
 import sqlite3
 import stat
+from pathlib import Path, PureWindowsPath
 
 from app.configuracion import AVISOS_DIR, DATA_DIR, FOTOS_PERFIL_DIR, STORAGE_DIR
 from app.database import conectar

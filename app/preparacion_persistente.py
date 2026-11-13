@@ -1,11 +1,10 @@
 """Preparación persistente y comprobación administrativa; nunca restaura datos."""
-from contextlib import closing
 import hashlib
 import json
 import os
-from pathlib import Path
 import sqlite3
 import stat
+from contextlib import closing
 
 from app import constancia_preparacion as cp
 from app import inventario_restauracion as inv
@@ -73,7 +72,7 @@ def _leer_manifiesto(root, descriptor, esperadas, presupuesto):
             digest.update(linea)
             fila = inv.json_estricto(linea)
             if not isinstance(fila, dict) or not isinstance(fila.get('ruta'), str):
-                raise ValueError('Entrada inválida')
+                raise TypeError('Entrada inválida')
             ruta = fila.pop('ruta')
             if ruta not in esperadas and ruta != 'base-candidata' or ruta in filas:
                 raise ValueError('Ruta no autorizada')
@@ -202,6 +201,7 @@ def _inspeccionar():
 
 def main():
     import argparse
+
     from app.coordinacion import inspeccionar_preparacion, preparar_persistente
     parser = argparse.ArgumentParser(description='Preparación y diagnóstico sin autorización de recuperación')
     parser.add_argument('operacion', choices=('preparar', 'inspeccionar'), nargs='?', default='inspeccionar')

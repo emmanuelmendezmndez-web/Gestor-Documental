@@ -2,16 +2,18 @@
 
 from math import ceil
 from urllib.parse import urlencode
+
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
+
 from app.acceso_documentos import condicion_area_documento
 from app.catalogos import CATEGORIAS, DEPARTAMENTOS
 from app.database import conectar, normalizar_texto
 from app.mensajes import AVISOS
-from app.ordenes_biblioteca import EXPR_FECHA, ORDENES, ORDEN_PREDETERMINADO
+from app.ordenes_biblioteca import EXPR_FECHA, ORDEN_PREDETERMINADO, ORDENES
 from app.plantillas import templates
-from app.utilidades import escapar_like, fecha_valida
 from app.seguridad import requiere_permiso
+from app.utilidades import escapar_like, fecha_valida
 
 POR_PAGINA = 20
 router = APIRouter()

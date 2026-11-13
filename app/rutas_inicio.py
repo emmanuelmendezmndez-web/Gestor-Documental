@@ -2,11 +2,12 @@
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, JSONResponse
+
 from app.configuracion import STORAGE_DIR
 from app.plantillas import templates
-from app.servicios.inicio import buscar_global_datos, dashboard_datos
-from app.servicios.estado_sistema import consultar_estado_sistema
 from app.seguridad import requiere_permiso
+from app.servicios.estado_sistema import consultar_estado_sistema
+from app.servicios.inicio import buscar_global_datos, dashboard_datos
 
 router = APIRouter()
 

@@ -1,6 +1,7 @@
 """Preferencias locales de Clippy, aisladas por usuario y sin leer archivos."""
 
 import json
+from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends, Request
 
@@ -37,7 +38,7 @@ def _filtros_seguros(datos: dict, usuario: dict) -> dict[str, str]:
 
 
 @router.post("/habito")
-def registrar_habito(request: Request, datos: dict = Body(...)):
+def registrar_habito(request: Request, datos: Annotated[dict, Body()]):
     tipo = datos.get("tipo")
     usuario = request.state.usuario
     if tipo == "busqueda":

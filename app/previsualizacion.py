@@ -1,6 +1,5 @@
 """Previsualización de documentos ofimáticos mediante LibreOffice headless."""
 
-from pathlib import Path
 import hashlib
 import os
 import shutil
@@ -11,10 +10,10 @@ import time
 import xml.etree.ElementTree as ET
 import zipfile
 import zlib
+from pathlib import Path
 from uuid import uuid4
 
 from app.configuracion import DIRECTORIO_CACHE
-
 
 MAXIMO_DESCOMPRIMIDO = 100 * 1024 * 1024
 MAXIMO_CACHE_BYTES = 512 * 1024 * 1024
@@ -61,7 +60,7 @@ def _identidad_cache(ruta: Path, ejecutable: str) -> tuple[str, str]:
         raise ArchivoNoPrevisualizable("No se pudo leer el archivo para preparar su vista previa.") from exc
     contenido = digest.hexdigest()
     clave = hashlib.sha256(
-        f"{VERSION_CACHE}|{extension}|{contenido}|{marca_libreoffice}".encode("utf-8")
+        f"{VERSION_CACHE}|{extension}|{contenido}|{marca_libreoffice}".encode()
     ).hexdigest()
     return clave, f"{extension.lstrip('.')}-{contenido}"
 

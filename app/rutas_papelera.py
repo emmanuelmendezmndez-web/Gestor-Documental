@@ -1,8 +1,11 @@
 """Rutas de SIGED."""
 
 import logging
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
+
 from app.acceso_documentos import filtro_area_documento
 from app.actividad import registrar
 from app.configuracion import STORAGE_DIR
@@ -10,9 +13,16 @@ from app.database import conectar
 from app.mensajes import AVISOS
 from app.operaciones_documentales import transaccion_documental
 from app.plantillas import templates
+from app.seguridad import (
+    NoAutenticado,
+    demasiados_intentos,
+    limpiar_fallos,
+    registrar_fallo,
+    requiere_permiso,
+    verificar_password,
+)
 from app.seleccion import leer_seleccion
 from app.servicios.papelera import purgar_documentos_papelera
-from app.seguridad import NoAutenticado, demasiados_intentos, limpiar_fallos, registrar_fallo, requiere_permiso, verificar_password
 
 logger = logging.getLogger("gestor")
 router = APIRouter()
@@ -82,7 +92,7 @@ def restaurar_documento(request: Request, documento_id: int):
 )
 def restaurar_documentos_masivo(
     request: Request,
-    documento_ids: list[int] = Form(default=[]),
+    documento_ids: Annotated[list[int], Form(default_factory=list)],
 ):
     ids, placeholders, error = leer_seleccion(documento_ids)
     if error:
@@ -122,7 +132,10 @@ def restaurar_documentos_masivo(
     "/papelera/eliminar-seleccionados",
     dependencies=[Depends(requiere_permiso("eliminar"))],
 )
-def eliminar_documentos_seleccionados(request: Request, documento_ids: list[int] = Form(default=[])):
+def eliminar_documentos_seleccionados(
+    request: Request,
+    documento_ids: Annotated[list[int], Form(default_factory=list)],
+):
     ids, _, error = leer_seleccion(documento_ids)
     if error:
         return RedirectResponse(url=f"/papelera?aviso={error}", status_code=303)

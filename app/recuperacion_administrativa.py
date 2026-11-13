@@ -9,7 +9,6 @@ import os
 import re
 
 from app import preparacion_persistente as preparacion
-from app import registro_restauracion as registro
 from app import seleccion_originales as selector
 
 
@@ -47,7 +46,12 @@ def _comprobar(operacion, confirmacion):
 
 
 def main():
-    from app.coordinacion import BloqueoNoDisponible, comprobar_recuperacion, aplicar_recuperacion, finalizar_recuperacion
+    from app.coordinacion import (
+        BloqueoNoDisponible,
+        aplicar_recuperacion,
+        comprobar_recuperacion,
+        finalizar_recuperacion,
+    )
     parser = argparse.ArgumentParser(description='Recuperación administrativa con arranque bloqueado')
     parser.add_argument('accion', choices=('comprobar', 'aplicar', 'finalizar'), nargs='?', default='comprobar')
     parser.add_argument('--operacion', required=True)

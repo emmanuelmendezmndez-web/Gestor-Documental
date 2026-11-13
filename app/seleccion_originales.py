@@ -5,9 +5,9 @@ import os
 import re
 import stat
 
-from app import registro_restauracion as r
 from app import inventario_restauracion as inv
-from app.configuracion import DB_PATH, STORAGE_DIR, SECRET_PATH
+from app import registro_restauracion as r
+from app.configuracion import DB_PATH, SECRET_PATH, STORAGE_DIR
 
 
 class Rechazado(ValueError):

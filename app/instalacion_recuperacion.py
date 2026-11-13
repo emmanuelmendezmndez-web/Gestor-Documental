@@ -6,19 +6,19 @@ originales y la preparación permanecen conservados. La integridad no autentica.
 import hashlib
 import json
 import os
-from pathlib import Path
 import re
 import secrets
 import shutil
 import sqlite3
 import stat
 import subprocess
+from pathlib import Path
 
+from app import constancia_preparacion as cp
 from app import desplazamiento_original as des
 from app import inventario_restauracion as inv
-from app import preparacion_persistente as pp
-from app import constancia_preparacion as cp
 from app import preparacion_cola as cola
+from app import preparacion_persistente as pp
 from app import registro_restauracion as r
 from app import seleccion_originales as sel
 from app.temporal_privado import verificar_acl_raiz_conservacion
@@ -54,9 +54,7 @@ def _recorrer_acotado(path, ruta, presupuesto, bytes_leidos, profundidad=0):
 
 def _huella(path, nombre):
     presupuesto = inv.Presupuesto()
-    filas = []
-    for fila in _recorrer_acotado(path, nombre, presupuesto, [0]):
-        filas.append(fila)
+    filas = list(_recorrer_acotado(path, nombre, presupuesto, [0]))
     h = hashlib.sha256()
     for fila in sorted(filas, key=lambda x: x['ruta']):
         linea = (json.dumps(fila, sort_keys=True, separators=(',', ':'), ensure_ascii=True) + '\n').encode('ascii')

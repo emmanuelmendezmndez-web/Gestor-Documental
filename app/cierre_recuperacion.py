@@ -1,5 +1,4 @@
 """Cierre explícito de una recuperación aplicada; no compara activos tras el cierre."""
-from contextlib import closing
 import hashlib
 import json
 import os
@@ -7,6 +6,7 @@ import re
 import sqlite3
 import stat
 import subprocess
+from contextlib import closing
 
 from app import constancia_preparacion as cp
 from app import desplazamiento_original as des
@@ -186,8 +186,10 @@ def validar_cierre_historico(final, *, verificar_clave_efectiva=True):
             or not isinstance(recibo['eventos'], dict)):
         raise ValueError('Cierre no vinculado')
     plan_original = des._leer(root / 'intenciones.json')
-    if not isinstance(plan_original, dict) or not isinstance(plan_original.get('registro'), dict):
+    if plan_original is None:
         raise ValueError('Plan original ausente')
+    if not isinstance(plan_original, dict) or not isinstance(plan_original.get('registro'), dict):
+        raise TypeError('Plan original inválido')
     previo = r.analizar(plan_original['registro'])
     if previo['estado'] == 'finalizada' or r.invariantes(previo) != r.invariantes(final):
         raise ValueError('Registro original no coincide')

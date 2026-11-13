@@ -1,4 +1,5 @@
 import atexit
+
 from app.coordinacion import BloqueoDatos
 
 # Antes de importar routers o cargar la clave de sesión. Vive hasta terminar el proceso.
@@ -20,19 +21,19 @@ from app.asistente import router as router_asistente
 from app.configuracion import APP_DIR, AVISOS_DIR, STORAGE_DIR
 from app.csrf import validar_csrf
 from app.database import conectar, inicializar_db
-from app.mensajes import MENSAJES_HTTP
 from app.limite_solicitud import LimitarCuerpo
+from app.mensajes import MENSAJES_HTTP
 from app.plantillas import templates
 from app.rutas_actividad import router as router_actividad
-from app.rutas_cuenta import router as router_cuenta
-from app.rutas_usuarios import router as router_usuarios
-from app.rutas_papelera import router as router_rutas_papelera
-from app.rutas_documentos import router as router_rutas_documentos
-from app.rutas_biblioteca import router as router_rutas_biblioteca
-from app.rutas_expedientes import router as router_rutas_expedientes
 from app.rutas_avisos import router as router_rutas_avisos
+from app.rutas_biblioteca import router as router_rutas_biblioteca
+from app.rutas_cuenta import router as router_cuenta
+from app.rutas_documentos import router as router_rutas_documentos
+from app.rutas_expedientes import router as router_rutas_expedientes
 from app.rutas_inicio import router as router_rutas_inicio
+from app.rutas_papelera import router as router_rutas_papelera
 from app.rutas_sesion import router as router_rutas_sesion
+from app.rutas_usuarios import router as router_usuarios
 from app.seguridad import (
     NoAutenticado,
     obtener_clave_secreta,

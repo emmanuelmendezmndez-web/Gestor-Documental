@@ -2,17 +2,20 @@
 
 import logging
 from datetime import date
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
+
 from app.acceso_documentos import filtro_area_documento
 from app.actividad import registrar
 from app.database import conectar, normalizar_texto
 from app.mensajes import AVISOS
 from app.operaciones_documentales import transaccion_documental
 from app.plantillas import templates
+from app.seguridad import requiere_permiso
 from app.seleccion import leer_seleccion
 from app.utilidades import escapar_like
-from app.seguridad import requiere_permiso
 
 logger = logging.getLogger("gestor")
 router = APIRouter()
@@ -263,7 +266,7 @@ def ficha_expediente(
 def vincular_documentos_masivo(
     request: Request,
     expediente_id: int,
-    documento_ids: list[int] = Form(default=[]),
+    documento_ids: Annotated[list[int], Form(default_factory=list)],
 ):
     ids, placeholders, error = leer_seleccion(documento_ids)
     if error:

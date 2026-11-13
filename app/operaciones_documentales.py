@@ -1,12 +1,12 @@
 """Transacciones breves con autorización vigente para escrituras documentales."""
 
-from contextlib import contextmanager
 import sqlite3
+from contextlib import contextmanager
 
 from fastapi import HTTPException, Request
 
 from app.database import conectar
-from app.seguridad import NOMBRES_ROL, NoAutenticado, PERMISOS
+from app.seguridad import NOMBRES_ROL, PERMISOS, NoAutenticado
 
 
 @contextmanager

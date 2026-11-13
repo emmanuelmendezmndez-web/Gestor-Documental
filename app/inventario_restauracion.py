@@ -2,13 +2,13 @@
 import hashlib
 import json
 import os
-from pathlib import Path
 import re
 import stat
 import time
 import unicodedata
+from pathlib import Path
 
-from app.configuracion import DB_PATH, STORAGE_DIR, SECRET_PATH
+from app.configuracion import DB_PATH, SECRET_PATH, STORAGE_DIR
 
 
 def pares_unicos(pares):
@@ -133,7 +133,7 @@ def publicar(directorio, previo):
 
 def validar_fila(fila):
     if not isinstance(fila, dict):
-        raise ValueError("Entrada de inventario inválida")
+        raise TypeError("Entrada de inventario inválida")
     conjunto, ruta, tipo = (fila.get(k) for k in ("conjunto", "ruta", "tipo"))
     raices = {"anterior": {"base", "storage", "clave"}, "preparado": {"base", "storage", "clave"}, "respaldo": {"zip"}}
     if not isinstance(conjunto, str) or conjunto not in raices or not isinstance(ruta, str):
@@ -144,7 +144,7 @@ def validar_fila(fila):
     for parte in partes:
         if (not parte or parte in {".", ".."} or parte.endswith((" ", "."))
                 or any(ord(c) < 32 or c in '\\:<>"|?*' for c in parte)
-                or re.fullmatch(r"(?:CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³])(?:\..*)?", parte, re.I)):
+                or re.fullmatch(r"(?:CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³])(?:\..*)?", parte, re.IGNORECASE)):
             raise ValueError("Ruta no segura")
     campos = {"conjunto", "ruta", "tipo"}
     if tipo == "archivo":

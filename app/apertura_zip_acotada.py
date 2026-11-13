@@ -4,11 +4,11 @@ El llamador conserva el archivo abierto y debe garantizar que nadie lo escriba
 durante la inspección. La comprobación de identidad detecta cambios ordinarios,
 pero no constituye una instantánea ni protección frente a un atacante local.
 """
-from contextlib import contextmanager
 import os
-import time
 import struct
+import time
 import zipfile
+from contextlib import contextmanager
 
 from app.inventario_restauracion import limite
 

@@ -28,7 +28,12 @@ def _resultado(criticas=(), parciales=()):
 
 
 def _comprobar_mensajeria(principal):
-    from app.mensajeria.base_datos import APPLICATION_ID, NOMBRE_BASE, VERSION, _base_segura
+    from app.mensajeria.base_datos import (
+        APPLICATION_ID,
+        NOMBRE_BASE,
+        VERSION,
+        _base_segura,
+    )
     from app.mensajeria.configuracion import directorio_configurado
     from app.mensajeria.identidad_documental import instalacion
     from app.temporal_privado import verificar_acl_base_privada

@@ -19,12 +19,9 @@ si contienen todos los archivos que su base referencia.
 from __future__ import annotations
 
 import argparse
-from contextlib import closing
-from datetime import datetime, timezone
 import hashlib
 import json
 import os
-from pathlib import Path, PurePosixPath
 import re
 import shutil
 import sqlite3
@@ -32,12 +29,16 @@ import sys
 import tempfile
 import unicodedata
 import zipfile
+from contextlib import closing
+from datetime import UTC, datetime
+from pathlib import Path, PurePosixPath
 
 from app.configuracion import BACKUP_DIR, DATA_DIR, DB_PATH, SECRET_PATH, STORAGE_DIR
 from app.coordinacion import BloqueoDatos
+from app.inventario_restauracion import publicar as publicar_inventario
+from app.inventario_restauracion import verificar as verificar_inventario
+from app.registro_restauracion import CAMBIOS, conservar_legado
 from app.registro_restauracion import escribir as escribir_registro
-from app.registro_restauracion import conservar_legado, CAMBIOS
-from app.inventario_restauracion import publicar as publicar_inventario, verificar as verificar_inventario
 from app.seguridad import obtener_clave_secreta
 
 FORMAT_VERSION = 1
@@ -63,12 +64,10 @@ def _safe_name(name: str) -> bool:
     if not name or len(name) > 32767 or name.startswith("/") or "\\" in name:
         return False
     parts = name.rstrip("/").split("/")
-    if not parts or any(not p or p in {".", ".."} or p[-1] in {" ", "."}
+    return not any(not p or p in {".", ".."} or p[-1] in {" ", "."}
                         or len(p.encode("utf-16-le", errors="surrogatepass")) > 510
                         or any(ord(c) < 32 or c in '<>:"|?*' for c in p)
-                        or _WINDOWS_RESERVED.fullmatch(p) for p in parts):
-        return False
-    return True
+                        or _WINDOWS_RESERVED.fullmatch(p) for p in parts)
 
 
 def _validar_entradas(infos: list[zipfile.ZipInfo]) -> None:
@@ -154,9 +153,11 @@ def _referencias_archivos(db: Path) -> dict[str, int | None]:
 
 def _comprobar_referencias(db: Path, files: dict) -> None:
     for nombre, tamano in _referencias_archivos(db).items():
-        metadata = files.get(nombre)
-        if not isinstance(metadata, dict):
+        if nombre not in files:
             raise ValueError(f"Falta en el respaldo el archivo referenciado: {nombre}")
+        metadata = files[nombre]
+        if not isinstance(metadata, dict):
+            raise TypeError(f"Metadatos inválidos para el archivo referenciado: {nombre}")
         if tamano is not None and metadata.get("size") != tamano:
             raise ValueError(f"El tamaño del archivo no coincide con la base de datos: {nombre}")
 
@@ -235,7 +236,7 @@ def _crear_respaldo_con_bloqueo(salida: Path | None = None) -> Path:
                 _comprobar_referencias(db_snapshot, files)
                 manifest = {
                     "format": "SIGED-backup", "format_version": FORMAT_VERSION,
-                    "created_at_utc": datetime.now(timezone.utc).isoformat(),
+                    "created_at_utc": datetime.now(UTC).isoformat(),
                     "database": "SQLite online backup API", "secret_key_source": "environment" if os.environ.get("GESTOR_SECRET_KEY") else "file",
                     "files": files,
                 }
@@ -426,21 +427,21 @@ def _restaurar_con_bloqueo(archivo: Path) -> tuple[Path, dict]:
                     "respaldo_previo": str(previo), "estado": "iniciada", "paso": "preparada",
                     "inventario": inventario, "clave_origen": origen_clave, "pasos": pasos, "secuencia": 0}
         escribir_registro(registro)
-        def paso(nombre, operacion):
+        def paso(nombre, operacion, origen, destino):
             registro.update(estado="pendiente", paso=nombre)
             escribir_registro(registro)
-            operacion()
+            operacion(origen, destino)
             registro.update(estado="confirmada", paso=nombre)
             escribir_registro(registro)
         for etiqueta, origen, destino in (("base", nuevo_db, DB_PATH), ("storage", nueva_storage, STORAGE_DIR)):
             anterior = persistente / ("anterior-" + etiqueta)
             if destino.exists():
-                paso(etiqueta + "-guardar", lambda: os.replace(destino, anterior))
-            paso(etiqueta + "-instalar", lambda: os.replace(origen, destino))
+                paso(etiqueta + "-guardar", os.replace, destino, anterior)
+            paso(etiqueta + "-instalar", os.replace, origen, destino)
         if not os.environ.get("GESTOR_SECRET_KEY"):
             if SECRET_PATH.exists():
-                paso("clave-guardar", lambda: os.replace(SECRET_PATH, persistente / "anterior-clave"))
-            paso("clave-instalar", lambda: shutil.copy2(nueva_clave, SECRET_PATH))
+                paso("clave-guardar", os.replace, SECRET_PATH, persistente / "anterior-clave")
+            paso("clave-instalar", shutil.copy2, nueva_clave, SECRET_PATH)
         registro.update(estado="pendiente", paso="verificacion")
         escribir_registro(registro)
         if hash_archivo(DB_PATH) != hash_db or (not os.environ.get("GESTOR_SECRET_KEY") and hash_archivo(SECRET_PATH) != hash_clave):
@@ -491,7 +492,7 @@ def main() -> int:
             if manifest.get("secret_key_source") == "environment":
                 print("Aviso: el respaldo usaba GESTOR_SECRET_KEY; restaura también esa variable de entorno para conservar la clave original.")
         return 0
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001 - La CLI presenta los errores de operación por stderr.
         print(f"Error: {error}", file=sys.stderr)
         return 1
 

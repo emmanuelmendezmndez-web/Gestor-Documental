@@ -2,6 +2,7 @@ import logging
 import os
 import re
 from pathlib import Path
+from typing import Annotated
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
@@ -169,7 +170,7 @@ def actualizar_perfil(
     nombre: str = Form(...),
     correo: str = Form(""),
     telefono: str = Form(""),
-    foto: UploadFile | None = File(default=None),
+    foto: Annotated[UploadFile | None, File()] = None,
     quitar_foto: bool = Form(False),
 ):
     usuario = request.state.usuario
