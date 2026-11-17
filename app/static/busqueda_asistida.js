@@ -18,6 +18,9 @@
     const claves = ["buscar", "categoria", "departamento", "oficio", "autor", "desde", "hasta"];
     const campos = Object.fromEntries(claves.map(clave => [clave, document.getElementById(`asistido-${clave}`)]));
     if (!dialogo || !abrir || !frase || !consultaTexto || !editarConsulta || !resumen || !formulario || !reconocidos || !adicionales || !agregar || !sinReconocidos || !adicionalesActivos || claves.some(clave => !campos[clave]) || typeof window.crearMemoriaTemporal !== "function") return;
+    const panelApoyo = document.getElementById("apoyo-extraccion-clippy");
+    const apoyo = panelApoyo && window.sigedCrearApoyoClippy?.(panelApoyo,
+        document.querySelector('meta[name="csrf-token"]')?.content);
     const grupos = Object.fromEntries(claves.map(clave => [clave, campos[clave].closest("[data-filtro]")]));
     if (claves.some(clave => !grupos[clave])) return;
 
@@ -150,6 +153,40 @@
         const cantidad = claves.filter(clave => grupos[clave].parentElement === adicionales && campos[clave].value.trim()).length;
         adicionalesActivos.textContent = cantidad ? `(${cantidad} ${cantidad === 1 ? "activo" : "activos"})` : "";
     }
+    let apoyoContextual = false;
+    function pedirApoyo(texto, esBusqueda) {
+        if (!apoyo || (!esBusqueda && apoyo.bloquea())) return;
+        apoyoContextual = !esBusqueda;
+        const vigente = () => dialogo.open && (esBusqueda ? !busquedaRapida && consulta === texto :
+            instruccionContextual.value === texto);
+        const acepta = filtros => memoria.consultar() && Object.keys(filtros).every(clave =>
+            claves.includes(clave) && !editados.has(clave) && !campos[clave].value.trim()) &&
+            (!filtros.departamento || areas.includes(filtros.departamento));
+        const aplicar = (filtros, mencion) => {
+            const cambios = {...filtros};
+            if (esBusqueda && typeof mencion === "string" && !editados.has("buscar")) {
+                const normalizar = t => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+                    .replace(/[^\p{L}\p{N}\s-]/gu, " ").trim().split(/\s+/);
+                const tokens = campos.buscar.value.trim().split(/\s+/);
+                const palabras = normalizar(mencion).filter(Boolean);
+                const indice = palabras.length && tokens.findIndex((_, i) =>
+                    palabras.every((palabra, j) => tokens[i+j] && normalizar(tokens[i+j])[0] === palabra));
+                if (palabras.length && indice >= 0) {
+                    cambios.buscar = [...tokens.slice(0, indice), ...tokens.slice(indice + palabras.length)].join(" ");
+                }
+            }
+            memoria.actualizar(cambios);
+            for (const [clave, valor] of Object.entries(cambios)) {
+                campos[clave].value = valor;
+                (valor ? reconocidos : adicionales).appendChild(grupos[clave]); mostrarOrigen(clave);
+            }
+            sinReconocidos.hidden = reconocidos.childElementCount > 0;
+            contarAdicionales();
+        };
+        const cubierto = aviso => ["fecha_ambigua", "fechas_varias"].includes(aviso) &&
+            interpretacion?.dudas?.some(duda => ["fecha_numerica", "fechas_multiples", "fecha_manual"].includes(duda.tipo));
+        void apoyo.analizar(texto, {vigente, acepta, aplicar, esBusqueda, cubierto});
+    }
     function actualizar() {
         const nuevaInterpretacion = busquedaRapida ? null : window.sigedInterpretarBusqueda.detallar(consulta, categorias, areas);
         const filtros = busquedaRapida ? filtrosRapidos[busquedaRapida]() : nuevaInterpretacion.filtros;
@@ -166,6 +203,8 @@
         sinReconocidos.hidden = reconocidos.childElementCount > 0;
         contarAdicionales();
         mostrarAvisos();
+        if (busquedaRapida) apoyo?.cancelar();
+        else pedirApoyo(consulta, true);
     }
     function mostrarAvisos(mensaje = "") {
         const avisos = [...(mensaje ? [mensaje] : []), ...(dudasPendientes().length ? ["Clippy encontró criterios que necesitan aclaración."] : [])];
@@ -285,6 +324,7 @@
         campos[clave].addEventListener("change", () => sincronizarEdicion(clave));
     }
     function borrarInteraccion() {
+        apoyo?.cancelar();
         descartarPropuesta();
         esperandoRegistro = false;
         if (instruccionContextual) instruccionContextual.value = "";
@@ -314,7 +354,10 @@
         contarAdicionales(); mostrarAvisos();
     }
     if (instruccionContextual && proponerContexto && panelContextual && typeof window.sigedInterpretarContexto === "function") {
-        instruccionContextual.addEventListener("input", descartarPropuesta);
+        instruccionContextual.addEventListener("input", () => {
+            if (apoyoContextual) apoyo?.cancelar();
+            descartarPropuesta();
+        });
         instruccionContextual.addEventListener("keydown", evento => { if (evento.key === "Enter") { evento.preventDefault(); proponerContexto.click(); } });
         const pantallaActual = () => {
             const ruta = window.location.pathname;
@@ -363,6 +406,7 @@
             }
         }
         function revisarInstruccion(forzarBusqueda = false) {
+            pedirApoyo(instruccionContextual.value, false);
             descartarPropuesta();
             const estado = memoria.consultar();
             panelContextual.hidden = false;
@@ -526,6 +570,10 @@
         if (dudasPendientes().length) {
             mostrarAvisos("Resuelve la aclaración o elige dejarla sin aplicar antes de buscar.");
             aclaracion.querySelector?.("button")?.focus();
+            return;
+        }
+        if (apoyo?.bloquea()) {
+            mostrarAvisos("Espera el análisis de Clippy o revisa sus avisos antes de buscar.");
             return;
         }
         if (!formulario.checkValidity()) { agregar.open = true; formulario.reportValidity(); return; }

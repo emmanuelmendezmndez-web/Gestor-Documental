@@ -5,6 +5,9 @@ respaldos/
 gestor.db
 __pycache__/
 .venv/
+/.venv-clippy*/
+/.clippy-modelos/
+/datos/clippy/entrenamiento.json.lock
 .env
 
 # otros entornos virtuales

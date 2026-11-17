@@ -1,13 +1,21 @@
 """Preferencias locales de Clippy, aisladas por usuario y sin leer archivos."""
 
 import json
+from asyncio import shield, wait_for, wrap_future
+from datetime import date
+from pathlib import Path
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, Response
+from fastapi.responses import JSONResponse
 
 from app.catalogos import CATEGORIAS, DEPARTAMENTOS
 from app.database import conectar
-from app.seguridad import requiere_permiso
+from app.ordenes_biblioteca import ORDEN_PREDETERMINADO, ORDENES
+from app.seguridad import PERMISOS, requiere_permiso
+from app.servicios.busqueda_documental import criterios_documentales
+from app.servicios.clippy_propuestas import preparar_propuestas
+from app.servicios.clippy_sombra import MAX_CUERPO, MAX_TEXTO
 from app.servicios.diagnostico_clippy import (
     ACCIONES,
     diagnosticar_almacenamiento,
@@ -19,6 +27,109 @@ from app.servicios.diagnostico_clippy import (
 router = APIRouter(prefix="/asistente", dependencies=[Depends(requiere_permiso("ver"))])
 SECCIONES = {"inicio", "biblioteca", "buscar", "subir", "expedientes", "papelera", "usuarios", "actividad", "cuenta"}
 CLAVES_FILTRO = {"buscar", "categoria", "departamento", "oficio", "desde", "hasta"}
+
+
+
+async def _leer_texto_asistente(request):
+    if request.headers.get("content-type", "").split(";", 1)[0].strip().lower() != "application/json":
+        raise HTTPException(status_code=415, detail="Se requiere JSON.")
+    cuerpo = bytearray()
+    async for parte in request.stream():
+        if len(cuerpo) + len(parte) > MAX_CUERPO:
+            raise HTTPException(status_code=413, detail="Solicitud demasiado grande.")
+        cuerpo.extend(parte)
+    try:
+        datos = json.loads(cuerpo)
+    except (ValueError, RecursionError) as error:
+        raise HTTPException(status_code=400, detail="Solicitud inválida.") from error
+    texto = datos.get("texto") if isinstance(datos, dict) and datos.keys() == {"texto"} else None
+    if not isinstance(texto, str) or not 1 <= len(texto.strip()) <= MAX_TEXTO:
+        raise HTTPException(status_code=400, detail="Solicitud inválida.")
+    return texto.strip()
+
+
+@router.post("/sombra", status_code=204, include_in_schema=False)
+async def observar_sombra(request: Request):
+    sombra = request.app.state.clippy_sombra
+    if not sombra.autorizado(request.state.usuario):
+        raise HTTPException(status_code=404, detail="No encontrado.")
+    sombra.observar(await _leer_texto_asistente(request))
+    return Response(status_code=204, headers={"Cache-Control": "no-store"})
+
+
+
+@router.get("/estado-modelo", include_in_schema=False)
+def estado_modelo(request: Request, response: Response):
+    sombra = request.app.state.clippy_sombra
+    if not sombra.autoriza_extraccion(request.state.usuario):
+        raise HTTPException(status_code=404, detail="No encontrado.")
+    response.headers["Cache-Control"] = "private, no-store"
+    return {"estado": sombra.estado_modelo()}
+
+
+@router.post("/interpretar", include_in_schema=False)
+async def interpretar_consulta(request: Request, chat: bool = False):
+    sombra = request.app.state.clippy_sombra
+    usuario = request.state.usuario
+    if not sombra.autoriza_extraccion(usuario):
+        raise HTTPException(status_code=404, detail="No encontrado.")
+    texto = await _leer_texto_asistente(request)
+    futuro = sombra.extraer(texto, chat=chat)
+    cabeceras = {"Cache-Control": "private, no-store"}
+    if futuro is not None:
+        try:
+            menciones = await wait_for(shield(wrap_future(futuro)), timeout=0.7)
+        except TimeoutError:
+            menciones = None
+        if menciones is not None:
+            intencion = menciones.pop("_intencion", None) if chat and isinstance(menciones, dict) else None
+            propuestas = preparar_propuestas(texto, menciones, usuario)
+            if propuestas is not None:
+                if isinstance(intencion, str):
+                    propuestas["intencion"] = intencion
+                return JSONResponse(propuestas, headers=cabeceras)
+    return Response(status_code=204, headers=cabeceras)
+
+
+@router.get("/documentos", include_in_schema=False)
+def buscar_documentos_chat(
+    request: Request,
+    response: Response,
+    buscar: Annotated[str, Query(max_length=200)] = "",
+    categoria: Annotated[str, Query(max_length=60)] = "",
+    departamento: Annotated[str, Query(max_length=60)] = "",
+    oficio: Annotated[str, Query(max_length=60)] = "",
+    autor: Annotated[str, Query(max_length=100)] = "",
+    desde: Annotated[date | None, Query()] = None,
+    hasta: Annotated[date | None, Query()] = None,
+    registro: Annotated[int | None, Query(ge=1, le=10**18 - 1)] = None,
+    folio: Annotated[str, Query(max_length=60, pattern=r"^(?:[A-Za-z0-9][A-Za-z0-9/-]{0,59})?$")] = "",
+):
+    usuario = request.state.usuario
+    response.headers["Cache-Control"] = "private, no-store"
+    if categoria and categoria not in CATEGORIAS:
+        raise HTTPException(status_code=422, detail="Categoría desconocida.")
+    if departamento and departamento not in DEPARTAMENTOS:
+        raise HTTPException(status_code=422, detail="Departamento desconocido.")
+    if departamento and usuario["rol"] != "admin" and departamento != usuario.get("departamento"):
+        raise HTTPException(status_code=403, detail="Tu cuenta no puede consultar ese departamento.")
+    if desde and hasta and desde > hasta:
+        raise HTTPException(status_code=422, detail="La fecha de inicio es posterior a la fecha final.")
+    filtros = {"buscar": buscar.strip(), "categoria": categoria, "departamento": departamento,
+               "oficio": oficio.strip(), "autor": autor.strip(), "desde": desde.isoformat() if desde else "", "hasta": hasta.isoformat() if hasta else ""}
+    if not any(filtros.values()) and registro is None and not folio:
+        raise HTTPException(status_code=422, detail="Indica al menos un criterio de búsqueda.")
+    donde, parametros = criterios_documentales(usuario, filtros, registro=registro, folio=folio)
+    with conectar() as db:
+        filas = db.execute(
+            f"SELECT id, titulo, nombre_archivo, departamento FROM documentos{donde} ORDER BY {ORDENES[ORDEN_PREDETERMINADO][1]} LIMIT 21",
+            parametros,
+        ).fetchall()
+    descargar = "descargar" in PERMISOS.get(usuario["rol"], set())
+    return {"usuario_id": usuario["id"], "hay_mas": len(filas) > 20, "documentos": [
+        {"id": str(fila["id"]), "titulo": fila["titulo"], "extension": Path(fila["nombre_archivo"]).suffix.lower(),
+         "departamento": fila["departamento"], "descargar": descargar} for fila in filas[:20]
+    ]}
 
 
 @router.get("/diagnostico")

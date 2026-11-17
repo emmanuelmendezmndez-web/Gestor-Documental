@@ -20,6 +20,11 @@ if errorlevel 1 (
     exit /b 1
 )
 
+rem Clippy IA: usa 0 para volver al chat con reglas locales.
+if not defined NEXUSGRID_CLIPPY_SPACY_FUNCIONAL set "NEXUSGRID_CLIPPY_SPACY_FUNCIONAL=1"
+rem * habilita todas las cuentas autenticadas. Tambien admite una lista de IDs.
+if not defined NEXUSGRID_CLIPPY_SPACY_USUARIOS set "NEXUSGRID_CLIPPY_SPACY_USUARIOS=*"
+
 "%PYTHON%" -m app.arranque --beta-local %*
 
 if errorlevel 1 (

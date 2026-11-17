@@ -29,6 +29,7 @@
     <link rel="icon" type="image/png" href="{{ logo_nexusgrid }}">
     <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}?v={% if pagina == 'biblioteca' %}44{% else %}40{% endif %}&busqueda=3&ajustes=1&tema=2">
     <link rel="stylesheet" href="{{ url_for('static', path='icons/phosphor/bold/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='clippy_chat.css') }}?v=4">
     {% if usuario %}
     <link rel="stylesheet" href="{{ url_for('static', path='clippy/clippy.css') }}?v=10">
     {% if request.app.state.mensajeria_interfaz and puede("ver") %}
@@ -137,7 +138,7 @@
                     </button>
                 </form>
                 <div class="app-topbar-acciones">
-                <button type="button" class="boton-busqueda-asistida" id="abrir-busqueda-asistida" aria-haspopup="dialog" aria-label="Buscar con Clippy" title="Buscar con Clippy">✨ <span>Con Clippy</span></button>
+                <button type="button" class="boton-busqueda-asistida" id="abrir-chat-clippy" aria-haspopup="dialog" aria-label="Clippy" title="Clippy">✨ <span>Clippy</span></button>
                 {% if request.app.state.mensajeria_interfaz and puede("ver") %}
                 <details class="mensajeria-campana" id="mensajeria-campana"
                          {% if request.app.state.mensajeria_ruta_ws %}data-ruta-ws="{{ request.app.state.mensajeria_ruta_ws }}"{% endif %}>
@@ -245,6 +246,55 @@
                 </div>
             </dialog>
             <script src="{{ url_for('static', path='dialogos.js') }}?v=5"></script>
+            <dialog id="chat-clippy" class="chat-clippy" aria-labelledby="chat-clippy-titulo"
+                data-pagina="{{ pagina }}" data-apoyo="{{ '1' if request.app.state.clippy_sombra.autoriza_extraccion(usuario) else '0' }}">
+                <div class="chat-encabezado">
+                    <header class="chat-cabecera">
+                        <div class="chat-identidad">
+                            <span class="chat-avatar" aria-hidden="true"></span>
+                            <h2 id="chat-clippy-titulo">Clippy IA</h2>
+                        </div>
+                        <div class="chat-herramientas">
+                            <button type="button" class="chat-control chat-control-nuevo" data-chat-nuevo aria-label="Nueva conversación" title="Nueva conversación">
+                                <i class="ph-bold ph-plus" aria-hidden="true"></i><span>Nueva conversación</span>
+                            </button>
+                            <button type="button" class="chat-control" id="abrir-busqueda-asistida" title="Filtros avanzados" aria-label="Filtros avanzados"><i class="ph-bold ph-sliders-horizontal" aria-hidden="true"></i></button>
+                            <button type="button" class="chat-control" data-chat-cerrar aria-label="Cerrar chat" title="Cerrar chat"><i class="ph-bold ph-x" aria-hidden="true"></i></button>
+                        </div>
+                    </header>
+                    <p class="chat-modelo" data-chat-modelo role="status" hidden></p>
+                </div>
+                <div class="chat-historial" data-chat-historial tabindex="0" role="log" aria-label="Conversación" aria-live="polite"></div>
+                <template data-chat-inicio>
+                    <section class="chat-inicio">
+                        <span class="chat-avatar chat-avatar-grande" aria-hidden="true"></span>
+                        <h3>¿Qué documento necesitas encontrar?</h3>
+                        <p>Busca por título, folio, departamento o fecha.</p>
+                        <div class="chat-sugerencias">
+                            <button type="button" data-chat-sugerencia="Busca contratos"><i class="ph-bold ph-files" aria-hidden="true"></i> Buscar contratos</button>
+                            <button type="button" data-chat-sugerencia="Busca documentos de este mes"><i class="ph-bold ph-calendar-blank" aria-hidden="true"></i> Documentos de este mes</button>
+                        </div>
+                    </section>
+                </template>
+                <div class="chat-pie">
+                    <button type="button" class="chat-ir-final" data-chat-ir-final hidden
+                        aria-label="Ir al último mensaje" title="Ir al último mensaje">
+                        <i class="ph-bold ph-arrow-down" aria-hidden="true"></i>
+                    </button>
+                    <div class="chat-estado" role="status">
+                        <div class="chat-actividad" data-chat-actividad hidden>
+                            <span class="chat-actividad-puntos" aria-hidden="true"><span></span><span></span><span></span></span>
+                            <span data-chat-estado></span>
+                        </div>
+                    </div>
+                    <form class="chat-compositor">
+                        <label for="chat-clippy-texto" class="chat-solo-lectores">Mensaje a Clippy</label>
+                        <textarea id="chat-clippy-texto" name="texto" rows="1" maxlength="300" required placeholder="Escribe tu consulta…" aria-describedby="chat-clippy-atajos"></textarea>
+                        <button type="submit" aria-label="Enviar mensaje" title="Enviar mensaje"><i class="ph-bold ph-arrow-up" aria-hidden="true"></i></button>
+                    </form>
+                    <p id="chat-clippy-atajos" class="chat-atajos"><kbd>Enter</kbd> para enviar <span aria-hidden="true">·</span> <kbd>Shift + Enter</kbd> para un salto de línea</p>
+                </div>
+            </dialog>
             <dialog id="busqueda-asistida" class="busqueda-asistida-dialogo" aria-labelledby="busqueda-asistida-titulo">
                 <form method="dialog" id="form-busqueda-asistida" novalidate>
                     <h2 id="busqueda-asistida-titulo">Buscar con Clippy</h2>
@@ -281,6 +331,9 @@
                         <button type="button" id="proponer-contexto" class="boton-secundario">Revisar instrucción</button>
                         <div id="propuesta-contextual" role="status" aria-live="polite" hidden></div>
                     </div>
+                    {% if request.app.state.clippy_sombra.autoriza_extraccion(usuario) %}
+                    <section id="apoyo-extraccion-clippy" class="consulta-asistida" aria-live="polite" hidden></section>
+                    {% endif %}
                     <div class="busqueda-asistida-acciones">
                         <button type="button" class="boton-secundario" id="cerrar-busqueda-asistida">Cancelar</button>
                         <button type="submit">Buscar documentos</button>
@@ -296,7 +349,15 @@
             <script src="{{ url_for('static', path='interprete_contextual.js') }}?v=2"></script>
             <script src="{{ url_for('static', path='clasificador_ayuda_clippy.js') }}?v=2"></script>
             <script src="{{ url_for('static', path='catalogo_ayuda_clippy.js') }}?v=4"></script>
-            <script src="{{ url_for('static', path='busqueda_asistida.js') }}?v=18"></script>
+            {% if request.app.state.clippy_sombra.autoriza_extraccion(usuario) %}
+            <script src="{{ url_for('static', path='clippy_apoyo.js') }}?v=1"></script>
+            {% endif %}
+            <script src="{{ url_for('static', path='busqueda_asistida.js') }}?v=19"></script>
+            <script src="{{ url_for('static', path='clippy_chat_plan.js') }}?v=1"></script>
+            <script src="{{ url_for('static', path='clippy_chat.js') }}?v=4"></script>
+            {% if request.app.state.clippy_sombra.autorizado(usuario) and not request.app.state.clippy_sombra.autoriza_extraccion(usuario) %}
+            <script src="{{ url_for('static', path='clippy_sombra.js') }}?v=1"></script>
+            {% endif %}
             {% if usuario["clippy_visible"] %}
             <script src="{{ url_for('static', path='clippy/jquery.min.js') }}"></script>
             <script src="{{ url_for('static', path='clippy/clippy.min.js') }}"></script>

@@ -6,14 +6,14 @@ from urllib.parse import urlencode
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 
-from app.acceso_documentos import condicion_area_documento
 from app.catalogos import CATEGORIAS, DEPARTAMENTOS
-from app.database import conectar, normalizar_texto
+from app.database import conectar
 from app.mensajes import AVISOS
 from app.ordenes_biblioteca import EXPR_FECHA, ORDEN_PREDETERMINADO, ORDENES
 from app.plantillas import templates
 from app.seguridad import requiere_permiso
-from app.utilidades import escapar_like, fecha_valida
+from app.servicios.busqueda_documental import criterios_documentales
+from app.utilidades import fecha_valida
 
 POR_PAGINA = 20
 router = APIRouter()
@@ -49,52 +49,7 @@ def inicio(
         "orden": orden if orden in ORDENES else ORDEN_PREDETERMINADO,
     }
 
-    # Los elementos enviados a la papelera no aparecen en la biblioteca.
-    condiciones = ["eliminado_en IS NULL"]
-    parametros = []
-    condicion_area, parametros_area = condicion_area_documento(request.state.usuario)
-    if condicion_area:
-        condiciones.append(condicion_area)
-        parametros.extend(parametros_area)
-
-    # Búsqueda general: cada palabra debe aparecer en el título, el archivo o la
-    # descripción, sin importar mayúsculas ni acentos.
-    for palabra in normalizar_texto(filtros["buscar"]).split()[:8]:
-        termino = f"%{escapar_like(palabra)}%"
-        condiciones.append(
-            "(normalizar(titulo) LIKE ? ESCAPE '\\' "
-            "OR normalizar(nombre_archivo) LIKE ? ESCAPE '\\' "
-            "OR normalizar(descripcion) LIKE ? ESCAPE '\\')"
-        )
-        parametros.extend([termino, termino, termino])
-
-    if filtros["categoria"]:
-        condiciones.append("categoria = ?")
-        parametros.append(filtros["categoria"])
-
-    if filtros["oficio"]:
-        condiciones.append("normalizar(numero_oficio) LIKE ? ESCAPE '\\'")
-        parametros.append(f"%{escapar_like(normalizar_texto(filtros['oficio']))}%")
-
-    if filtros["departamento"]:
-        condiciones.append("departamento = ?")
-        parametros.append(filtros["departamento"])
-
-    if filtros["autor"]:
-        condiciones.append("normalizar(autor) LIKE ? ESCAPE '\\'")
-        parametros.append(f"%{escapar_like(normalizar_texto(filtros['autor']))}%")
-
-    if filtros["desde"]:
-        condiciones.append(f"{EXPR_FECHA} >= ?")
-        parametros.append(filtros["desde"])
-
-    if filtros["hasta"]:
-        condiciones.append(f"{EXPR_FECHA} <= ?")
-        parametros.append(filtros["hasta"])
-
-    # "donde" y "orden_sql" solo unen textos fijos escritos arriba;
-    # los valores que escribe el usuario van siempre en "parametros".
-    donde = (" WHERE " + " AND ".join(condiciones)) if condiciones else ""
+    donde, parametros = criterios_documentales(request.state.usuario, filtros)
     orden_sql = ORDENES[filtros["orden"]][1]
 
     with conectar() as conexion:

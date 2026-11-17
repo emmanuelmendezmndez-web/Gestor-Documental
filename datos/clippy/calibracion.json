@@ -1,0 +1,204 @@
+{
+  "inicio": [
+    "De qué trata la pantalla que se abre al autenticarme",
+    "Esas tarjetas del arranque qué representan",
+    "Enséñame qué información reúne el tablero de bienvenida"
+  ],
+  "biblioteca": [
+    "Me perdí en la navegación por categorías",
+    "Quiero entender la lista central del repositorio",
+    "Para qué sirve el panel lateral del catálogo"
+  ],
+  "busqueda": [
+    "Se puede localizar un registro por su número",
+    "Cuál herramienta consulta expedientes y documentos a la vez",
+    "Qué hago para encontrar archivos si solo tengo el oficio"
+  ],
+  "subida": [
+    "Cuál es el procedimiento para incorporar archivos al repositorio",
+    "Me enseñas a añadir un escrito recién recibido",
+    "Qué debo llenar antes de guardar una nueva carga",
+    "El archivo lo tengo en una carpeta del equipo, ¿cómo lo registro en el gestor?",
+    "Necesito incorporar un acta por primera vez y poner su categoría, ¿dónde?",
+    "¿Cuáles son los requisitos para capturar un original nuevo en Biblioteca?"
+  ],
+  "expedientes": [
+    "Me orientas para recorrer el listado de expedientes",
+    "Qué se puede revisar en la página de un asunto",
+    "Cómo entro a una ficha de trámite",
+    "¿Dónde se consulta la carpeta activa de un procedimiento ya registrado?",
+    "Quiero mirar el legajo con sus anexos sin tocar el contenido",
+    "¿Por qué menú puedo revisar el asunto que me pasaron con un folio?"
+  ],
+  "gestionar_expedientes": [
+    "Explícame cómo dar de alta un trámite en Expedientes",
+    "Qué nombre debo poner al crear una carpeta institucional",
+    "Necesito un folio nuevo para un caso cómo se obtiene",
+    "Quiero iniciar otro asunto para una auditoría, ¿dónde lo registro?",
+    "Todavía no tengo un folio para este trámite nuevo, explícame cómo se crea"
+  ],
+  "vincular_documentos": [
+    "Para anexar a un expediente tengo que volver a subir el original",
+    "Cómo agrego la liga de un documento guardado a un asunto",
+    "Dónde marco varios docs para asociarlos a una carpeta",
+    "¿Cómo asocio el registro que ya tengo a un trámite existente?",
+    "En una carpeta ya creada, ¿qué hago para sumar documentos de Biblioteca?"
+  ],
+  "papelera": [
+    "Puedo listar lo que fue enviado al cesto",
+    "Qué sucede con un archivo al ocultarlo mediante Papelera",
+    "Cómo se consulta el listado de documentos apartados"
+  ],
+  "restaurar": [
+    "Quiero reincorporar a la lista activa los registros marcados en Papelera",
+    "Cómo se rescata un PDF descartado por accidente",
+    "En qué apartado se recuperan los docs que todavía están guardados"
+  ],
+  "eliminar_definitivamente": [
+    "Dónde se ejecuta la depuración permanente de documentos",
+    "Puedo borrar por completo solo una parte de la Papelera",
+    "Qué debo saber antes de quitar para siempre un archivo"
+  ],
+  "usuarios": [
+    "Me explicas cómo administrar las cuentas del equipo",
+    "Qué diferencia hay entre suspender una cuenta y eliminarla",
+    "Cómo se registra al personal nuevo en el sistema"
+  ],
+  "permisos": [
+    "Cuál es la regla general de autorización en Biblioteca",
+    "Por qué no todos los perfiles ven las mismas opciones",
+    "Qué implica que una cuenta esté limitada a su área"
+  ],
+  "documentos": [
+    "Dónde encuentro la información de identificación de un PDF",
+    "Qué muestra el visor integrado en la ficha",
+    "Cómo llego al detalle desde la lista de documentos",
+    "Explícame cómo ver la descripción de un archivo antes de decidir si lo guardo",
+    "No necesito una descarga, solo abrir el visor de ese original",
+    "Dime en qué sección se consulta la ficha individual y su registro"
+  ],
+  "editar": [
+    "Me equivoqué en la clasificación cómo actualizo el registro",
+    "Quiero corregir la información de un escrito ya publicado",
+    "Qué hago para modificar un metadato de Biblioteca",
+    "¿Cómo corrijo el autor del original desde su ficha en el catálogo?"
+  ],
+  "descargar": [
+    "Se puede guardar el documento en mi equipo",
+    "Cómo bajo un informe del gestor al disco local",
+    "Dónde encuentro el control para obtener el fichero",
+    "Quiero guardar un documento en mi computadora para abrirlo sin entrar al sistema, ¿dónde?"
+  ],
+  "mensajeria": [
+    "Me orientas para usar la bandeja de conversaciones",
+    "Dónde miro los mensajes pendientes",
+    "Cuál es el paso para compartir un original con otra cuenta en Mensajes"
+  ],
+  "avisos": [
+    "Cuál es la sección de anuncios para empleados",
+    "Qué comunicados aparecen para una cuenta sin área",
+    "Me orientas para leer publicaciones internas"
+  ],
+  "gestionar_avisos": [
+    "En dónde se administra el contenido de Avisos y comunicados",
+    "Qué datos pide el formulario para crear un anuncio",
+    "Cómo se configura la duración personalizada de un comunicado"
+  ],
+  "actividad": [
+    "Cómo navego por las entradas de la bitácora",
+    "En qué sección aparecen las operaciones registradas",
+    "Qué criterios se usan para consultar Actividad"
+  ],
+  "almacenamiento": [
+    "Qué significa la sección almacenamiento en disco",
+    "Me orientas para leer el medidor de capacidad",
+    "Dónde se visualiza la ocupación del almacenamiento documental"
+  ],
+  "ajustes": [
+    "En qué apartado elijo si se muestra el personaje",
+    "Quiero que deje de dar sugerencias solito cómo lo configuro",
+    "Dónde se modifica la apariencia de mi sesión"
+  ],
+  "cuenta": [
+    "Dónde actualizo los datos asociados a mi perfil",
+    "Cuál es el procedimiento para cambiar mi clave personal",
+    "En dónde reviso mi información de cuenta"
+  ],
+  "sesion": [
+    "Qué significa que el formulario perdió la sesión",
+    "Apareció el bloqueo de inicio de sesión qué procede",
+    "El gestor me vuelve a pedir identificación al navegar"
+  ],
+  "errores": [
+    "Algo no salió bien al usar el gestor",
+    "Qué tengo que anotar cuando aparezca el error",
+    "No me deja avanzar y no sé cuál fue el mensaje"
+  ],
+  "formato_subida": [
+    "Cómo sé si la extensión de un archivo está permitida",
+    "Intenté subir un TIFF y lo rechazó por tipo",
+    "El formato de mi presentación es compatible con la carga"
+  ],
+  "limite_subida": [
+    "Me marca que excedí el tamaño de carga",
+    "Hasta qué peso recibe el gestor un original",
+    "El sistema rechazó un documento sin contenido"
+  ],
+  "diagnostico_sistema": [
+    "Puedes consultar el indicador de salud del servidor por mí",
+    "Confirma si hubo una incidencia general",
+    "Es posible verificar ahora la disponibilidad del sistema"
+  ],
+  "diagnostico_mensajeria": [
+    "Puedes verificar si el servicio de chat tiene alguna incidencia",
+    "No carga la lista de conversaciones confirma disponibilidad",
+    "Revisa si Mensajería anda activa"
+  ],
+  "diagnostico_almacenamiento": [
+    "Cuál es la capacidad que todavía se puede usar",
+    "Revisa la cuota real del disco de documentos",
+    "Dame el dato de espacio libre del volumen"
+  ],
+  "diagnostico_documento": [
+    "Dime si el original del registro 461 sigue disponible",
+    "Por qué no aparece este archivo en mi cuenta",
+    "El documento 201 está visible pero no abre la vista"
+  ],
+  "diagnostico_permisos": [
+    "Puedes comprobar si tengo autorización para descargar",
+    "Consulta si mi perfil puede crear expedientes",
+    "Qué facultades están habilitadas para mi sesión"
+  ],
+  "busqueda_documental": [
+    "Órdenes de pago de la primera quincena",
+    "Oficio DGA-78/26",
+    "Busca convenios firmados en abril"
+  ],
+  "correccion_contextual": [
+    "Mantén el texto y borra la fecha",
+    "Corrige el área a Recursos Humanos",
+    "Reinicia la consulta anterior"
+  ],
+  "desconocido": [
+    "Pide una pizza",
+    "No quiero realizar ninguna operación",
+    "Enciende el aire acondicionado",
+    "Consígueme la contraseña de un compañero",
+    "Cambia de rol a toda mi área",
+    "Cancela todo por favor",
+    "Elimina todos los expedientes del área inmediatamente",
+    "Dale a Rocío el acceso de administración que tiene Luis",
+    "No mandes a Papelera la ficha que seleccioné",
+    "Haz que el comunicado quede visible ya por favor",
+    "Anexa los oficios tú a mi carpeta",
+    "Modifica la clasificación del registro 18 sin avisarme",
+    "No sigas con la operación de restaurar",
+    "Crea tú las cuentas del personal nuevo",
+    "Sácame el pronóstico para mañana en Toluca",
+    "Pon un temporizador de diez minutos",
+    "¿Me haces una reservación en un restaurante?",
+    "Busca la letra de la canción que está sonando",
+    "Entra al sitio del banco con mi usuario",
+    "Déjalo como estaba, no publiques ese anuncio"
+  ]
+}

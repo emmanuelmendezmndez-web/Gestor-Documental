@@ -1,0 +1,210 @@
+{
+  "inicio": [
+    "Para qué es la pestaña Inicio del menú",
+    "Me orientas en la página donde salen los totales",
+    "No sé desde dónde ir a las secciones frecuentes",
+    "Qué puedo ver sin salir de la pantalla inicial"
+  ],
+  "biblioteca": [
+    "Dónde consulto en conjunto los documentos registrados",
+    "Cómo funciona la clasificación por tipo en Biblioteca",
+    "Qué hace el selector de orden de la lista documental",
+    "No quiero abrir fichas solo recorrer el inventario"
+  ],
+  "busqueda": [
+    "Instrucciones para precisar resultados con fechas y categoría",
+    "No sé qué escribirle al buscador para localizar un archivo",
+    "Cómo funciona la búsqueda de la parte superior",
+    "Existe un modo de buscar con parte del título"
+  ],
+  "subida": [
+    "En qué parte del menú se registra documentación nueva",
+    "Acabo de escanear una constancia cómo la agrego",
+    "Para dar entrada a un documento qué pide el formulario",
+    "Pásame los pasos para cargar un archivo local"
+  ],
+  "expedientes": [
+    "Cómo abro el conjunto documental de un caso",
+    "En qué sección consulto los folios de asuntos registrados",
+    "Dónde reviso las carpetas institucionales",
+    "Puedo navegar entre expedientes sin editar nada"
+  ],
+  "gestionar_expedientes": [
+    "Estoy empezando un trámite dónde se captura su expediente",
+    "Qué debo completar para generar una ficha de asunto nueva",
+    "Muéstrame cómo abrir otra carpeta para un procedimiento",
+    "Dónde está el botón que inicia el registro de un expediente"
+  ],
+  "vincular_documentos": [
+    "Ya existe el archivo en Biblioteca cómo lo integro al caso",
+    "Quiero consultar el procedimiento para adjuntar registros a un expediente",
+    "Cómo se agregan referencias a una ficha de asunto",
+    "Qué hago para que un acta figure en la carpeta del trámite"
+  ],
+  "papelera": [
+    "Quiero inspeccionar lo que ya no está en la colección activa",
+    "Dónde salen los documentos eliminados temporalmente",
+    "Cómo funciona el espacio de descartados del menú",
+    "Qué clase de elementos puedo revisar en Papelera"
+  ],
+  "restaurar": [
+    "Mandé mal un archivo al cesto cómo lo recupero",
+    "Cuál es el procedimiento para reintegrar un documento a la Biblioteca",
+    "Puedo sacar una tanda de registros de la Papelera",
+    "Qué control permite revertir el descarte temporal"
+  ],
+  "eliminar_definitivamente": [
+    "Cómo retiro el original y su registro de manera irreversible",
+    "Quiero entender qué implica vaciar todos los descartados",
+    "Cómo se hace la purga final de una selección de documentos",
+    "Hay una opción para eliminación permanente del material descartado"
+  ],
+  "usuarios": [
+    "Dónde reviso la lista de perfiles registrados por administración",
+    "Cómo se configura el área de un colaborador recién incorporado",
+    "Quiero saber cómo reactivar a una persona dada de baja",
+    "Cuáles son los pasos para crearle acceso a un compañero"
+  ],
+  "permisos": [
+    "Cómo decide el gestor quién puede ver cada archivo",
+    "Dime la diferencia entre rol y departamento en materia de acceso",
+    "Qué quiere decir acceso restringido a usuarios autorizados",
+    "A quién corresponde otorgar privilegios"
+  ],
+  "documentos": [
+    "Puedo consultar la información del archivo antes de bajarlo",
+    "En qué pantalla sale la referencia interna del documento",
+    "Qué secciones trae la ficha documental",
+    "Explícame el modo de previsualización de originales"
+  ],
+  "editar": [
+    "El número de oficio tiene un error cómo lo corrijo",
+    "Dónde puedo editar los datos descriptivos de una constancia",
+    "Cómo actualizo la ficha de un archivo que ya existe",
+    "Puedo cambiar la información del original sin duplicarlo"
+  ],
+  "descargar": [
+    "Quiero conservar una copia del original en mi laptop",
+    "Cómo exporto el archivo tal como se subió",
+    "Cuál es la acción para bajar el documento desde la ficha",
+    "En dónde le pico para descargar un registro"
+  ],
+  "mensajeria": [
+    "Cómo se elige con quién conversar en el gestor",
+    "Qué indica el número verde junto al chat",
+    "Quiero saber cómo abrir mis notificaciones de mensajes",
+    "Cómo mando un adjunto desde una conversación"
+  ],
+  "avisos": [
+    "Qué regla determina los avisos que aparecen en mi portada",
+    "En qué tarjeta se consultan los comunicados vigentes",
+    "Puedo leer anuncios que van para todos",
+    "Dónde miro los avisos que publica administración"
+  ],
+  "gestionar_avisos": [
+    "Quiero difundir un mensaje general desde Inicio cómo se hace",
+    "Dónde se despublica un aviso sin eliminarlo",
+    "Cómo agrego una fecha de término a una publicación existente",
+    "Qué pasos sigo para redactar un comunicado dirigido a un área"
+  ],
+  "actividad": [
+    "Quiero entender la lista de acciones auditadas",
+    "Dónde se revisa el historial administrativo de cambios",
+    "Cómo veo fechas y resultados en el registro",
+    "Para qué sirven los filtros de la bitácora"
+  ],
+  "almacenamiento": [
+    "Cuál tarjeta del panel resume el uso del volumen",
+    "Cómo interpreto los valores de la unidad en el tablero",
+    "Qué son los gigas que aparecen en la tarjeta de capacidad",
+    "En qué zona de Inicio está la gráfica de disco"
+  ],
+  "ajustes": [
+    "Cómo elijo entre claro oscuro y el tema del equipo",
+    "En dónde se cambia el permiso de personalización de Clippy",
+    "Qué botón guarda el modo de color que escogí",
+    "Quiero usar la ayuda manual sin ver el muñeco cómo se hace"
+  ],
+  "cuenta": [
+    "Puedo editar el nombre que ven los compañeros",
+    "Cómo reemplazo mi foto por otra",
+    "Qué pasos sigo para cambiar la contraseña de mi propio usuario",
+    "Dónde aparecen mis datos de contacto para actualizarlos"
+  ],
+  "sesion": [
+    "Me devuelve a la pantalla de acceso cuando intento entrar a Inicio",
+    "No puedo autenticarme porque marca credenciales inválidas",
+    "Cómo recupero el acceso si se venció la sesión del formulario",
+    "Salió un aviso de reingresar al sistema"
+  ],
+  "errores": [
+    "Me topé con un aviso que no entiendo cómo lo reporto",
+    "Parece que tronó una operación pero no tengo más información",
+    "Qué debo compartir para explicar un fallo",
+    "Me marca error y no sé por dónde seguir"
+  ],
+  "formato_subida": [
+    "Sale que el tipo de archivo no es válido",
+    "Se admiten hojas XLSX o CSV al registrar",
+    "Cuál es la lista de extensiones aceptadas",
+    "Mi archivo RAR fue rechazado por la extensión"
+  ],
+  "limite_subida": [
+    "Cuántos MB se permiten por archivo al registrarlo",
+    "Dice que el adjunto pesa más de lo permitido en Subir documento",
+    "Un PDF de cincuenta megas cabe en la carga de Biblioteca",
+    "El archivo está en blanco con tamaño cero qué pasa"
+  ],
+  "diagnostico_sistema": [
+    "Checa en qué estado se encuentra NexusGrid ahorita",
+    "Quisiera saber si el sistema está presentando fallas",
+    "Está fuera de servicio el gestor",
+    "Dame el resultado de la comprobación general"
+  ],
+  "diagnostico_mensajeria": [
+    "Sigue en línea el módulo de conversaciones",
+    "Me interesa saber si está habilitado el chat interno",
+    "Comprueba el servicio de mensajes porque la bandeja no abre",
+    "Mensajería anda fallando puedes consultar su estado"
+  ],
+  "diagnostico_almacenamiento": [
+    "La unidad documental tiene espacio disponible todavía",
+    "Cuántos gigas del almacenamiento están en uso",
+    "Dime qué tanto se llenó el disco hoy",
+    "Comprueba el espacio restante de la unidad"
+  ],
+  "diagnostico_documento": [
+    "Pásame el estado del archivo con registro interno 312",
+    "Puedes comprobar si mi cuenta alcanza a ver el documento 93",
+    "No abre el original de la ficha 615 puedes verificarlo",
+    "Busca si está disponible el registro documental 487"
+  ],
+  "diagnostico_permisos": [
+    "Quiero saber si mi cuenta puede recuperar documentos descartados",
+    "Qué rol está asignado a mi usuario",
+    "Verifica si puedo eliminar definitivamente con mi perfil",
+    "Me puedes decir qué permisos tengo ahora"
+  ],
+  "busqueda_documental": [
+    "Informes trimestrales de infraestructura de 2024",
+    "Encuentra la constancia de entrega recepción de la bodega",
+    "Acuerdos del consejo de junio",
+    "Expediente EXP-ADM-080"
+  ],
+  "correccion_contextual": [
+    "Elimina el criterio de oficio",
+    "En vez de actas pon inventarios",
+    "Cambia el año a 2024 y conserva lo demás",
+    "Deja el departamento y limpia los otros filtros"
+  ],
+  "desconocido": [
+    "Quién ganó el partido de anoche",
+    "Tradúceme esta canción al francés",
+    "Abre la app del banco",
+    "No confirmo esa operación",
+    "Publica el comunicado ahora mismo por mí",
+    "Quiero un pronóstico para el fin de semana",
+    "Baja el brillo de mi monitor",
+    "Escribe un chiste de contadores"
+  ]
+}

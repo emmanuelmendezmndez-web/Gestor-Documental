@@ -18,7 +18,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.asistente import router as router_asistente
-from app.configuracion import APP_DIR, AVISOS_DIR, STORAGE_DIR
+from app.configuracion import APP_DIR, AVISOS_DIR, BASE_DIR, STORAGE_DIR
 from app.csrf import validar_csrf
 from app.database import conectar, inicializar_db
 from app.limite_solicitud import LimitarCuerpo
@@ -38,6 +38,7 @@ from app.seguridad import (
     NoAutenticado,
     obtener_clave_secreta,
 )
+from app.servicios.clippy_sombra import ObservadorSombra
 
 logger = logging.getLogger("gestor")
 
@@ -50,6 +51,8 @@ COOKIE_HTTPS_ONLY = os.environ.get("GESTOR_HTTPS_ONLY", "").strip().lower() in {
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    sombra = ObservadorSombra.desde_entorno(BASE_DIR)
+    app.state.clippy_sombra = sombra
     STORAGE_DIR.mkdir(parents=True, exist_ok=True)
     AVISOS_DIR.mkdir(parents=True, exist_ok=True)
     inicializar_db()
@@ -61,19 +64,23 @@ async def lifespan(app: FastAPI):
             "No hay usuarios registrados. Crea el primero con: python -m app.crear_usuario"
         )
 
-    if not os.environ.get("GESTOR_MENSAJERIA_DIR", "").strip():
-        yield
-        return
-
-    from app.mensajeria.limpieza_adjuntos import vigilar
-
-    detener = asyncio.Event()
-    limpieza = asyncio.create_task(vigilar(detener))
+    sombra.precargar()
     try:
-        yield
+        if not os.environ.get("GESTOR_MENSAJERIA_DIR", "").strip():
+            yield
+            return
+
+        from app.mensajeria.limpieza_adjuntos import vigilar
+
+        detener = asyncio.Event()
+        limpieza = asyncio.create_task(vigilar(detener))
+        try:
+            yield
+        finally:
+            detener.set()
+            await limpieza
     finally:
-        detener.set()
-        await limpieza
+        await asyncio.to_thread(sombra.cerrar)
 
 
 app = FastAPI(title="Gestor Documental", lifespan=lifespan, dependencies=[Depends(validar_csrf)])

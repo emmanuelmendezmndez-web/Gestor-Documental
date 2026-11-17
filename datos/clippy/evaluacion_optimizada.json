@@ -1,0 +1,201 @@
+{
+  "inicio": [
+    "Acabo de acceder, ¿dónde veo el resumen de novedades?",
+    "¿Qué cuenta el recuadro de expedientes en la portada?",
+    "Guíame por las tarjetas que veo al entrar",
+    "¿Para qué son los enlaces cortos de la página de bienvenida?"
+  ],
+  "biblioteca": [
+    "¿Hay una vista de todo el acervo por tipo de archivo?",
+    "Ayúdame a entender la lista de categorías del repositorio",
+    "Quiero recorrer el catálogo institucional sin introducir una consulta"
+  ],
+  "busqueda": [
+    "¿La lupa reconoce el número de un oficio aunque no escriba su título?",
+    "Dime si puedo teclear varias palabras para encontrar un registro",
+    "¿En qué se diferencian la lupa y los filtros que vienen en el catálogo?"
+  ],
+  "subida": [
+    "Recibí un oficio por correo y quiero incorporarlo al gestor, ¿cómo empiezo?",
+    "Registra documentación nueva: dime dónde se hace y qué me van a pedir",
+    "Tengo el original en una USB, ¿cómo lo doy de alta en el sistema?",
+    "K pasos sigo p registrar un escrito desde mi cel",
+    "¿Puedo dar entrada a un oficio si el campo autor queda vacío?",
+    "Oye, ¿cómo ingreso una constancia al acervo por primera vez?"
+  ],
+  "expedientes": [
+    "¿En qué sección puedo ver juntas las piezas de un mismo procedimiento?",
+    "Muéstrame dónde se consultan los legajos que ya están abiertos",
+    "Busco la pantalla de asuntos con folio, nomás para revisar uno",
+    "No necesito generar otro caso, quiero consultar los que existen",
+    "¿Cómo entro al legajo de un procedimiento desde el listado?",
+    "Dónde se revisa lo que integra un asunto que ya tiene folio"
+  ],
+  "gestionar_expedientes": [
+    "Vamos a iniciar el trámite de una obra, ¿cómo le damos de alta su asunto?",
+    "¿Puedo arrancar una carpeta de seguimiento aunque todavía no tenga oficios?",
+    "Indícame qué pide el sistema para asignarme el folio de un asunto nuevo"
+  ],
+  "vincular_documentos": [
+    "Tengo el escrito dado de alta y la carpeta creada; ¿cómo relaciono ambos?",
+    "¿Dónde se marca qué registros del repositorio quedarán asociados al trámite?",
+    "¿Cómo añado un original al asunto sin duplicar el archivo físico?"
+  ],
+  "papelera": [
+    "¿En qué pantalla quedan a la vista las bajas provisionales?",
+    "¿El cesto conserva registros aunque ya no salgan entre los activos?",
+    "Indícame dónde consultar lo que se ha descartado por el momento"
+  ],
+  "restaurar": [
+    "Quiero deshacer la baja de un archivo que todavía está en el cesto, ¿dónde le pico?",
+    "¿Cómo reincorporo los registros descartados sin capturarlos otra vez?",
+    "Devuélveme a la lista activa: dime cuál opción del cesto hace eso"
+  ],
+  "eliminar_definitivamente": [
+    "¿En qué consiste purgar una selección de bajas sin dejar opción a recuperarlas?",
+    "Quisiera saber qué pasa con los originales al vaciar todos los descartes",
+    "Explícame el procedimiento de la baja final de un registro que ya está en el cesto"
+  ],
+  "usuarios": [
+    "Se incorporó una persona al departamento, ¿dónde le habilito un usuario?",
+    "¿Cómo se administra el acceso de alguien que dejó de trabajar aquí?",
+    "Dime en qué pantalla el personal administrador puede restablecer la clave de un colaborador"
+  ],
+  "permisos": [
+    "¿Qué hace que un editor vea botones que un lector no tiene?",
+    "Explícame cómo se combina el perfil de acceso con el área de adscripción",
+    "¿De quién depende habilitar una función que mi perfil no incluye?"
+  ],
+  "documentos": [
+    "Antes de obtener el original, ¿dónde puedo ver de qué trata el escrito?",
+    "Muéstrame dónde salen el oficio y el autor de un archivo que ya está registrado",
+    "¿Cómo llego a la pantalla individual desde el renglón del catálogo?",
+    "Solo quiero revisar la información del PDF en pantalla, sin guardarlo en mi equipo",
+    "¿Dónde está la opción para echarle un ojo al original en línea?",
+    "No necesito modificar el registro, nada más consultar su carátula"
+  ],
+  "editar": [
+    "La fecha capturada en una ficha está mal, ¿dónde se enmienda?",
+    "¿Cómo rectifico el nombre del autor en un archivo registrado?",
+    "Quiero ajustar la clasificación sin volver a dar de alta el original, ¿cuál es la opción?"
+  ],
+  "descargar": [
+    "¿Cómo obtengo el PDF para guardarlo en una memoria USB?",
+    "¿En qué parte de la ficha se pide una copia local del original?",
+    "Nomás quiero bajar el fichero a mi celular, ¿qué botón uso?"
+  ],
+  "mensajeria": [
+    "¿Se puede enviar por una conversación un archivo que ya está en el acervo?",
+    "¿Cómo encuentro un chat que dejé pendiente con mi compañero?",
+    "Guíame para elegir a quién mandarle un mensaje nuevo"
+  ],
+  "avisos": [
+    "¿Qué publicaciones puedo leer aunque mi cuenta no esté adscrita a un área?",
+    "Ubícame los anuncios que se ven en la portada",
+    "¿Por qué en el tablero los compañeros ven comunicados distintos?"
+  ],
+  "gestionar_avisos": [
+    "Necesito que un anuncio se quite después de unos días, ¿dónde fijo eso?",
+    "¿Cómo guardo un borrador de comunicado para que la gente todavía no lo vea?",
+    "¿Qué debo completar para dirigir una publicación a mi departamento?"
+  ],
+  "actividad": [
+    "¿Puedo revisar en qué fecha quedó registrada una operación administrativa?",
+    "Explícame qué se puede consultar en la bitácora de cambios",
+    "¿Cuál es la sección donde aparecen las acciones con su usuario y resultado?"
+  ],
+  "almacenamiento": [
+    "¿Qué significa el valor disponible en la tarjeta del disco?",
+    "¿En qué parte del tablero se ve la gráfica de capacidad de la unidad?",
+    "Oriéntame para interpretar el medidor de ocupación"
+  ],
+  "ajustes": [
+    "¿Cómo dejo de ver el personaje pero conservo el botón para preguntarle?",
+    "Quiero que los colores sigan la configuración del equipo, ¿dónde lo elijo?",
+    "¿Qué opción personal evita que el asistente se acuerde de mis visitas?"
+  ],
+  "cuenta": [
+    "¿Dónde sustituyo la imagen junto a mis iniciales?",
+    "Indícame dónde se corrige mi correo de contacto",
+    "¿Cómo actualizo mi propia clave si todavía recuerdo la anterior?"
+  ],
+  "sesion": [
+    "Se venció mi autenticación en pleno formulario, ¿qué hago?",
+    "Al acceder me pide esperar por varios intentos, ¿cómo sigo?",
+    "Me devolvió a la pantalla de usuario y clave cuando iba a guardar"
+  ],
+  "errores": [
+    "No alcancé a leer el aviso de error, ¿qué información te hace falta?",
+    "Me falló una operación y no anoté dónde, ¿cómo empiezo a revisarlo?",
+    "¿Qué debo copiar del mensaje para explicar una falla al encargado?"
+  ],
+  "formato_subida": [
+    "¿Pasa un archivo ODT en el formulario de alta?",
+    "Al registrar una foto WEBP me rechazaron la extensión",
+    "Me dicen que el tipo no se admite al incorporar una hoja en ODS"
+  ],
+  "limite_subida": [
+    "El original pesa veintisiete megas, ¿está dentro del tope para registrarlo?",
+    "No hay datos dentro del fichero y la carga lo rechaza",
+    "Qué tanto puede pesar una presentación para que entre en la carga documental"
+  ],
+  "diagnostico_sistema": [
+    "¿Puedes confirmar si el servicio general está arriba en este momento?",
+    "¿Hay una incidencia del gestor o es solo esta pantalla? Revisa el estado",
+    "El sistema parece fuera de línea, ¿lo puedes comprobar?"
+  ],
+  "diagnostico_mensajeria": [
+    "¿Se cayó el módulo de conversaciones o todavía responde?",
+    "Comprueba si el chat está disponible, en mi celular no abre",
+    "Hoy no entra a Mensajes, dime si el servicio está activo"
+  ],
+  "diagnostico_almacenamiento": [
+    "¿Cuánto queda disponible en la unidad que guarda los originales?",
+    "Dame los gigas libres que hay ahora para incorporar más documentos",
+    "Antes de subir más archivos checa si el volumen anda lleno"
+  ],
+  "diagnostico_documento": [
+    "El original del registro 482 no me aparece, ¿puedes ver si está disponible?",
+    "Comprueba si mi cuenta todavía tiene a la vista el documento 762",
+    "No se muestra la vista del fichero identificado como registro interno 1105"
+  ],
+  "diagnostico_permisos": [
+    "¿Mi perfil permite enviar un documento a Papelera?",
+    "Checa si mi cuenta está habilitada para administrar las publicaciones",
+    "Dime qué rol me asignaron y qué funciones tengo disponibles"
+  ],
+  "busqueda_documental": [
+    "Convenios de protección civil de septiembre",
+    "Encuentra el oficio DSI-2107/B",
+    "Expediente de mantenimiento del parque industrial"
+  ],
+  "correccion_contextual": [
+    "El periodo que puse está mal, déjalo en febrero",
+    "Mantén mi texto pero sin acotar por oficina",
+    "Cambia únicamente el tipo a certificados"
+  ],
+  "desconocido": [
+    "¿Cómo activo el modo avión del celular?",
+    "Necesito encontrar dónde venden boletos para el concierto",
+    "Pon la grabación del partido de los Pumas",
+    "Recomiéndame un camión que vaya al centro",
+    "¿Sabes a cuánto cerró el dólar hoy?",
+    "No borres la ficha ni la muevas del expediente",
+    "Dale de baja a Karla de una vez",
+    "Vincula estos tres oficios al caso por tu cuenta",
+    "Publica el cartel para toda la oficina, sin pedirme confirmación",
+    "Modifica el título del archivo 56 tú",
+    "Vacía el cesto ahorita, yo me hago cargo",
+    "Da de alta a la directora y ponle permisos máximos",
+    "Quita la contraseña de mi compañero",
+    "No quiero que publiques el aviso que preparé",
+    "Descarga el archivo a mi USB tú",
+    "Haz un expediente nuevo con esos documentos",
+    "Restaura todos los registros que quité ayer",
+    "No confirmo que se dé de baja el original",
+    "No subas la presentación todavía",
+    "¿Puedes traducirme el menú de un restaurante?",
+    "Pon mi celular en silencio",
+    "No cambies ninguna preferencia de mi perfil"
+  ]
+}
