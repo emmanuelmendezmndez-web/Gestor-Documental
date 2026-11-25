@@ -2,6 +2,7 @@
 
 import argparse
 import os
+import signal
 import socket
 import sqlite3
 import time
@@ -137,6 +138,31 @@ def _vigilar(servidor, detener, fin, resultado, proxy, proceso, ruta, navegador,
                 print("El navegador no se abrió automáticamente. Use la dirección indicada.", flush=True)
 
 
+class ServidorNexusGrid(uvicorn.Server):
+    drenaje_completo = False
+
+    async def _wait_tasks_to_complete(self):
+        # Uvicorn 0.54 cancela esta espera si vence el plazo y continúa con lifespan.
+        await super()._wait_tasks_to_complete()
+        self.drenaje_completo = not self.force_exit
+
+
+def _ejecutar_servidor(servidor, socket_local):
+    """Devuelve True solo para un SIGINT reemitido después del cierre limpio."""
+    try:
+        servidor.run(sockets=[socket_local])
+    except KeyboardInterrupt:
+        # Uvicorn 0.54 restaura el manejador de asyncio y reemite las señales.
+        # shutdown_event también se activa si falla lifespan: verificar ambos estados.
+        if (not servidor.started or servidor._captured_signals != [signal.SIGINT]
+                or servidor.force_exit or not servidor.drenaje_completo or not servidor.lifespan.shutdown_event.is_set()
+                or servidor.lifespan.error_occurred or servidor.lifespan.shutdown_failed
+                or servidor.server_state.connections or servidor.server_state.tasks):
+            raise
+        return True
+    return False
+
+
 def _servir(socket_local, detener, navegador, puerto, host=HOST, *, beta=False):
     from app.coordinacion import BloqueoDatos, BloqueoNoDisponible
 
@@ -199,7 +225,7 @@ def _servir(socket_local, detener, navegador, puerto, host=HOST, *, beta=False):
             def confirmar_arranque():
                 return Response(status_code=204, headers={"Cache-Control": "no-store", "X-SIGED-Arranque": marca})
 
-        servidor = uvicorn.Server(uvicorn.Config(
+        servidor = ServidorNexusGrid(uvicorn.Config(
             app, host=host, port=puerto, workers=1, proxy_headers=bool(proxy),
             forwarded_allow_ips=HOST if proxy else "", log_level="warning", access_log=False,
             timeout_graceful_shutdown=12, **opciones,
@@ -210,11 +236,14 @@ def _servir(socket_local, detener, navegador, puerto, host=HOST, *, beta=False):
                             args=(servidor, detener, fin, resultado, proxy, proceso, ruta, navegador, puerto, host, beta))
         vigilancia.start()
         try:
-            servidor.run(sockets=[socket_local])
+            interrumpido = _ejecutar_servidor(servidor, socket_local)
         finally:
             fin.set()
             vigilancia.join(timeout=15)
-        return int(resultado["error"] or (not resultado["listo"] and not detener()))
+        if (servidor.force_exit or (servidor.started and not servidor.drenaje_completo)
+                or servidor.lifespan.error_occurred or servidor.lifespan.shutdown_failed):
+            return 1
+        return int(resultado["error"] or (not interrumpido and not resultado["listo"] and not detener()))
     finally:
         proteccion.close()
         proxy_siged.detener(proceso)

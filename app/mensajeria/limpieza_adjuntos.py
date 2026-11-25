@@ -7,6 +7,7 @@ import os
 import re
 import sqlite3
 from contextlib import contextmanager
+from datetime import UTC, datetime
 
 from app.mensajeria import disco, motor
 from app.mensajeria.adjuntos import _ruta, _seguridad
@@ -16,6 +17,10 @@ from app.mensajeria.reconciliacion import _vinculo
 logger = logging.getLogger("gestor.mensajeria")
 _LOTE = 16
 _REINTENTO = 60
+_CODIGOS_REVISION = frozenset({
+    "almacenamiento_adjunto_no_disponible", "identidad_no_reconciliada", "referencia_invalida",
+    "reloj_retrocedio", "zona_horaria_incompatible", "zona_horaria_no_disponible",
+})
 
 
 @contextmanager
@@ -148,13 +153,25 @@ def _sin_evidencia(db, zona):
 
 async def vigilar(detener):
     """Una revisión inicial y una por minuto mientras exista el servidor."""
+    fallos = 0
     while not detener.is_set():
         try:
             resultado = await asyncio.to_thread(limpiar)
+        except motor.ErrorMotor as error:
+            fallos += 1
+            codigo = error.args[0] if len(error.args) == 1 else None
+            if not isinstance(codigo, str) or codigo not in _CODIGOS_REVISION:
+                codigo = "error_motor_no_catalogado"
+            logger.warning("Mensajería: revisión de adjuntos aplazada fecha=%s pid=%d codigo=%s fallos=%d",
+                           datetime.now(UTC).isoformat(timespec="seconds"), os.getpid(), codigo, fallos)
+        else:
+            if fallos:
+                logger.warning("Mensajería: revisión de adjuntos recuperada tras %d fallos", fallos)
+                fallos = 0
             if resultado["aplazados"] or resultado["sin_evidencia"]:
                 logger.warning("Mensajería: revisión con objetos aplazados o sin evidencia")
-        except motor.ErrorMotor:
-            logger.warning("Mensajería: revisión de adjuntos aplazada")
+            else:
+                logger.info("Mensajería: revisión de adjuntos completada")
         try:
             await asyncio.wait_for(detener.wait(), timeout=60)
         except TimeoutError:

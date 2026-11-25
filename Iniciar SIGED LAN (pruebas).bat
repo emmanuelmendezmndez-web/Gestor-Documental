@@ -15,8 +15,8 @@ rem * habilita todas las cuentas autenticadas. Tambien admite una lista de IDs.
 if not defined NEXUSGRID_CLIPPY_SPACY_USUARIOS set "NEXUSGRID_CLIPPY_SPACY_USUARIOS=*"
 
 "%PYTHON%" -m app.arranque --beta-lan %*
-if errorlevel 1 (
-    echo SIGED BETA LAN no pudo iniciarse. Revise el mensaje anterior.
+if not "%errorlevel%"=="0" (
+    echo El lanzador LAN termino con un error. Revise el mensaje anterior.
     pause
     exit /b 1
 )

@@ -27,9 +27,9 @@ if not defined NEXUSGRID_CLIPPY_SPACY_USUARIOS set "NEXUSGRID_CLIPPY_SPACY_USUAR
 
 "%PYTHON%" -m app.arranque --beta-local %*
 
-if errorlevel 1 (
+if not "%errorlevel%"=="0" (
     echo.
-    echo El servidor se detuvo con un error. Revisa el mensaje anterior.
+    echo El lanzador local termino con un error. Revise el mensaje anterior.
     pause
     exit /b 1
 )

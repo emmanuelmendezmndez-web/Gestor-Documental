@@ -68,7 +68,7 @@ class ArranqueTest(unittest.TestCase):
         with (patch.dict(os.environ, {arranque.ACTIVACION: "1", "GESTOR_HTTPS_ONLY": "1"}),
               patch("app.coordinacion.BloqueoDatos"),
               patch.object(arranque, "_preparar", side_effect=proxy_siged.ProxyNoDisponible("Falta Caddy")),
-              patch.object(arranque.uvicorn, "Server") as servidor):
+              patch.object(arranque, "ServidorNexusGrid") as servidor):
             self.assertEqual(arranque._servir(None, lambda: False, False, 8000), 1)
             servidor.assert_not_called()
 
@@ -102,7 +102,7 @@ class ArranqueTest(unittest.TestCase):
             patch.object(arranque, "_preparar", return_value=proxy),
             patch.object(proxy_siged, "verificar_tls"),
             patch("app.seguridad.obtener_clave_secreta", return_value="ficticia"),
-            patch.object(arranque.uvicorn, "Server") as servidor,
+            patch.object(arranque, "ServidorNexusGrid") as servidor,
             patch.object(arranque, "Thread"),
         ):
             arranque._servir(None, lambda: False, False, 8000)
