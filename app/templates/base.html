@@ -353,8 +353,8 @@
             <script src="{{ url_for('static', path='clippy_apoyo.js') }}?v=1"></script>
             {% endif %}
             <script src="{{ url_for('static', path='busqueda_asistida.js') }}?v=19"></script>
-            <script src="{{ url_for('static', path='clippy_chat_plan.js') }}?v=8"></script>
-            <script src="{{ url_for('static', path='clippy_chat.js') }}?v=9"></script>
+            <script src="{{ url_for('static', path='clippy_chat_plan.js') }}?v=9"></script>
+            <script src="{{ url_for('static', path='clippy_chat.js') }}?v=10"></script>
             {% if request.app.state.clippy_sombra is defined and request.app.state.clippy_sombra.autorizado(usuario) and not request.app.state.clippy_sombra.autoriza_extraccion(usuario) %}
             <script src="{{ url_for('static', path='clippy_sombra.js') }}?v=1"></script>
             {% endif %}

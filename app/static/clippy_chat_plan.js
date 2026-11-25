@@ -331,21 +331,35 @@
     const formatos = "pdfs?|docx|xlsx|pptx";
     const cantidadLista = numero+"(?:\\s+(?:o|u)\\s+"+numero+")?";
     const cabeceraLista = new RegExp("^(?:(?:el|la|los|las)\\s+)?(?:("+ordinal+")\\s+)?(?:("+cantidadLista+")\\s+)?(?:("+ordinal+")\\s+)?("+unidades+"|"+formatos+")\\b(?:\\s+(m[aá]s\\s+(?:recientes?|antigu[oa]s?|viej[oa]s?)))?", "iu");
-    const cambioLista = new RegExp("^mejor\\s+(?:(?:los|las)\\s+)?("+numero+")\\s+(?:m[aá]s\\s+)?(recientes?|antigu[oa]s?|viej[oa]s?|"+ordinal+")$", "iu");
+    const marcaOrden = "(?:recientes?|antigu[oa]s?|viej[oa]s?|"+ordinal+")";
+    const cambioLista = new RegExp("^(?:(?:mejor(?:\\s+solo)?|solo)\\s+(?:(?:el|la|los|las)\\s+)?|(?:los|las)\\s+)(?:("+numero+")\\b(?:\\s+(?:resultados?|documentos?))?)?(?:\\s*(?:m[aá]s\\s+)?("+marcaOrden+"))?$", "iu");
     const opcionesOrden = ["registro_desc","registro_asc"];
     const direccionLista = marca => /ultimo|reciente/.test(norm(marca)) ? opcionesOrden[0] : opcionesOrden[1];
     const valorCantidad = palabra => /^\d+$/.test(palabra) ? Number(palabra) : cantidades.findIndex(c=>norm(c)===norm(palabra));
+
+    function ajustarLista(texto, anterior) {
+        if (!anterior) return null;
+        const cambio=limpio(sinCortesia(texto)).match(cambioLista);
+        if (!cambio || (!cambio[1] && !cambio[2])) return null;
+        const ajustes={};
+        if (cambio[1]) {
+            const n=valorCantidad(cambio[1]);
+            if (n<1 || n>20) return {tipo:"mensaje",texto:"Puedo mostrar entre 1 y 20 documentos."};
+            ajustes.limite=String(n);
+        }
+        if (cambio[2]) ajustes.orden=direccionLista(cambio[2]);
+        return {...anterior,tipo:"buscar",correccion:true,filtros:{...anterior.filtros,...ajustes},
+            dudas:anterior.dudas.filter(duda=>!Object.hasOwn(ajustes,duda.tipo))};
+    }
 
     function evaluarCoherencia(texto, previo, opts, apoyo, plan) {
         const aviso = texto => ({tipo:"mensaje",texto});
         const hallazgo = (codigos,decision,propuesta) => ({codigos,decision,propuesta});
         const pet = limpiarPeticion(texto);
-        const cambio = previo && limpio(pet).match(cambioLista);
-        if (cambio) {
-            const n = valorCantidad(cambio[1]);
-            if (n<1 || n>20) return hallazgo(["limite_fuera_rango"],"explicar",aviso("Puedo mostrar entre 1 y 20 documentos."));
-            return hallazgo(["orden_cantidad_contextual"],"corregir",{tipo:"buscar",correccion:true,dudas:[],filtros:{...previo,orden:direccionLista(cambio[2]),limite:String(n)}});
-        }
+        const ajuste=previo && ajustarLista(texto,{filtros:previo,dudas:[]});
+        if (ajuste) return ajuste.tipo==="mensaje"
+            ? hallazgo(["limite_fuera_rango"],"explicar",ajuste)
+            : hallazgo(["orden_cantidad_contextual"],"corregir",ajuste);
         if (plan.tipo!=="buscar" || plan.correccion) return null;
         const titulo = referenciaTitulo(pet);
         const exterior = titulo?.resto ?? pet;
@@ -416,6 +430,6 @@
         }
         return null;
     }
-    root.sigedPlanClippy={resolver,fechaLocal,limpiarPeticion,validar,elegirLista};
+    root.sigedPlanClippy={resolver,fechaLocal,limpiarPeticion,validar,elegirLista,ajustarLista};
 })(globalThis);
 

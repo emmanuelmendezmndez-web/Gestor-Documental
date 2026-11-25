@@ -199,6 +199,15 @@
         const duda=plan.dudas[0];
         if (!duda) return null;
         const valor = respuesta.trim().toLowerCase();
+        const ajuste=window.sigedPlanClippy.ajustarLista(respuesta,plan);
+        if (ajuste) return ajuste;
+        const esFecha=d=>/fecha|rango|anio/.test(d.tipo);
+        if (/^quita(?:r)? (?:la |las )?fechas?[.!?]?$/.test(valor) && plan.dudas.some(esFecha)) {
+            const filtros={...plan.filtros};
+            delete filtros.desde;
+            delete filtros.hasta;
+            return {...plan,filtros,dudas:plan.dudas.filter(d=>!esFecha(d)),correccion:true};
+        }
         if (duda.tipo === "proposito" && /^(?:s[ií]|buscar|busca(?:lo|los)?|consultar|consulta(?:lo|los)?)[.!]?$/i.test(valor)) {
             return {...plan, dudas:plan.dudas.slice(1), correccion:true};
         }
@@ -223,7 +232,7 @@
             return desde && hasta && desde<=hasta
                 ? {...plan,filtros:{...plan.filtros,desde,hasta},dudas:plan.dudas.slice(1),correccion:true} : null;
         }
-        if (!elegida && /fecha|rango|anio/.test(duda.tipo)) {
+        if (!elegida && esFecha(duda) && window.sigedPlanClippy.limpiarPeticion(valor)===valor.replace(/[?!.]+$/, "")) {
             const texto=respuesta.replace(/^mejor\s+(?:del?\s+)?/i,"");
             const d=opts.detallar(texto,opts.categorias,opts.areas);
             if (d.filtros.desde && d.filtros.hasta && !d.filtros.buscar && !d.dudas.length) {
@@ -302,6 +311,7 @@
                 aclarar(pendientes); return;
             }
             const anterior=pendientes?.filtros || filtros;
+            if (plan?.tipo==="mensaje" && pendientes) { turno(plan.texto); return; }
             pendientes=null;
             if (!plan) {
                 etapa(trabajo,"Interpretando solicitud");
