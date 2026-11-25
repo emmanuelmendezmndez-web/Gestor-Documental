@@ -26,7 +26,7 @@
         ['almacenamiento', /\b(?:almacenamiento|disco|espacio libre|capacidad)\b/],
         ['ajustes', /\b(?:ajustes|preferencias|tema|modo oscuro|clippy|habitos)\b/],
         ['cuenta', /\b(?:mi cuenta|mi perfil|mi contrasena|foto de perfil)\b/],
-        ['sesion', /\b(?:sesion|credenciales|iniciar sesion|caduc\w+)\b/],
+        ['sesion_general', /\b(?:sesion|credenciales)\b/],
         ['errores', /\b(?:error|problema|fallo)\b/]
     ];
     const acciones = [
@@ -64,9 +64,24 @@
         }
         return null;
     }
+    function ayudaSesion(texto) {
+        const consultaDocumento = /^(?:(?:me )?(?:puedes|podrias|ayudas a) )?(?:busc\w*|localiz\w*|muestr\w*|ense\w*|encuentr\w*)\b.*\b(?:manual|guia|documentos?|archivos?|instructivo|oficio)\b/;
+        if (consultaDocumento.test(texto)) return null;
+        const credencial = /\b(?:contrasena|clave|password)\b/.test(texto);
+        if (credencial && (/\b(?:olvide|olvidada|olvidado|no recuerdo|no me acuerdo|perdi|se me olvido)\b/.test(texto) ||
+                (/\b(?:recuper\w*|restablec\w*|reinici\w*)\b/.test(texto) && /\b(?:mi|mi acceso|para entrar|para ingresar)\b/.test(texto)))) {
+            return 'contrasena_olvidada';
+        }
+        if (/\bsesion\b/.test(texto) && /\b(?:caduc\w*|expir\w*|venc\w*)\b/.test(texto)) return 'sesion';
+        if (/\b(?:(?:cerr\w*|cierr\w*|termin\w*|finaliz\w*) (?:de |la |mi )?sesion|(?:salgo|salir|salga|desconectarme|desconecto) (?:de |del )?(?:mi cuenta|sesion|gestor)|logout)\b/.test(texto)) return 'cerrar_sesion';
+        if (/\b(?:inici\w* (?:la |mi )?sesion|(?:entr\w*|ingres\w*|acced\w*) (?:a |en )mi cuenta|login)\b/.test(texto)) return 'iniciar_sesion';
+        return null;
+    }
     function clasificar(entrada, contexto = {}, interpretar = contextual) {
         if (typeof entrada !== 'string' || !entrada.trim()) return {tipo:'aclaracion', motivo:'entrada_vacia', alternativas:['ayuda','busqueda']};
-        const texto = normalizar(entrada);
+        const texto = normalizar(entrada).replace(/^(?:(?:oye|ey|clippy|clipy|hola) )+/, '');
+        const sesion = ayudaSesion(texto);
+        if (sesion) return {tipo:'ayuda', tema:sesion};
         // El contexto vacío permite reconocer también órdenes que requieren aclaración.
         const estado = contexto?.estado || {filtros:{}};
         if (typeof interpretar === 'function') {
@@ -79,10 +94,27 @@
         if (/\b(?:archivo (?:demasiado grande|vacio)|supera (?:el )?(?:maximo|limite)|cuanto puede pesar)\b/.test(texto)) {
             return {tipo:'ayuda', tema:'limite_subida'};
         }
+        const pideTotal = !/^(?:como|por que)\b/.test(texto) &&
+            /\b(?:cuantos|cuantas|total|cantidad)\b|^cuenta\b/.test(texto) &&
+            !/\b(?:puedo|puede|permite|admite)\b/.test(texto);
+        if (pideTotal) {
+            if (/\b(?:documentos|archivos|oficios|actas|contratos|informes|pdfs?)\b/.test(texto)) {
+                return {tipo:'ayuda', tema:'conteo_documentos'};
+            }
+            if (/\b(?:expedientes|usuarios|mensajes|avisos|comunicados|registros)\b/.test(texto)) {
+                return {tipo:'ayuda', tema:'conteo_no_disponible'};
+            }
+        }
         const comprobacion = diagnostico(texto);
         if (comprobacion) return comprobacion;
-        const explicita = /^(?:como|por que|cual es|cuales son|donde|que|necesito ayuda|ayuda|puedo|puede|se puede|explicame|dime como|me puedes explicar)\b/.test(texto);
-        if (!explicita) return {tipo:'busqueda_documental'};
+        const explicita = /^(?:como|por que|para que|cual es|cuales son|donde|que|necesito ayuda|ayuda|puedo|puede|se puede|es posible|explicame|dime como|me explicas|(?:me )?puedes explicar)\b/.test(texto);
+        if (!explicita) {
+            const documental = /^(?:(?:el|la|los|las|un|una|mis) )?(?:documentos?|archivos?|contratos?|actas?|informes?|oficios?|certificados?|inventarios?|bitacoras?|comunicados?|folios?|expedientes?)\b/.test(texto);
+            const consulta = /^(?:busca(?:r|me)?|localiza(?:r|me)?|encuentra(?:me)?|ubica(?:r|me)?)\b/.test(texto);
+            const referencia = /\b[\w-]+\.(?:pdf|docx?|xlsx?|pptx?|txt|csv|jpe?g|png|webp|zip)\b|\b[a-z]{2,12}[-/]\d+[-/][a-z0-9-]+\b/i.test(entrada);
+            return documental || consulta || referencia ? {tipo:'busqueda_documental'}
+                : {tipo:'aclaracion', motivo:'intencion_ambigua', alternativas:['ayuda','busqueda']};
+        }
         const hallados = temas.filter(([, regla]) => regla.test(texto)).map(([tema]) => tema);
         if (hallados.includes('permisos')) return {tipo:'ayuda', tema:'permisos'};
         // «Recuperar de la papelera» y «vincular a un expediente» son un solo propósito.

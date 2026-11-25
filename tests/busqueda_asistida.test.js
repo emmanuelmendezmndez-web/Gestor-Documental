@@ -263,7 +263,7 @@ test('limpiar, reiniciar y consulta nueva tienen ciclos distintos', () => {
 test('reglas actuales de interpretación, incluidas ambigüedades', () => {
     const { interpretar } = iniciar();
     const casos = [
-        ['', {}], ['documento', { buscar: 'documento' }],
+        ['', {}], ['documento', {}],
         ['Contratos de Obras Públicas de marzo de 2025', { departamento: 'Obras Públicas', categoria: 'Contratos', desde: '2025-03-01', hasta: '2025-03-31' }],
         ['ACTAS de Tesorería', { departamento: 'Tesorería', categoria: 'Actas' }],
         ['oficio OF-123/2026', { oficio: 'of-123/2026' }],
@@ -640,15 +640,18 @@ test('los casos sin cambios deliberados siguen coincidiendo con las reglas anter
     const viejo = anterior.module.exports(categorias, areas);
     const actual = { window: {}, Date: Fecha };
     vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'app', 'static', 'interprete_busqueda.js'), 'utf8'), actual);
-    const consultas = ['', '   ', 'documento', '%%%_@',
+    const consultas = ['', '   ',
         'contratos de Obras Públicas marzo 2025', 'contrato de alumbrado del año pasado',
         'certificados Tesorería', 'inventarios recursos humanos',
-        'informe febrero 2024', 'informe febrero 2023', 'oficios sin número', 'archivo documentos',
+        'informe febrero 2024', 'informe febrero 2023', 'oficios sin número',
         'café-público / foo_bar', 'x'.repeat(250), 'TESORERIA', 'oficio número A-1'];
     for (const consulta of consultas) {
         const esperado = JSON.parse(JSON.stringify(viejo(consulta)));
         const obtenido = JSON.parse(JSON.stringify(actual.window.sigedInterpretarBusqueda(consulta, categorias, areas)));
         assert.deepEqual(obtenido, esperado, consulta);
+    }
+    for (const consulta of ['documento', '%%%_@', 'archivo documentos']) {
+        assert.deepEqual(Object.keys(actual.window.sigedInterpretarBusqueda(consulta, categorias, areas)), [], consulta);
     }
 });
 

@@ -40,6 +40,7 @@ class ObservadorSombra:
         self._reintentar = 0.0
         self._estado_minilm = "cargando"
         self._siguiente_sondeo = 0.0
+        self._diagnostico = {"fase": "pendiente"}
 
     @classmethod
     def desde_entorno(cls, raiz: Path):
@@ -72,8 +73,19 @@ class ObservadorSombra:
 
     def extraer(self, texto, *, chat=False):
         futuro = Future()
+        with self._estado:
+            disponible = not self._cerrado and monotonic() >= self._reintentar
+            cargando = self._estado_minilm == "cargando"
+        if not disponible or (chat and cargando):
+            futuro.set_result({"_analisis": {"estado": "cargando" if disponible else "no_disponible"}})
+            return futuro
         tipo = "chat" if chat else "extraccion"
         return futuro if self._iniciar_trabajo(texto, tipo=tipo, futuro=futuro) else None
+
+    def diagnostico_modelo(self):
+        estado = self.estado_modelo()
+        with self._estado:
+            return {**self._diagnostico, "estado": estado}
 
     def autorizado(self, usuario):
         return bool(self.usuarios and usuario and usuario["rol"] == "admin" and usuario["id"] in self.usuarios)
@@ -130,7 +142,7 @@ class ObservadorSombra:
 
     def _enviar(self, texto, tipo, futuro):
         proceso = None
-        resultado = None
+        resultado = {"_analisis": {"estado": "no_disponible", "motivo": "trabajador_no_disponible"}}
         try:
             with self._estado:
                 if self._cerrado or monotonic() < self._reintentar:
@@ -151,17 +163,26 @@ class ObservadorSombra:
             mensaje = {"id": uuid4().hex, "texto": texto, "tipo": tipo}
             proceso.stdin.write(json.dumps(mensaje, ensure_ascii=True).encode("ascii") + b"\n")
             proceso.stdin.flush()
-            respuesta = proceso.stdout.readline(65536)
+            linea = proceso.stdout.readline(65536)
+            if not linea.endswith(b"\n"):
+                raise OSError("Respuesta incompleta del trabajador")
+            respuesta = json.loads(linea)
+            if not isinstance(respuesta, dict) or respuesta.get("id") != mensaje["id"] or "datos" not in respuesta:
+                raise ValueError("Respuesta del trabajador fuera de secuencia")
+            datos = respuesta["datos"]
             if tipo == "estado":
-                estado = json.loads(respuesta)
-                if not isinstance(estado, str) or estado not in ESTADOS_MINILM:
+                if not isinstance(datos, dict) or datos.get("estado") not in ESTADOS_MINILM:
                     raise ValueError("Estado de MiniLM inválido")
                 with self._estado:
                     if self._proceso is proceso:
-                        self._estado_minilm = estado
-            elif futuro is not None and respuesta.endswith(b"\n"):
-                resultado = json.loads(respuesta)
-            elif respuesta != b"ok\n":
+                        self._estado_minilm = datos["estado"]
+                        self._diagnostico = datos
+            elif futuro is not None and isinstance(datos, dict):
+                if not isinstance(datos.get("_analisis"), dict):
+                    raise ValueError("Diagnóstico del trabajador inválido")
+                resultado = datos
+                resultado["_analisis"]["solicitud_id"] = mensaje["id"]
+            elif datos is not None:
                 raise OSError("Proceso de Clippy interrumpido")
         except (OSError, ValueError):
             with self._estado:

@@ -15,6 +15,14 @@ window.sigedInterpretarBusqueda = (() => {
     };
     const ultimoDia = (anio, mes) => new Date(anio, mes + 1, 0);
     const consumir = (texto, coincidencia) => texto.slice(0, coincidencia.index) + " " + texto.slice(coincidencia.index + coincidencia[0].length);
+    const areasAmbiguas = new Set(["archivos", "otro"]);
+
+    function mencionArea(area, texto) {
+        const nombre = area.texto.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const explicito = "\\b(?:departamento|area)(?:\\s+(?:de\\s+)?|\\s*:\\s*)";
+        const contexto = areasAmbiguas.has(area.texto) ? explicito : "(?:" + explicito + "|(?<![\\p{L}\\p{N}]))";
+        return new RegExp(contexto + nombre + "(?![\\p{L}\\p{N}])", "u").exec(texto);
+    }
 
     function extraerFechas(texto, hoy) {
         let restante = texto;
@@ -47,11 +55,14 @@ window.sigedInterpretarBusqueda = (() => {
             let d, problema;
             if (m[1]) d = fecha(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
             else if (Number(m[4]) <= 12 && Number(m[5]) <= 12) {
-                problema = "La fecha numérica es ambigua; elige su interpretación.";
                 const primera = fecha(Number(m[6]), Number(m[5]) - 1, Number(m[4]));
                 const segunda = fecha(Number(m[6]), Number(m[4]) - 1, Number(m[5]));
                 const opciones = [...new Set([primera, segunda].filter(Boolean).map(formatos))];
-                if (opciones.length > 1) dudas.push({tipo:"fecha_numerica", opciones});
+                if (opciones.length === 1) d = primera || segunda;
+                if (opciones.length > 1) {
+                    problema = "La fecha numérica es ambigua; elige su interpretación.";
+                    dudas.push({tipo:"fecha_numerica", opciones});
+                }
             }
             else d = fecha(Number(m[6]), Number(m[5]) - 1, Number(m[4]));
             registrar(m, d, d, problema); numerica.lastIndex = 0;
@@ -113,17 +124,21 @@ window.sigedInterpretarBusqueda = (() => {
         const nombres = areas.map(nombre => ({ nombre, texto: normalizar(nombre) }));
         // Solo alias institucionales inequívocos y presentes en el catálogo.
         const aliasArea = [[/\b(?:rr\.?\s*hh\.?|recursos humanos)\b/, "Recursos Humanos"], [/\b(?:obras publicas)\b/, "Obras Públicas"]];
-        const encontrados = nombres.filter(area => new RegExp(`(?:^|[^\\p{L}\\p{N}])${area.texto.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=$|[^\\p{L}\\p{N}])`, "u").test(restante));
-        for (const [regla, nombre] of aliasArea) if (areas.includes(nombre) && regla.test(restante) && !encontrados.some(a => a.nombre === nombre)) encontrados.push({nombre, texto: normalizar(nombre), regla});
-        if (encontrados.length === 1) {
-            filtros.departamento = encontrados[0].nombre;
-            restante = restante.replace(encontrados[0].regla || encontrados[0].texto, " ");
-        } else if (encontrados.length > 1) {
+        const encontrados = new Map(nombres
+            .map(area => [area.nombre, mencionArea(area, restante)])
+            .filter(([, mencion]) => mencion));
+        for (const [regla, nombre] of aliasArea) {
+            const mencion = regla.exec(restante);
+            if (mencion && areas.includes(nombre) && !encontrados.has(nombre)) encontrados.set(nombre, mencion);
+        }
+        if (encontrados.size === 1) {
+            filtros.departamento = encontrados.keys().next().value;
+        } else if (encontrados.size > 1) {
             avisos.push("Se mencionan varias áreas; elige el departamento manualmente.");
-            dudas.push({tipo:"area", opciones:encontrados.map(area => area.nombre)});
-            for (const area of encontrados) restante = restante.replace(area.regla || area.texto, " ");
+            dudas.push({tipo:"area", opciones:[...encontrados.keys()]});
             restante = restante.replace(/\b(?:y|o)\b/g, " ");
         }
+        for (const [, mencion] of encontrados) restante = restante.replace(mencion[0], " ");
         const detectadas = categoriasReglas.filter(([regla, nombre]) => categorias.includes(nombre) && new RegExp(regla.source).test(restante));
         if (detectadas.length === 1) { filtros.categoria = detectadas[0][1]; restante = restante.replace(detectadas[0][0], " "); }
         else if (detectadas.length > 1) {
@@ -142,15 +157,17 @@ window.sigedInterpretarBusqueda = (() => {
         }
         if (fechas.avisos.length && !fechas.dudas.length) fechas.dudas.push({tipo:"fecha_manual"});
         Object.assign(filtros, fechas.fechas); avisos.push(...fechas.avisos); dudas.push(...fechas.dudas);
-        if (!filtros.departamento && encontrados.length === 0 && areas.includes("Obras Públicas") && /\bobras\b/.test(restante)) {
+        if (!filtros.departamento && encontrados.size === 0 && areas.includes("Obras Públicas") && /\bobras\b/.test(restante)) {
             dudas.push({tipo:"obras", area:"Obras Públicas"});
             avisos.push("“Obras” podría ser el tema o el departamento; elige si deseas filtrar por área.");
         }
         if (fechas.avisos.length) restante = restante.replace(/\b(?:y|o|a|al)\b/g, " ");
-        restante = restante.replace(/\b(?:quiero|encontrar|buscar|busca|busco|muestrame|dame|necesito|los|las|el|la|un|una|unos|unas|de|del|en|por|para|sobre|que|se|registrado|registrada|registrados|registradas|este|ano|pasado|documento|documentos|archivo|archivos|oficio|oficios|expediente|expedientes)\b/g, " ");
+        restante = restante.replace(/\b(?:quiero|encontrar|buscar|busca|busco|muestrame|dame|necesito|los|las|el|la|un|una|unos|unas|de|del|en|por|para|sobre|que|se|registrad[oa]s?|este|ano|pasado|documentos?|archivos?|ficheros?|oficios?|expedientes?)\b/g, " ");
+        if (Object.keys(fechas.fechas).length || fechas.dudas.length) {
+            restante = restante.replace(/\b(?:fechad[oa]s?|con fecha|a fecha)\b/g, " ");
+        }
         const terminos = restante.replace(/[^\p{L}\p{N}\s-]/gu, " ").replace(/\s+/g, " ").trim();
-        if (terminos) filtros.buscar = terminos.slice(0, 200);
-        if (!Object.keys(filtros).length && texto && !avisos.length && !expediente) filtros.buscar = texto.slice(0, 200);
+        if (/[\p{L}\p{N}]/u.test(terminos)) filtros.buscar = terminos.slice(0, 200);
         return { filtros, avisos, expediente: expediente ? expediente[0] : null, dudas };
     }
     function interpretar(entrada, categorias, areas) { return detallar(entrada, categorias, areas).filtros; }

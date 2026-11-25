@@ -92,14 +92,26 @@ def preparar_log():
     return logger
 
 
-def iniciar_modelo(extraccion):
+def iniciar_modelo(extraccion, diagnostico):
     futuro = Future()
 
     def cargar():
+        inicio = perf_counter()
+        diagnostico["fase"] = "minilm"
+        resultado = None
         try:
-            futuro.set_result(MotorSombra(extraccion=extraccion))
-        except Exception:  # noqa: BLE001 - spaCy y las reglas siguen disponibles
-            futuro.set_result(None)
+            resultado = MotorSombra(extraccion=extraccion)
+            diagnostico["minilm_ms"] = round((perf_counter() - inicio) * 1000, 2)
+            diagnostico["fase"] = "preparando"
+            preparacion = perf_counter()
+            resultado.tematico.interpretar("Preparación de Clippy.")
+            diagnostico["calentamiento_ms"] = round((perf_counter() - preparacion) * 1000, 2)
+        except Exception as error:  # noqa: BLE001 - spaCy y las reglas siguen disponibles
+            resultado = None
+            diagnostico["motivo"] = "error_carga_" + type(error).__name__
+        finally:
+            diagnostico.setdefault("minilm_ms", round((perf_counter() - inicio) * 1000, 2))
+        futuro.set_result(resultado)
 
     try:
         Thread(target=cargar, daemon=True, name="carga-minilm").start()
@@ -113,7 +125,13 @@ def procesar(canal):
     motor = None
     extraccion = None
     carga_chat = None
+    inicio_carga = perf_counter()
+    diagnostico = {"fase": "pendiente"}
     funcional = os.environ.get("NEXUSGRID_CLIPPY_SPACY_FUNCIONAL") == "1"
+    def responder(solicitud, datos):
+        canal.write(json.dumps({"id": solicitud["id"], "datos": datos}, ensure_ascii=True).encode("ascii") + b"\n")
+        canal.flush()
+
     for linea in sys.stdin.buffer:
         solicitud = json.loads(linea)
         if solicitud.get("tipo") == "estado":
@@ -121,21 +139,27 @@ def procesar(canal):
             if motor is not None or (carga_chat is not None and carga_chat.done()):
                 disponible = (motor is not None or carga_chat.result() is not None)
                 estado = "listo" if disponible and extraccion is not None and extraccion.extractor is not None else "no_disponible"
-            canal.write(json.dumps(estado).encode("ascii") + b"\n")
-            canal.flush()
+            responder(solicitud, {**diagnostico, "estado": estado,
+                                 "fase": estado if estado != "cargando" else diagnostico["fase"],
+                                 "carga_ms": round((perf_counter() - inicio_carga) * 1000, 2)})
             continue
         if solicitud.get("tipo") == "precarga":
             if funcional and carga_chat is None and motor is None:
+                inicio_carga = perf_counter()
+                diagnostico["fase"] = "spacy"
                 try:
                     extraccion = cargar_extraccion(MODELOS)
-                except Exception:  # noqa: BLE001 - las reglas del navegador quedan disponibles
+                except Exception as error:  # noqa: BLE001 - las reglas del navegador quedan disponibles
                     extraccion = None
-                carga_chat = iniciar_modelo(extraccion)
-            canal.write(b"ok\n")
-            canal.flush()
+                    diagnostico["motivo"] = "error_spacy_" + type(error).__name__
+                diagnostico["spacy_ms"] = round((perf_counter() - inicio_carga) * 1000, 2)
+                carga_chat = iniciar_modelo(extraccion, diagnostico)
+            responder(solicitud, None)
             continue
         if solicitud.get("tipo") in {"extraccion", "chat"}:
+            inicio = perf_counter()
             respuesta = None
+            analisis = {"estado": "no_disponible", "motivo": "extraccion_no_disponible"}
             if funcional:
                 try:
                     if extraccion is None:
@@ -146,18 +170,29 @@ def procesar(canal):
                     respuesta = None
                 if respuesta is not None and solicitud.get("tipo") == "chat":
                     if motor is None and carga_chat is None:
-                        carga_chat = iniciar_modelo(extraccion)
+                        inicio_carga = perf_counter()
+                        carga_chat = iniciar_modelo(extraccion, diagnostico)
                     if motor is None and carga_chat.done():
                         motor = carga_chat.result()
                     if motor is not None:
                         try:
                             tema = motor.tematico.interpretar(solicitud["texto"])
+                            analisis = {"estado": "aceptada" if tema.motivo == "aceptada" else "abstencion",
+                                        "motivo": tema.motivo, "candidata": tema.candidata,
+                                        "puntuacion": tema.puntuacion, "margen": tema.margen}
                             if tema.motivo == "aceptada":
                                 respuesta["_intencion"] = tema.intencion
                         except Exception:  # noqa: BLE001 - la extracción permanece disponible
                             respuesta.pop("_intencion", None)
-            canal.write(json.dumps(respuesta, ensure_ascii=True).encode("ascii") + b"\n")
-            canal.flush()
+                            analisis = {"estado": "no_disponible", "motivo": "fallo_inferencia"}
+                    else:
+                        analisis = {"estado": "no_disponible" if carga_chat.done() else "cargando",
+                                    "motivo": diagnostico.get("motivo", "modelo_cargando")}
+                elif respuesta is not None:
+                    analisis = {"estado": "extraccion", "motivo": "reglas_spacy"}
+            respuesta = respuesta or {}
+            respuesta["_analisis"] = {**analisis, "inferencia_ms": round((perf_counter() - inicio) * 1000, 2)}
+            responder(solicitud, respuesta)
             continue
         if logger is None:
             logger = preparar_log()
@@ -175,8 +210,7 @@ def procesar(canal):
                            version_modo=getattr(motor, "version_modo", None),
                            latencia_ms={"total": (perf_counter()-inicio)*1000})
         logger.info(json.dumps(entrada, ensure_ascii=False))
-        canal.write(b"ok\n")
-        canal.flush()
+        responder(solicitud, None)
         if motor is None:
             return 1
     return 0

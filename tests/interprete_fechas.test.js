@@ -60,7 +60,14 @@ test('ambigüedad y contradicción producen aviso sin filtro temporal', () => {
     assert.ok(varias.avisos.length);
     assert.equal(evaluar('contrato de obras de alumbrado').filtros.departamento, undefined);
     assert.deepEqual(evaluar('').filtros, {});
-    assert.deepEqual(evaluar('%%%').filtros, {buscar:'%%%'});
+    assert.deepEqual(evaluar('%%%').filtros, {});
+});
+
+test('un sustantivo común necesita un marcador para seleccionar el área Archivos', () => {
+    const evaluar = motor();
+    assert.deepEqual(evaluar('busca archivos sobre capacitación').filtros, {buscar:'capacitacion'});
+    assert.deepEqual(evaluar('informes del departamento de Archivos').filtros, {categoria:'Informes', departamento:'Archivos'});
+    assert.deepEqual(evaluar('actas del área:Archivos').filtros, {categoria:'Actas', departamento:'Archivos'});
 });
 
 test('las dudas guiadas describen opciones sin decidir por el usuario', () => {
@@ -76,4 +83,12 @@ test('las dudas guiadas describen opciones sin decidir por el usuario', () => {
     assert.equal(obras.filtros.buscar, 'obras');
     assert.deepEqual(evaluar('informes de Tesorería enero de 2026').dudas, []);
     assert.deepEqual(evaluar('').dudas, []);
+});
+
+test('una fecha numérica equivalente en ambos órdenes se aplica sin aclaración', () => {
+    const evaluar=motor();
+    for (const [texto, dia] of [['05/05/2025','2025-05-05'],['07.07.2025','2025-07-07']]) {
+        assert.deepEqual(evaluar(texto).filtros,{desde:dia,hasta:dia});
+        assert.deepEqual(evaluar(texto).dudas,[]);
+    }
 });

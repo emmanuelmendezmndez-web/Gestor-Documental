@@ -22,7 +22,11 @@
     const enviar = formulario.querySelector("button");
     const opciones = window.sigedOpcionesBusqueda || {};
     const config = window.sigedClippyConfig || {};
-    const resolver = window.sigedPlanClippy.resolver;
+    function resolver(texto,previo,opts,apoyo) {
+        const motor=window.sigedPlanClippy;
+        const plan=motor.resolver(texto,previo,opts,apoyo);
+        return motor.validar(texto,previo,opts,apoyo,plan,true,datos=>console.debug("Clippy coherencia",datos));
+    }
     const capacidades = {ver:config.puedeVer, ver_expedientes:config.puedeVerExpedientes,
         gestionar_expedientes:config.puedeGestionarExpedientes, subir:config.puedeSubir, usuarios:config.puedeUsuarios,
         actividad:config.puedeActividad, papelera:config.puedePapelera, restaurar:config.puedeRestaurar,
@@ -135,7 +139,7 @@
     function tarjetas(datos) {
         const docs = datos.documentos;
         const contenido = turno(docs.length === 0 ? "No encontré documentos con esos criterios. Puedes ajustar la búsqueda." :
-            (datos.hay_mas ? "Estos son los primeros 20 resultados. Añade un criterio para acotar la búsqueda." :
+            (datos.hay_mas && docs.length > 1 ? "Estos son los primeros " + docs.length + " resultados. Añade un criterio para acotar la búsqueda." :
                 docs.length === 1 ? "Encontré un documento." : "Encontré " + docs.length + " documentos."), false, docs.length > 0);
         if (!docs.length) return;
         const lista = elemento("ul", "chat-resultados");
@@ -168,6 +172,7 @@
         mantenerPosicion();
     }
     function opcionesDuda(d) {
+        if (d.tipo==="orden" || d.tipo==="limite") return d.opciones.map(valor=>({[d.tipo]:valor}));
         if (d.tipo==="fecha_numerica" || d.tipo==="fechas_multiples") {
             return (d.opciones || []).map(f=>typeof f==="string"?{desde:f,hasta:f}:f);
         }
@@ -182,6 +187,8 @@
     }
     const formatoFecha = new Intl.DateTimeFormat("es-MX", { dateStyle: "long", timeZone: "UTC" });
     function nombreOpcion(x) {
+        if (x.orden) return x.orden==="registro_asc"?"Más antiguos":"Más recientes";
+        if (x.limite) return x.limite;
         if (x.desde) {
             const desde = formatoFecha.format(new Date(x.desde + "T00:00:00Z"));
             return x.desde === x.hasta ? desde : desde + " a " + formatoFecha.format(new Date(x.hasta + "T00:00:00Z"));
@@ -192,10 +199,16 @@
         const duda=plan.dudas[0];
         if (!duda) return null;
         const valor = respuesta.trim().toLowerCase();
+        if (duda.tipo === "proposito" && /^(?:s[ií]|buscar|busca(?:lo|los)?|consultar|consulta(?:lo|los)?)[.!]?$/i.test(valor)) {
+            return {...plan, dudas:plan.dudas.slice(1), correccion:true};
+        }
         let elegida = opcionesDuda(duda).find(opcion =>
             nombreOpcion(opcion).toLowerCase() === valor ||
             (opcion.desde && (opcion.desde === opcion.hasta ? opcion.desde : opcion.desde + " a " + opcion.hasta) === valor)
         );
+        if (!elegida && (duda.tipo==="orden" || duda.tipo==="limite")) {
+            elegida=window.sigedPlanClippy.elegirLista(duda,valor);
+        }
         if (!elegida && (duda.tipo==="mes_sin_anio" || duda.tipo==="rango_sin_anio") && /^(?:19|20)\d{2}$/.test(respuesta.trim())) {
             const year=Number(respuesta.trim());
             const inicio=duda.inicio || {mes:duda.mes,dia:1};
@@ -222,7 +235,13 @@
     function aclarar(plan) {
         pendientes=plan;
         const d=plan.dudas[0];
-        const mensaje=d.tipo==="area"?"¿Qué departamento quieres consultar?":
+        const identificados = Object.entries(plan.filtros).filter(([, valor]) => valor).map(([campo, valor]) =>
+            ({folio:"folio", registro:"registro", departamento:"departamento", oficio:"oficio", desde:"desde", hasta:"hasta"}[campo] || campo) + " " + valor
+        ).join(", ");
+        const mensaje=d.tipo==="proposito"?"Identifiqué " + identificados + ". ¿Quieres buscar documentos con estos criterios? Puedes responder «buscar» o indicar qué necesitas.":
+            d.tipo==="orden"?"¿Quieres los documentos más recientes o los más antiguos?":
+            d.tipo==="limite"?"¿Cuántos documentos quieres ver, "+d.opciones.join(" o ")+"?":
+            d.tipo==="area"?"¿Qué departamento quieres consultar?":
             d.tipo==="categoria"?"¿Qué categoría quieres buscar?":d.tipo==="obras"?"¿Obras es el tema o el departamento?":
             ["mes_sin_anio","rango_sin_anio"].includes(d.tipo)?"¿De qué año es el periodo?":
             "¿Qué fecha o intervalo quieres usar?";
@@ -239,11 +258,22 @@
     }
     async function interpretar(texto,trabajo) {
         if (dialogo.dataset.apoyo!=="1" || !token) return null;
+        const solicitud = new AbortController();
+        const cancelar = () => solicitud.abort();
+        trabajo.signal.addEventListener("abort", cancelar, {once:true});
+        const plazo = setTimeout(cancelar, 1200);
         try {
             const r=await fetch("/asistente/interpretar?chat=true",{method:"POST",credentials:"same-origin",cache:"no-store",
-                headers:{"Content-Type":"application/json","X-CSRF-Token":token},body:JSON.stringify({texto}),signal:trabajo.signal});
+                headers:{"Content-Type":"application/json","X-CSRF-Token":token},body:JSON.stringify({texto}),signal:solicitud.signal});
+            dialogo.dataset.interpretacion = r.headers.get("X-Clippy-Estado") || "no_disponible";
             return r.status===200 && !r.redirected?await r.json():null;
-        } catch { return null; }
+        } catch {
+            if (!trabajo.signal.aborted) dialogo.dataset.interpretacion = solicitud.signal.aborted ? "tiempo_agotado" : "sin_conexion";
+            return null;
+        } finally {
+            clearTimeout(plazo);
+            trabajo.signal.removeEventListener("abort", cancelar);
+        }
     }
     async function consultar(ruta, trabajo, etapaResultados = false) {
         const r=await fetch(ruta,{credentials:"same-origin",cache:"no-store",signal:trabajo.signal});
@@ -275,9 +305,13 @@
             pendientes=null;
             if (!plan) {
                 etapa(trabajo,"Interpretando solicitud");
-                const apoyo=await interpretar(texto,trabajo);
-                if (activo!==trabajo) return;
-                plan=resolver(texto,anterior,opts,apoyo);
+                plan=resolver(texto,anterior,opts,null);
+                dialogo.dataset.interpretacion = "reglas";
+                if (plan.consultar_modelo) {
+                    const apoyo=await interpretar(texto,trabajo);
+                    if (activo!==trabajo) return;
+                    if (apoyo) plan=resolver(texto,anterior,opts,apoyo);
+                }
             }
             if (plan.tipo==="reiniciar") {
                 filtros=null; turno("Listo. ¿Qué quieres buscar ahora?"); return;
@@ -298,6 +332,7 @@
                 if (activo===trabajo) turno(d.mensaje);
                 return;
             }
+            if (!plan.correccion) filtros=null;
             if (plan.correccion) etapa(trabajo,"Corrigiendo parámetros");
             if (plan.dudas.length) { aclarar({...plan,texto:plan.texto||texto}); return; }
             if (plan.expediente) {
@@ -317,11 +352,14 @@
             if (activo===trabajo && !trabajo.signal.aborted) turno(error instanceof TypeError?"No pude conectar. Inténtalo de nuevo.":error.message);
         } finally { terminar(trabajo); }
     }
-    function mostrarModelo(estado) {
-        if (modelo.dataset.estado === estado) return;
+    function mostrarModelo(estado, detalle = {}) {
+        if (modelo.dataset.estado === estado && modelo.dataset.fase === detalle.fase) return;
         modelo.dataset.estado = estado;
+        modelo.dataset.fase = detalle.fase || "";
         modelo.hidden = false;
-        modelo.textContent = mensajesModelo[estado];
+        modelo.textContent = estado === "cargando" && detalle.fase === "spacy"
+            ? "Preparando spaCy… Clippy puede seguir ayudando con sus reglas locales."
+            : mensajesModelo[estado];
     }
     function detenerSondeoModelo() {
         clearTimeout(sondeoModelo);
@@ -336,18 +374,19 @@
         const consulta = new AbortController();
         consultaModelo = consulta;
         let estado = "sin_conexion";
+        let detalle = {};
         try {
             const r = await fetch("/asistente/estado-modelo", {cache:"no-store", signal:consulta.signal});
             if (r.ok && !r.redirected) {
                 const datos = await r.json();
-                if (Object.hasOwn(mensajesModelo, datos.estado)) estado = datos.estado;
+                if (Object.hasOwn(mensajesModelo, datos.estado)) { estado = datos.estado; detalle = datos; }
             }
         } catch {
             // El chat conserva su alternativa local, aunque falle el sondeo.
         }
         if (consultaModelo !== consulta || !dialogo.open) return;
         consultaModelo = null;
-        mostrarModelo(estado);
+        mostrarModelo(estado, detalle);
         const intervalo = estado === "cargando" ? 3000 : 15000;
         sondeoModelo = setTimeout(actualizarModelo, intervalo);
     }

@@ -23,6 +23,9 @@ test('solicita aclaración para múltiples temas o intención poco clara', () =>
     assert.equal(clasificar('Cómo subir y buscar documentos').tipo, 'aclaracion');
     assert.deepEqual(clasificar('¿Cómo?'), {tipo:'aclaracion', motivo:'intencion_ambigua', alternativas:['ayuda','busqueda']});
     assert.equal(clasificar('').motivo, 'entrada_vacia');
+    assert.equal(clasificar('La mesa quedó afuera').tipo, 'aclaracion');
+    assert.equal(clasificar('¿Para qué sirve el indicador del panel principal?').tema, 'inicio');
+    assert.equal(clasificar('Me explicas cómo previsualizar un PDF').tema, 'documentos');
 });
 test('clasificación no modifica estado ni aplica propuestas', () => {
     const ctx = {estado:{filtros:{categoria:'Contratos', departamento:'Tesorería'}, manuales:['departamento']}, areas:['Tesorería'], categorias:['Contratos']};

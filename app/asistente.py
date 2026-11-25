@@ -9,6 +9,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse
 
+from app.acceso_documentos import filtro_area_documento
 from app.catalogos import CATEGORIAS, DEPARTAMENTOS
 from app.database import conectar
 from app.ordenes_biblioteca import ORDEN_PREDETERMINADO, ORDENES
@@ -64,7 +65,7 @@ def estado_modelo(request: Request, response: Response):
     if not sombra.autoriza_extraccion(request.state.usuario):
         raise HTTPException(status_code=404, detail="No encontrado.")
     response.headers["Cache-Control"] = "private, no-store"
-    return {"estado": sombra.estado_modelo()}
+    return sombra.diagnostico_modelo()
 
 
 @router.post("/interpretar", include_in_schema=False)
@@ -76,18 +77,30 @@ async def interpretar_consulta(request: Request, chat: bool = False):
     texto = await _leer_texto_asistente(request)
     futuro = sombra.extraer(texto, chat=chat)
     cabeceras = {"Cache-Control": "private, no-store"}
+    estado = "ocupado"
     if futuro is not None:
+        estado = "no_disponible"
         try:
             menciones = await wait_for(shield(wrap_future(futuro)), timeout=0.7)
         except TimeoutError:
             menciones = None
+            estado = "tiempo_agotado"
         if menciones is not None:
+            analisis = menciones.pop("_analisis", {}) if isinstance(menciones, dict) else {}
+            estado = analisis.get("estado", "no_disponible")
+            cabeceras["X-Clippy-Estado"] = estado
+            if not isinstance(menciones, dict) or not all(
+                clave in menciones for clave in ("folios", "fechas", "departamentos", "referencias", "negaciones")
+            ):
+                return Response(status_code=204, headers=cabeceras)
             intencion = menciones.pop("_intencion", None) if chat and isinstance(menciones, dict) else None
             propuestas = preparar_propuestas(texto, menciones, usuario)
             if propuestas is not None:
                 if isinstance(intencion, str):
                     propuestas["intencion"] = intencion
+                propuestas["analisis"] = analisis
                 return JSONResponse(propuestas, headers=cabeceras)
+    cabeceras["X-Clippy-Estado"] = estado
     return Response(status_code=204, headers=cabeceras)
 
 
@@ -104,6 +117,8 @@ def buscar_documentos_chat(
     hasta: Annotated[date | None, Query()] = None,
     registro: Annotated[int | None, Query(ge=1, le=10**18 - 1)] = None,
     folio: Annotated[str, Query(max_length=60, pattern=r"^(?:[A-Za-z0-9][A-Za-z0-9/-]{0,59})?$")] = "",
+    orden: Annotated[str, Query(max_length=30)] = ORDEN_PREDETERMINADO,
+    limite: Annotated[int, Query(ge=1, le=20)] = 20,
 ):
     usuario = request.state.usuario
     response.headers["Cache-Control"] = "private, no-store"
@@ -115,20 +130,22 @@ def buscar_documentos_chat(
         raise HTTPException(status_code=403, detail="Tu cuenta no puede consultar ese departamento.")
     if desde and hasta and desde > hasta:
         raise HTTPException(status_code=422, detail="La fecha de inicio es posterior a la fecha final.")
+    if orden not in ORDENES:
+        raise HTTPException(status_code=422, detail="Orden desconocido.")
     filtros = {"buscar": buscar.strip(), "categoria": categoria, "departamento": departamento,
                "oficio": oficio.strip(), "autor": autor.strip(), "desde": desde.isoformat() if desde else "", "hasta": hasta.isoformat() if hasta else ""}
-    if not any(filtros.values()) and registro is None and not folio:
+    if not any(filtros.values()) and registro is None and not folio and orden == ORDEN_PREDETERMINADO:
         raise HTTPException(status_code=422, detail="Indica al menos un criterio de búsqueda.")
     donde, parametros = criterios_documentales(usuario, filtros, registro=registro, folio=folio)
     with conectar() as db:
         filas = db.execute(
-            f"SELECT id, titulo, nombre_archivo, departamento FROM documentos{donde} ORDER BY {ORDENES[ORDEN_PREDETERMINADO][1]} LIMIT 21",
-            parametros,
+            f"SELECT id, titulo, nombre_archivo, departamento FROM documentos{donde} ORDER BY {ORDENES[orden][1]} LIMIT ?",
+            [*parametros, limite + 1],
         ).fetchall()
     descargar = "descargar" in PERMISOS.get(usuario["rol"], set())
-    return {"usuario_id": usuario["id"], "hay_mas": len(filas) > 20, "documentos": [
+    return {"usuario_id": usuario["id"], "hay_mas": len(filas) > limite, "documentos": [
         {"id": str(fila["id"]), "titulo": fila["titulo"], "extension": Path(fila["nombre_archivo"]).suffix.lower(),
-         "departamento": fila["departamento"], "descargar": descargar} for fila in filas[:20]
+         "departamento": fila["departamento"], "descargar": descargar} for fila in filas[:limite]
     ]}
 
 
@@ -156,7 +173,31 @@ def diagnostico(
     return {"usuario_id": usuario["id"], "mensaje": mensaje}
 
 
-def _filtros_seguros(datos: dict, usuario: dict) -> dict[str, str]:
+def _filtro_expediente_habito(usuario):
+    """Limita las sugerencias de expedientes a los vínculos visibles para la cuenta."""
+    if "ver_expedientes" not in PERMISOS.get(usuario["rol"], set()):
+        return " AND 0", []
+    filtro_area, parametros = filtro_area_documento(usuario, "d.")
+    if not filtro_area:
+        return "", []
+    # Los expedientes sin vínculos conservan su disponibilidad general.
+    return (
+        " AND (NOT EXISTS (SELECT 1 FROM expediente_documentos WHERE expediente_id = e.id) "
+        "OR EXISTS (SELECT 1 FROM expediente_documentos ed JOIN documentos d ON d.id = ed.documento_id "
+        "WHERE ed.expediente_id = e.id AND d.eliminado_en IS NULL" + filtro_area + "))",
+        parametros,
+    )
+
+
+def _id_expediente_habito(valor):
+    if isinstance(valor, str) and 1 <= len(valor) <= 12 and valor.isascii() and valor.isdecimal():
+        valor = int(valor)
+    return valor if type(valor) is int and 1 <= valor <= 999_999_999_999 else None
+
+
+def _filtros_seguros(datos: object, usuario: dict) -> dict[str, str]:
+    if not isinstance(datos, dict):
+        return {}
     filtros = {}
     for clave in CLAVES_FILTRO:
         valor = datos.get(clave)
@@ -170,12 +211,16 @@ def _filtros_seguros(datos: dict, usuario: dict) -> dict[str, str]:
             if usuario["rol"] != "admin" and valor != usuario.get("departamento"):
                 continue
         if clave in {"desde", "hasta"}:
-            from datetime import date
             try:
                 date.fromisoformat(valor)
             except ValueError:
                 continue
-        filtros[clave] = valor[:200 if clave == "buscar" else 60]
+        valor = valor[:200 if clave == "buscar" else 60]
+        try:
+            valor.encode("utf-8")
+        except UnicodeEncodeError:
+            continue
+        filtros[clave] = valor
     return filtros
 
 
@@ -185,28 +230,36 @@ def registrar_habito(request: Request, datos: Annotated[dict, Body()]):
     usuario = request.state.usuario
     if not usuario["clippy_habitos"]:
         return {"guardado": False}
+    valor_recibido = datos.get("valor")
+    es_seccion = isinstance(valor_recibido, str) and valor_recibido in SECCIONES
+    condicion = ""
+    parametros = []
     if tipo == "busqueda":
-        filtros = _filtros_seguros(datos.get("filtros", {}) if isinstance(datos.get("filtros"), dict) else {}, usuario)
+        filtros = _filtros_seguros(datos.get("filtros"), usuario)
         if not filtros:
             return {"guardado": False}
         valor = json.dumps(filtros, sort_keys=True, ensure_ascii=False)
-    elif tipo == "seccion" and datos.get("valor") in SECCIONES:
-        valor = datos["valor"]
-    elif tipo == "rutina" and datos.get("valor") in SECCIONES and type(datos.get("hora")) is int and 0 <= datos["hora"] <= 23:
-        valor = f"{datos['hora']}:{datos['valor']}"
-    elif tipo == "expediente" and str(datos.get("valor", "")).isdigit() and len(str(datos["valor"])) <= 12:
-        valor = str(int(datos["valor"]))
-        with conectar() as conexion:
-            if conexion.execute("SELECT 1 FROM expedientes WHERE id = ?", (valor,)).fetchone() is None:
-                return {"guardado": False}
+    elif tipo == "seccion" and es_seccion:
+        valor = valor_recibido
+    elif tipo == "rutina" and es_seccion and type(datos.get("hora")) is int and 0 <= datos["hora"] <= 23:
+        valor = f"{datos['hora']}:{valor_recibido}"
+    elif tipo == "expediente":
+        expediente_id = _id_expediente_habito(valor_recibido)
+        if expediente_id is None:
+            return {"guardado": False}
+        valor = str(expediente_id)
+        filtro, parametros_area = _filtro_expediente_habito(usuario)
+        condicion = " AND EXISTS (SELECT 1 FROM expedientes e WHERE e.id = ?" + filtro + ")"
+        parametros = [expediente_id, *parametros_area]
     else:
         return {"guardado": False}
     with conectar() as conexion:
         cambio = conexion.execute(
             "INSERT INTO asistente_habitos (usuario_id, tipo, valor) "
-            "SELECT id, ?, ? FROM usuarios WHERE id = ? AND activo = 1 AND clippy_habitos = 1 "
-            "ON CONFLICT(usuario_id, tipo, valor) DO UPDATE SET veces = veces + 1, ultima_vez = CURRENT_TIMESTAMP",
-            (tipo, valor, usuario["id"]),
+            "SELECT id, ?, ? FROM usuarios WHERE id = ? AND activo = 1 AND clippy_habitos = 1"
+            + condicion
+            + " ON CONFLICT(usuario_id, tipo, valor) DO UPDATE SET veces = veces + 1, ultima_vez = CURRENT_TIMESTAMP",
+            (tipo, valor, usuario["id"], *parametros),
         )
     return {"guardado": cambio.rowcount == 1}
 
@@ -246,12 +299,14 @@ def preferencias(request: Request, response: Response, hora: int | None = None):
                 "AND substr(valor, 1, instr(valor, ':') - 1) = ? ORDER BY veces DESC LIMIT 1",
                 (usuario["id"], str(hora)),
             ).fetchone()
+        filtro_expediente, parametros_expediente = _filtro_expediente_habito(usuario)
         expediente = conexion.execute(
             "SELECT e.id, e.folio, e.titulo FROM asistente_habitos h "
             "JOIN expedientes e ON e.id = CAST(h.valor AS INTEGER) "
-            "WHERE h.usuario_id = ? AND h.tipo = 'expediente' "
-            "ORDER BY h.ultima_vez DESC LIMIT 1",
-            (usuario["id"],),
+            "WHERE h.usuario_id = ? AND h.tipo = 'expediente'"
+            + filtro_expediente
+            + " ORDER BY h.ultima_vez DESC LIMIT 1",
+            (usuario["id"], *parametros_expediente),
         ).fetchone()
         entrada_anterior = conexion.execute(
             "SELECT CAST(julianday('now') - julianday(fecha) AS INTEGER) FROM actividad "
@@ -261,7 +316,11 @@ def preferencias(request: Request, response: Response, hora: int | None = None):
         ).fetchone()
     habituales = []
     for fila in filas:
-        filtros = _filtros_seguros(json.loads(fila["valor"]), usuario)
+        try:
+            datos = json.loads(fila["valor"])
+        except (ValueError, TypeError, RecursionError):
+            continue
+        filtros = _filtros_seguros(datos, usuario)
         if filtros and filtros not in habituales:
             habituales.append(filtros)
         if len(habituales) == 3:

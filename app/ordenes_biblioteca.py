@@ -14,6 +14,8 @@ EXPR_EXTENSION = (
 # diccionario; nunca se inserta directamente en la consulta.
 ORDENES = {
     "reciente": ("Recién subidos", "id DESC"),
+    "registro_desc": ("Fecha de registro (más recientes)", "julianday(fecha_subida) DESC, id DESC"),
+    "registro_asc": ("Fecha de registro (más antiguos)", "julianday(fecha_subida) ASC, id ASC"),
     "fecha_desc": ("Fecha del documento (más recientes)", f"{EXPR_FECHA} DESC, id DESC"),
     "fecha_asc": ("Fecha del documento (más antiguos)", f"{EXPR_FECHA} ASC, id ASC"),
     "titulo_asc": ("Título (A-Z)", "normalizar(titulo) ASC, id DESC"),
